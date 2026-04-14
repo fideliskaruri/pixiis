@@ -20,6 +20,31 @@ QWidget {
     outline: none;
 }
 
+/* ── Universal Focus Ring (console-style selection indicator) ──────────── */
+/* Every interactive widget gets a visible accent ring when focused via     */
+/* D-pad or keyboard. This is the core of the console navigation UX.       */
+
+QPushButton:focus,
+QToolButton:focus,
+QComboBox:focus,
+QLineEdit:focus,
+QTextEdit:focus,
+QPlainTextEdit:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QSlider:focus,
+QCheckBox:focus,
+QRadioButton:focus,
+QTreeView:focus,
+QListView:focus,
+QTableView:focus,
+QTabBar::tab:selected,
+QGroupBox:focus,
+QScrollArea:focus {
+    border: 2px solid {{accent}};
+    border-radius: {{border_radius}}px;
+}
+
 QFrame {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 {{primary}}, stop:1 {{primary_pressed}});

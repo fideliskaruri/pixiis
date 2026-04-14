@@ -49,6 +49,13 @@ class _SortPill(QWidget):
         self.setMinimumWidth(60)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+        else:
+            super().keyPressEvent(event)
 
     def isChecked(self) -> bool:  # noqa: N802
         return self._checked

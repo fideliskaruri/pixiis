@@ -188,6 +188,10 @@ class TileGrid(QScrollArea):
 
         if new_idx is not None:
             self._tiles[new_idx].setFocus()
+        else:
+            # At grid boundary — let the event propagate so D-pad can
+            # escape the grid and move focus to other UI elements
+            event.ignore()
 
     # ── Internal ────────────────────────────────────────────────────────────
 
@@ -195,17 +199,35 @@ class TileGrid(QScrollArea):
         for i, tile in enumerate(self._tiles):
             if tile.app is app:
                 self._focused_index = i
-                self._smooth_scroll_to(tile)
+                self._scroll_to_tile(tile)
                 break
 
-    def _smooth_scroll_to(self, widget: QWidget) -> None:
-        """Ensure *widget* is visible with a smooth scroll animation."""
-        y = widget.mapTo(self._container, widget.rect().topLeft()).y()
-        bar = self.verticalScrollBar()
-        viewport_h = self.viewport().height()
+    def _scroll_to_tile(self, widget: QWidget) -> None:
+        """Smoothly scroll so *widget* is fully visible in the viewport."""
+        # Use ensureWidgetVisible first for reliability, then animate
+        self.ensureWidgetVisible(widget, 50, 50)
 
-        target = y - viewport_h // 3  # show tile in upper third
-        target = max(0, min(target, bar.maximum()))
+        # Now do an animated scroll to center the tile nicely
+        # Get tile position relative to the scrollable content widget
+        content = self.widget()
+        if content is None:
+            return
+        pos = widget.mapTo(content, widget.rect().topLeft())
+        tile_top = pos.y()
+        tile_bottom = tile_top + widget.height()
+
+        bar = self.verticalScrollBar()
+        vp_h = self.viewport().height()
+        vp_top = bar.value()
+        vp_bottom = vp_top + vp_h
+
+        # If tile is already fully visible, no animation needed
+        if tile_top >= vp_top + 20 and tile_bottom <= vp_bottom - 20:
+            return
+
+        # Scroll to put the tile in the upper third of the viewport
+        target = max(0, tile_top - vp_h // 4)
+        target = min(target, bar.maximum())
 
         self._scroll_anim.stop()
         self._scroll_anim.setStartValue(bar.value())

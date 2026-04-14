@@ -14,6 +14,9 @@ from typing import Any
 class AppSource(Enum):
     STEAM = "steam"
     XBOX = "xbox"
+    EPIC = "epic"
+    GOG = "gog"
+    EA = "ea"
     STARTMENU = "startmenu"
     MANUAL = "manual"
 

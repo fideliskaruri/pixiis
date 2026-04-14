@@ -41,12 +41,16 @@ combo_window_ms = 150           # ms window for combo detection
 "combo:4+5" = { action = "navigate_ui", mode = "combo", target = "file_manager" }
 
 [library]
-providers = ["steam", "xbox", "startmenu", "manual"]
+providers = ["steam", "xbox", "epic", "gog", "ea", "startmenu", "folders", "manual"]
 scan_interval_minutes = 60
 
 [library.steam]
 # Auto-detected from registry, override here if needed
 # install_path = "C:/Program Files (x86)/Steam"
+
+[library.folders]
+extra_paths = []
+# Add custom paths: ["D:\\MyGames", "E:\\Games"]
 
 [library.manual]
 # Add custom apps here

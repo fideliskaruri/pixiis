@@ -39,9 +39,21 @@ def _get_provider_class(name: str) -> type | None:
     if name == "startmenu":
         from pixiis.library.startmenu import StartMenuProvider
         return StartMenuProvider
+    if name == "epic":
+        from pixiis.library.epic import EpicProvider
+        return EpicProvider
+    if name == "gog":
+        from pixiis.library.gog import GOGProvider
+        return GOGProvider
+    if name == "ea":
+        from pixiis.library.ea import EAProvider
+        return EAProvider
     if name == "manual":
         from pixiis.library.manual import ManualProvider
         return ManualProvider
+    if name == "folders":
+        from pixiis.library.folder_scanner import FolderScanProvider
+        return FolderScanProvider
     return None
 
 

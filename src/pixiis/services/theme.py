@@ -49,18 +49,20 @@ def darker(hex_color: str, amount: int = 30) -> str:
 # ── Defaults ────────────────────────────────────────────────────────────────
 
 _DEFAULTS = {
-    "background": "#0d0d0f",
-    "primary": "#1a1a2e",
-    "secondary": "#16213e",
-    "accent": "#0f3460",
+    "background": "#08080c",
+    "primary": "#0f0f15",
+    "secondary": "#161620",
+    "accent": "#e94560",
+    "text_color": "#e8e8f0",
+    "text_secondary": "#6b6b80",
     "font_family": "Segoe UI",
-    "border_radius": 8,
+    "border_radius": 12,
 }
 
 _FALLBACK_QSS = """\
 QWidget {{
     background-color: {background};
-    color: #e0e0e0;
+    color: {text_color};
     font-family: "{font_family}";
 }}
 QPushButton {{
@@ -68,7 +70,7 @@ QPushButton {{
     border: 1px solid {accent};
     border-radius: {border_radius}px;
     padding: 8px 16px;
-    color: #e0e0e0;
+    color: {text_color};
 }}
 QPushButton:hover {{
     background-color: {primary_hover};
@@ -100,6 +102,8 @@ class ThemeManager(QObject):
         self._secondary: str = _DEFAULTS["secondary"]
         self._accent: str = _DEFAULTS["accent"]
         self._background: str = _DEFAULTS["background"]
+        self._text_color: str = _DEFAULTS["text_color"]
+        self._text_secondary: str = _DEFAULTS["text_secondary"]
         self._font_family: str = _DEFAULTS["font_family"]
         self._border_radius: int = _DEFAULTS["border_radius"]
 
@@ -146,6 +150,26 @@ class ThemeManager(QObject):
             self.theme_changed.emit()
 
     @property
+    def text_color(self) -> str:
+        return self._text_color
+
+    @text_color.setter
+    def text_color(self, value: str) -> None:
+        if value != self._text_color:
+            self._text_color = value
+            self.theme_changed.emit()
+
+    @property
+    def text_secondary(self) -> str:
+        return self._text_secondary
+
+    @text_secondary.setter
+    def text_secondary(self, value: str) -> None:
+        if value != self._text_secondary:
+            self._text_secondary = value
+            self.theme_changed.emit()
+
+    @property
     def font_family(self) -> str:
         return self._font_family
 
@@ -174,6 +198,10 @@ class ThemeManager(QObject):
         self._secondary = cfg.get("ui.colors.secondary", _DEFAULTS["secondary"])
         self._accent = cfg.get("ui.colors.accent", _DEFAULTS["accent"])
         self._background = cfg.get("ui.colors.background", _DEFAULTS["background"])
+        self._text_color = cfg.get("ui.colors.text_color", _DEFAULTS["text_color"])
+        self._text_secondary = cfg.get(
+            "ui.colors.text_secondary", _DEFAULTS["text_secondary"]
+        )
         self._font_family = cfg.get("ui.colors.font_family", _DEFAULTS["font_family"])
         self._border_radius = int(
             cfg.get("ui.colors.border_radius", _DEFAULTS["border_radius"])
@@ -193,6 +221,8 @@ class ThemeManager(QObject):
             f'primary = "{self._primary}"\n'
             f'secondary = "{self._secondary}"\n'
             f'accent = "{self._accent}"\n'
+            f'text_color = "{self._text_color}"\n'
+            f'text_secondary = "{self._text_secondary}"\n'
             f'font_family = "{self._font_family}"\n'
             f"border_radius = {self._border_radius}\n"
         )
@@ -234,19 +264,29 @@ class ThemeManager(QObject):
     # ── helpers ──────────────────────────────────────────────────────────
 
     def _template_variables(self) -> dict[str, str]:
+        ar, ag, ab = _hex_to_rgb(self._accent)
         return {
+            # Core palette
             "background": self._background,
             "primary": self._primary,
             "secondary": self._secondary,
             "accent": self._accent,
+            "text_color": self._text_color,
+            "text_secondary": self._text_secondary,
             "font_family": self._font_family,
             "border_radius": str(self._border_radius),
+            # Computed variants
             "primary_hover": lighter(self._primary, 20),
             "primary_pressed": darker(self._primary, 15),
             "secondary_hover": lighter(self._secondary, 20),
             "accent_hover": lighter(self._accent, 25),
             "accent_dark": darker(self._accent, 20),
             "background_lighter": lighter(self._background, 15),
+            # Atmospheric extras
+            "accent_dim": f"rgba({ar}, {ag}, {ab}, 0.15)",
+            "accent_glow": f"rgba({ar}, {ag}, {ab}, 0.30)",
+            "surface_border": "rgba(255, 255, 255, 0.06)",
+            "surface_hover": lighter(self._secondary, 12),
         }
 
     @staticmethod

@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -67,11 +68,11 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
 
-        root_layout = QHBoxLayout(central)
+        root_layout = QVBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # Sidebar (fixed 200px)
+        # Top navigation bar (fixed height)
         self._sidebar = Sidebar()
         root_layout.addWidget(self._sidebar)
 

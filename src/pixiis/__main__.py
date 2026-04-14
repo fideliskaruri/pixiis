@@ -48,7 +48,35 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_scan() -> None:
     """One-shot library scan."""
-    print("Library scan not yet implemented (Phase 3)")
+    from pixiis.core import get_config
+    from pixiis.library.registry import AppRegistry
+
+    print(f"Pixiis v{__version__} — Scanning libraries...\n")
+    config = get_config()
+    registry = AppRegistry(config)
+    apps = registry.scan_all()
+
+    if not apps:
+        print("No games or apps found.")
+        print("Check that Steam/Xbox is installed, or add manual entries to config.")
+        return
+
+    # Group by source
+    from collections import defaultdict
+    by_source: dict[str, list] = defaultdict(list)
+    for app in apps:
+        by_source[app.source.value].append(app)
+
+    for source, source_apps in sorted(by_source.items()):
+        print(f"── {source.upper()} ({len(source_apps)}) ──")
+        for app in sorted(source_apps, key=lambda a: a.name.lower()):
+            icon = "✓" if app.icon_path else " "
+            print(f"  [{icon}] {app.name}")
+            if app.launch_command:
+                print(f"      → {app.launch_command}")
+        print()
+
+    print(f"Total: {len(apps)} apps/games found.")
 
 
 def cmd_daemon() -> None:

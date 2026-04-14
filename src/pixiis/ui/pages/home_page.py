@@ -1,14 +1,14 @@
-"""Home page — default landing with search, sort, and tile grid."""
+"""Home page — refined landing with Dark Cinema aesthetic."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
 from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -25,35 +25,89 @@ except ImportError:
     TileGrid = None  # type: ignore[assignment,misc]
 
 
-# ── Style constants ─────────────────────────────────────────────────────────
+# ── Dark Cinema palette ────────────────────────────────────────────────────
 
-_SORT_BTN_STYLE = (
-    "QPushButton {"
-    "  background-color: #16213e;"
-    "  color: #a0a0b0;"
-    "  border: 1px solid #0f3460;"
-    "  border-radius: 4px;"
-    "  padding: 6px 14px;"
-    "  font-size: 13px;"
-    "}"
-    "QPushButton:hover {"
-    "  background-color: #0f3460;"
-    "  color: #e0e0e0;"
-    "}"
-    "QPushButton:checked {"
-    "  background-color: #e94560;"
-    "  color: #ffffff;"
-    "  border: none;"
-    "  font-weight: bold;"
-    "}"
-)
+_SURFACE_LIGHT = "#161620"
+_ACCENT = "#e94560"
+_TEXT_MUTED = "#6b6b80"
+
+
+# ── Sort pill button ───────────────────────────────────────────────────────
+
+
+class _SortPill(QWidget):
+    """Custom-painted pill toggle button."""
+
+    clicked = Signal()
+
+    def __init__(self, text: str, parent=None) -> None:
+        super().__init__(parent)
+        self._text = text
+        self._checked = False
+        self._hovered = False
+        self.setFixedHeight(32)
+        self.setMinimumWidth(60)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMouseTracking(True)
+
+    def isChecked(self) -> bool:  # noqa: N802
+        return self._checked
+
+    def setChecked(self, val: bool) -> None:  # noqa: N802
+        self._checked = val
+        self.update()
+
+    def sizeHint(self):  # noqa: N802
+        fm = self.fontMetrics()
+        text_w = fm.horizontalAdvance(self._text)
+        return self.minimumSize().expandedTo(
+            type(self.minimumSize())(text_w + 28, 32)
+        )
+
+    def enterEvent(self, event) -> None:  # noqa: N802
+        self._hovered = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802
+        self._hovered = False
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+
+        path = QPainterPath()
+        path.addRoundedRect(0.0, 0.0, float(w), float(h), 12.0, 12.0)
+
+        if self._checked:
+            p.fillPath(path, QColor(_ACCENT))
+            p.setPen(QColor(255, 255, 255))
+        elif self._hovered:
+            p.fillPath(path, QColor(22, 22, 32, 200))
+            p.setPen(QColor(232, 232, 240))
+        else:
+            p.fillPath(path, QColor(_SURFACE_LIGHT))
+            p.setPen(QColor(_TEXT_MUTED))
+
+        font = QFont()
+        font.setPixelSize(13)
+        if self._checked:
+            font.setWeight(QFont.Weight.Bold)
+        p.setFont(font)
+        p.drawText(0, 0, w, h, Qt.AlignmentFlag.AlignCenter, self._text)
+        p.end()
 
 
 # ── HomePage ────────────────────────────────────────────────────────────────
 
 
 class HomePage(QWidget):
-    """Default landing page — search bar, A-Z / Recent sort, tile grid.
+    """Default landing page — search bar, A-Z / Recent sort pills, tile grid.
 
     Parameters
     ----------
@@ -85,14 +139,14 @@ class HomePage(QWidget):
         self.setStyleSheet("#HomePage { background-color: transparent; }")
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 12, 16, 8)
-        root.setSpacing(12)
+        root.setContentsMargins(24, 16, 24, 16)
+        root.setSpacing(16)
 
         # -- top bar ----------------------------------------------------------
         top_bar = QHBoxLayout()
-        top_bar.setSpacing(10)
+        top_bar.setSpacing(12)
 
-        # search bar
+        # search bar (stretches)
         if SearchBar is not None:
             self._search = SearchBar()
             self._search.search_changed.connect(self._on_search)
@@ -101,25 +155,19 @@ class HomePage(QWidget):
             self._search = None
             top_bar.addStretch(1)
 
-        # sort buttons
-        self._sort_group = QButtonGroup(self)
-        self._sort_group.setExclusive(True)
-
-        self._btn_az = QPushButton("A-Z")
-        self._btn_az.setCheckable(True)
+        # sort pills
+        self._btn_az = _SortPill("A-Z")
         self._btn_az.setChecked(True)
-        self._btn_az.setStyleSheet(_SORT_BTN_STYLE)
-        self._sort_group.addButton(self._btn_az)
+        self._btn_az.setFixedWidth(56)
+        self._btn_az.clicked.connect(lambda: self._set_sort("az"))
         top_bar.addWidget(self._btn_az)
 
-        self._btn_recent = QPushButton("Recent")
-        self._btn_recent.setCheckable(True)
-        self._btn_recent.setStyleSheet(_SORT_BTN_STYLE)
-        self._sort_group.addButton(self._btn_recent)
+        self._btn_recent = _SortPill("Recent")
+        self._btn_recent.setFixedWidth(72)
+        self._btn_recent.clicked.connect(lambda: self._set_sort("recent"))
         top_bar.addWidget(self._btn_recent)
 
-        self._btn_az.clicked.connect(lambda: self._set_sort("az"))
-        self._btn_recent.clicked.connect(lambda: self._set_sort("recent"))
+        self._sort_pills = [self._btn_az, self._btn_recent]
 
         root.addLayout(top_bar)
 
@@ -155,6 +203,12 @@ class HomePage(QWidget):
 
     def _set_sort(self, mode: str) -> None:
         self._current_sort = mode
+        for pill in self._sort_pills:
+            pill.setChecked(False)
+        if mode == "az":
+            self._btn_az.setChecked(True)
+        else:
+            self._btn_recent.setChecked(True)
         self._apply_sort_and_display()
 
     def _sorted_apps(self, apps: list[AppEntry]) -> list[AppEntry]:

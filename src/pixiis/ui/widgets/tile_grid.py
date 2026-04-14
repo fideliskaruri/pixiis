@@ -5,7 +5,6 @@ from __future__ import annotations
 from PySide6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
-    QRect,
     Qt,
     Signal,
 )
@@ -14,6 +13,10 @@ from PySide6.QtWidgets import QScrollArea, QWidget
 from pixiis.core.types import AppEntry
 from pixiis.ui.widgets.flow_layout import FlowLayout
 from pixiis.ui.widgets.game_tile import DEFAULT_TILE_HEIGHT, DEFAULT_TILE_WIDTH, GameTile
+
+# Grid spacing tuned for portrait 300x420 tiles
+H_SPACING = 24
+V_SPACING = 24
 
 
 class TileGrid(QScrollArea):
@@ -30,7 +33,7 @@ class TileGrid(QScrollArea):
         self.setStyleSheet("QScrollArea { border: none; background: transparent; }")
 
         self._container = QWidget()
-        self._layout = FlowLayout(self._container, h_spacing=20, v_spacing=20)
+        self._layout = FlowLayout(self._container, h_spacing=H_SPACING, v_spacing=V_SPACING)
         self._container.setLayout(self._layout)
         self.setWidget(self._container)
 
@@ -41,7 +44,7 @@ class TileGrid(QScrollArea):
         self._scroll_anim = QPropertyAnimation(
             self.verticalScrollBar(), b"value", self
         )
-        self._scroll_anim.setDuration(200)
+        self._scroll_anim.setDuration(300)
         self._scroll_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     # ── Public API ──────────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ class TileGrid(QScrollArea):
     def get_columns_count(self) -> int:
         """How many tiles fit in one row at the current width."""
         avail = self._container.width()
-        col_w = DEFAULT_TILE_WIDTH + self._layout.horizontal_spacing()
+        col_w = DEFAULT_TILE_WIDTH + H_SPACING
         return max(1, avail // col_w)
 
     # ── 2-D keyboard navigation ─────────────────────────────────────────────

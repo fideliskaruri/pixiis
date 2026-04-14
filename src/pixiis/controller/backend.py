@@ -143,9 +143,10 @@ class PygameBackend:
         except ImportError:
             raise RuntimeError("pygame is not installed")
 
-        if not self._pygame.get_init():
-            self._pygame.init()
-        self._pygame.joystick.init()
+        # Only init joystick subsystem — pygame.init() inits display which
+        # conflicts with PySide6's Qt event loop on Windows.
+        if not self._pygame.joystick.get_init():
+            self._pygame.joystick.init()
 
         self._joystick = None
         if self._pygame.joystick.get_count() > 0:
@@ -153,11 +154,18 @@ class PygameBackend:
             self._joystick.init()
 
     def poll(self) -> list:
-        self._pygame.event.pump()
-        # Re-check connection
-        if self._joystick is None and self._pygame.joystick.get_count() > 0:
-            self._joystick = self._pygame.joystick.Joystick(0)
-            self._joystick.init()
+        # pump() requires display init on some platforms. Use get/peek instead.
+        try:
+            self._pygame.event.get()
+        except self._pygame.error:
+            pass
+        # Re-check connection (hot-plug)
+        if self._joystick is None:
+            self._pygame.joystick.quit()
+            self._pygame.joystick.init()
+            if self._pygame.joystick.get_count() > 0:
+                self._joystick = self._pygame.joystick.Joystick(0)
+                self._joystick.init()
         return []
 
     def get_button(self, index: int) -> bool:
@@ -198,10 +206,11 @@ class PygameBackend:
 def get_backend() -> ControllerBackend:
     """Return the best available controller backend.
 
-    Tries InputsBackend first (global capture, no window), then PygameBackend.
+    Prefers PygameBackend (non-blocking poll, safe with Qt event loop).
+    Falls back to InputsBackend (global capture, but poll() may block).
     """
     try:
-        return InputsBackend()
+        return PygameBackend()
     except RuntimeError:
         pass
     try:

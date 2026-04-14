@@ -248,7 +248,29 @@ class ControllerBridge(QObject):
     def _post_nav(key: int) -> None:
         if ControllerBridge._is_text_input():
             return
-        ControllerBridge._post_key(key)
+        widget = QApplication.focusWidget()
+        if widget is None:
+            return
+
+        # If the focused widget is inside a TileGrid, send arrow keys
+        # (TileGrid handles 2D grid navigation internally)
+        from pixiis.ui.widgets.tile_grid import TileGrid
+        parent = widget
+        in_grid = False
+        while parent is not None:
+            if isinstance(parent, TileGrid):
+                in_grid = True
+                break
+            parent = parent.parentWidget()
+
+        if in_grid:
+            ControllerBridge._post_key(key)
+        else:
+            # Outside grid: use Tab/Shift+Tab for linear focus navigation
+            if key in (_KEY_DOWN, _KEY_RIGHT):
+                ControllerBridge._post_key(Qt.Key.Key_Tab)
+            elif key in (_KEY_UP, _KEY_LEFT):
+                ControllerBridge._post_key(Qt.Key.Key_Backtab)
 
     @staticmethod
     def _post_scroll(value: float) -> None:

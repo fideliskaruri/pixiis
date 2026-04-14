@@ -22,6 +22,7 @@ _BTN_RB = 5
 _LEFT_STICK_X = 0
 _LEFT_STICK_Y = 1
 _RIGHT_STICK_Y = 3
+_RIGHT_TRIGGER = 5  # RT — analog 0.0 to 1.0
 _DPAD_X = 6
 _DPAD_Y = 7
 
@@ -68,11 +69,8 @@ class ControllerBridge(QObject):
         self._prev_buttons: dict[int, bool] = {}
         self._prev_nav: str | None = None
 
-        # A-button hold detection for voice
-        self._a_down_time: float = 0.0
-        self._a_held_for_voice = False
-        import time as _time
-        self._time = _time
+        # RT voice trigger state
+        self._rt_active = False
 
         # Try to connect a controller
         self._try_connect()
@@ -144,55 +142,39 @@ class ControllerBridge(QObject):
             return
 
         self._process_buttons()
+        self._process_voice_trigger()
         self._process_navigation()
         self._process_scroll()
 
     # ── Button handling (edge detection) ────────────────────────────────────
 
-    # Hold threshold: A held longer than this = voice, shorter = select
-    _HOLD_MS = 300
-
     def _process_buttons(self) -> None:
-        """Detect button presses. A has hold detection for voice recording."""
-        now_time = self._time.time()
+        """Detect button press edges."""
+        # A = select, B = back
+        for btn_idx, qt_key in ((_BTN_A, _KEY_RETURN), (_BTN_B, _KEY_ESCAPE)):
+            now = self._backend.get_button(btn_idx)
+            was = self._prev_buttons.get(btn_idx, False)
+            if now and not was:
+                self._post_key(qt_key)
+            self._prev_buttons[btn_idx] = now
 
-        # ── A button: tap = select, hold = voice record ──
-        a_now = self._backend.get_button(_BTN_A)
-        a_was = self._prev_buttons.get(_BTN_A, False)
-
-        if a_now and not a_was:
-            # A just pressed — record time
-            self._a_down_time = now_time
-            self._a_held_for_voice = False
-        elif a_now and a_was:
-            # A still held — check if hold threshold crossed
-            if not self._a_held_for_voice and (now_time - self._a_down_time) > self._HOLD_MS / 1000:
-                self._a_held_for_voice = True
-                self.voice_start.emit()
-        elif not a_now and a_was:
-            # A released
-            if self._a_held_for_voice:
-                self.voice_stop.emit()
-                self._a_held_for_voice = False
-            else:
-                # Short press — select/confirm
-                self._post_key(_KEY_RETURN)
-        self._prev_buttons[_BTN_A] = a_now
-
-        # ── B = back ──
-        b_now = self._backend.get_button(_BTN_B)
-        b_was = self._prev_buttons.get(_BTN_B, False)
-        if b_now and not b_was:
-            self._post_key(_KEY_ESCAPE)
-        self._prev_buttons[_BTN_B] = b_now
-
-        # ── LB/RB = page switching ──
+        # LB/RB = page switching
         for btn_idx, sig in ((_BTN_LB, self.tab_prev), (_BTN_RB, self.tab_next)):
             now = self._backend.get_button(btn_idx)
             was = self._prev_buttons.get(btn_idx, False)
             if now and not was:
                 sig.emit()
             self._prev_buttons[btn_idx] = now
+
+    def _process_voice_trigger(self) -> None:
+        """RT (right trigger) > 0.5 = voice recording."""
+        rt = self._backend.get_axis(_RIGHT_TRIGGER)
+        if rt > 0.5 and not self._rt_active:
+            self._rt_active = True
+            self.voice_start.emit()
+        elif rt <= 0.3 and self._rt_active:
+            self._rt_active = False
+            self.voice_stop.emit()
 
     # ── Stick/DPad navigation ──────────────────────────────────────────────
 

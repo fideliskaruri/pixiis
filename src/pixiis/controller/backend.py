@@ -138,16 +138,14 @@ class PygameBackend:
 
     def __init__(self) -> None:
         try:
-            import os
             import pygame  # noqa: F401
             self._pygame = pygame
         except ImportError:
             raise RuntimeError("pygame is not installed")
 
-        # Use dummy video driver so pygame.init() doesn't create a visible
-        # window or fight with PySide6, but the event system still works
-        # (needed for joystick polling via event.get/pump).
-        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        # pygame.init() is safe alongside PySide6 on Windows — it does NOT
+        # create a visible window (only set_mode() does). The full init is
+        # needed so the SDL event system can process joystick hat/axis events.
         if not self._pygame.get_init():
             self._pygame.init()
 
@@ -182,13 +180,40 @@ class PygameBackend:
         if self._joystick is None:
             return 0.0
         try:
-            # Axes 6/7 = D-pad, which is a HAT in pygame, not a stick axis
             if index == 6:  # DPAD_X
-                return float(self._joystick.get_hat(0)[0]) if self._joystick.get_numhats() > 0 else 0.0
+                # Try hat first (most Xbox controllers)
+                if self._joystick.get_numhats() > 0:
+                    val = self._joystick.get_hat(0)[0]
+                    if val != 0:
+                        return float(val)
+                # Fallback: some drivers report D-pad as buttons 11-14
+                nb = self._joystick.get_numbuttons()
+                if nb > 13:
+                    left = self._joystick.get_button(13)
+                    right = self._joystick.get_button(14)
+                    if left:
+                        return -1.0
+                    if right:
+                        return 1.0
+                return 0.0
             if index == 7:  # DPAD_Y
-                # pygame hat Y: 1=up, -1=down. We invert to match XInput convention (neg=up)
-                hat_y = self._joystick.get_hat(0)[1] if self._joystick.get_numhats() > 0 else 0
-                return float(-hat_y)
+                if self._joystick.get_numhats() > 0:
+                    # pygame hat Y: 1=up, -1=down. Invert for XInput convention.
+                    val = self._joystick.get_hat(0)[1]
+                    if val != 0:
+                        return float(-val)
+                nb = self._joystick.get_numbuttons()
+                if nb > 12:
+                    up = self._joystick.get_button(11)
+                    down = self._joystick.get_button(12)
+                    if up:
+                        return -1.0
+                    if down:
+                        return 1.0
+                return 0.0
+            if index in (4, 5):  # LT/RT triggers
+                raw = self._joystick.get_axis(index)
+                return max(0.0, min(1.0, (raw + 1.0) / 2.0))
             return float(self._joystick.get_axis(index))
         except (self._pygame.error, IndexError):
             return 0.0
@@ -216,7 +241,7 @@ def get_backend() -> ControllerBackend:
     except RuntimeError:
         pass
     try:
-        return PygameBackend()
+        return InputsBackend()
     except RuntimeError:
         pass
     raise RuntimeError(

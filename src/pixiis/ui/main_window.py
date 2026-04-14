@@ -142,6 +142,8 @@ class MainWindow(QMainWindow):
         self._refresh_signal.connect(self._refresh_pages)
         self._controller_bridge.tab_next.connect(self._nav_next_page)
         self._controller_bridge.tab_prev.connect(self._nav_prev_page)
+        self._controller_bridge.voice_start.connect(self._on_voice_start)
+        self._controller_bridge.voice_stop.connect(self._on_voice_stop)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
 
     # -- page registration ---------------------------------------------------
@@ -346,6 +348,12 @@ class MainWindow(QMainWindow):
                 twitch_client=self._twitch_client,
             )
         self.navigate_to("game_detail")
+
+    def _on_voice_start(self) -> None:
+        print("[Pixiis] Voice recording started (RT pressed)")
+
+    def _on_voice_stop(self) -> None:
+        print("[Pixiis] Voice recording stopped (RT released)")
 
     def _on_launch_requested(self, app) -> None:
         """Launch the selected game."""

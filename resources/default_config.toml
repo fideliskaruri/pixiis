@@ -79,6 +79,7 @@ api_key = ""
 [services.twitch]
 client_id = ""
 client_secret = ""
+access_token = ""
 
 [daemon]
 autostart = false

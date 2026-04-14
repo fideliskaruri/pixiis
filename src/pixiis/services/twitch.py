@@ -27,7 +27,8 @@ class TwitchClient(QObject):
     """Async Twitch Helix client using Qt networking.
 
     Uses client-credentials OAuth to fetch top live streams for a game.
-    Requires ``services.twitch.client_id`` and ``services.twitch.client_secret``.
+    Requires ``services.twitch.client_id`` and ``services.twitch.client_secret``
+    (or a pre-obtained ``access_token`` from the browser OAuth flow).
     """
 
     streams_ready = Signal(list)  # list[TwitchStream]
@@ -41,12 +42,29 @@ class TwitchClient(QObject):
         self._access_token: str = ""
         self._pending_game: str = ""
 
+        # If an access_token is already stored in config (from browser OAuth),
+        # use it directly instead of doing client-credentials exchange.
+        stored_token = get_config().get("services.twitch.access_token", "")
+        if stored_token:
+            self._access_token = stored_token
+
     # ── public API ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def authorize_url(client_id: str, redirect_uri: str) -> str:
+        """Return the Twitch OAuth authorize URL for implicit grant."""
+        return (
+            f"https://id.twitch.tv/oauth2/authorize"
+            f"?client_id={quote(client_id)}"
+            f"&redirect_uri={quote(redirect_uri)}"
+            f"&response_type=token"
+            f"&scope="
+        )
 
     def get_top_streams(self, game_name: str) -> None:
         """Fetch top 5 live streams for *game_name*.  Emits *streams_ready*."""
         client_id, client_secret = self._credentials()
-        if not client_id or not client_secret:
+        if not client_id:
             self.streams_ready.emit([])
             return
 
@@ -54,8 +72,11 @@ class TwitchClient(QObject):
 
         if self._access_token:
             self._resolve_category(game_name)
-        else:
+        elif client_secret:
             self._authenticate(client_id, client_secret)
+        else:
+            # No token and no secret — cannot authenticate
+            self.streams_ready.emit([])
 
     # ── OAuth ───────────────────────────────────────────────────────────
 

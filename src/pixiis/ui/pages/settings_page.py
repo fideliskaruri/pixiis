@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -92,6 +93,23 @@ _SECONDARY_BTN_STYLE = (
     "border: 1px solid #0f3460; border-radius: 6px; padding: 6px 14px; }"
     "QPushButton:hover { background-color: #0f3460; }"
 )
+
+_CONNECT_BTN_STYLE = (
+    "QPushButton { background-color: #9146FF; color: #ffffff; "
+    "border: none; border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
+    "QPushButton:hover { background-color: #7c3aed; }"
+    "QPushButton:disabled { background-color: #4a4a5a; color: #888; }"
+)
+
+_LINK_BTN_STYLE = (
+    "QPushButton { background: transparent; color: #e94560; "
+    "border: none; padding: 2px 0; text-decoration: underline; "
+    "font-size: 12px; text-align: left; }"
+    "QPushButton:hover { color: #ff6b8a; }"
+)
+
+_STATUS_CONNECTED = "color: #4ade80; background: transparent; font-size: 12px;"
+_STATUS_DISCONNECTED = "color: #a0a0b0; background: transparent; font-size: 12px;"
 
 
 def _make_label(text: str) -> QLabel:
@@ -304,16 +322,37 @@ class SettingsPage(QScrollArea):
             "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; }"
         )
 
+        # ── RAWG ────────────────────────────────────────────────────────
         self._rawg_key = QLineEdit(str(cfg.get("services.rawg.api_key", "")))
         self._rawg_key.setStyleSheet(line_style)
         self._rawg_key.setPlaceholderText("RAWG API key")
         form.addRow(_make_label("RAWG API Key"), self._rawg_key)
 
+        rawg_link = QPushButton("Get API Key")
+        rawg_link.setStyleSheet(_LINK_BTN_STYLE)
+        rawg_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        rawg_link.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://rawg.io/apidocs"))
+        )
+        form.addRow(_make_label(""), rawg_link)
+
+        # ── YouTube ─────────────────────────────────────────────────────
         self._youtube_key = QLineEdit(str(cfg.get("services.youtube.api_key", "")))
         self._youtube_key.setStyleSheet(line_style)
         self._youtube_key.setPlaceholderText("YouTube API key")
         form.addRow(_make_label("YouTube API Key"), self._youtube_key)
 
+        yt_link = QPushButton("Get API Key (Google Cloud Console)")
+        yt_link.setStyleSheet(_LINK_BTN_STYLE)
+        yt_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        yt_link.clicked.connect(
+            lambda: QDesktopServices.openUrl(
+                QUrl("https://console.cloud.google.com/apis/credentials")
+            )
+        )
+        form.addRow(_make_label(""), yt_link)
+
+        # ── Twitch ──────────────────────────────────────────────────────
         self._twitch_id = QLineEdit(str(cfg.get("services.twitch.client_id", "")))
         self._twitch_id.setStyleSheet(line_style)
         self._twitch_id.setPlaceholderText("Twitch Client ID")
@@ -321,9 +360,33 @@ class SettingsPage(QScrollArea):
 
         self._twitch_secret = QLineEdit(str(cfg.get("services.twitch.client_secret", "")))
         self._twitch_secret.setStyleSheet(line_style)
-        self._twitch_secret.setPlaceholderText("Twitch Client Secret")
+        self._twitch_secret.setPlaceholderText("Twitch Client Secret (optional with OAuth)")
         self._twitch_secret.setEchoMode(QLineEdit.EchoMode.Password)
         form.addRow(_make_label("Twitch Client Secret"), self._twitch_secret)
+
+        # Connect button + status
+        twitch_row = QHBoxLayout()
+        self._twitch_connect_btn = QPushButton("Connect with Twitch")
+        self._twitch_connect_btn.setStyleSheet(_CONNECT_BTN_STYLE)
+        self._twitch_connect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._twitch_connect_btn.clicked.connect(self._connect_twitch)
+        twitch_row.addWidget(self._twitch_connect_btn)
+
+        has_token = bool(cfg.get("services.twitch.access_token", ""))
+        self._twitch_status = QLabel("Connected" if has_token else "Not connected")
+        self._twitch_status.setStyleSheet(
+            _STATUS_CONNECTED if has_token else _STATUS_DISCONNECTED
+        )
+        twitch_row.addWidget(self._twitch_status)
+        twitch_row.addStretch()
+        form.addRow(_make_label(""), twitch_row)
+
+        # Hidden field to hold the OAuth access token
+        self._twitch_access_token = cfg.get("services.twitch.access_token", "")
+
+        # Timer / flow state (created on demand)
+        self._oauth_flow = None
+        self._oauth_timer: QTimer | None = None
 
         self._layout.addWidget(group)
 
@@ -347,6 +410,64 @@ class SettingsPage(QScrollArea):
         form.addRow(_make_label("Project"), link_label)
 
         self._layout.addWidget(group)
+
+    # -- Twitch OAuth ---------------------------------------------------------
+
+    def _connect_twitch(self) -> None:
+        """Start the Twitch OAuth implicit-grant flow in the browser."""
+        client_id = self._twitch_id.text().strip()
+        if not client_id:
+            self._twitch_status.setText("Enter your Twitch Client ID first")
+            self._twitch_status.setStyleSheet(
+                "color: #f87171; background: transparent; font-size: 12px;"
+            )
+            return
+
+        from pixiis.services.oauth import OAuthFlow
+        from pixiis.services.twitch import TwitchClient
+
+        self._twitch_connect_btn.setEnabled(False)
+        self._twitch_connect_btn.setText("Waiting for browser...")
+        self._twitch_status.setText("Check your browser")
+        self._twitch_status.setStyleSheet(_STATUS_DISCONNECTED)
+
+        flow = OAuthFlow()
+        redirect_uri = f"http://localhost:{flow.port}/callback"
+        auth_url = TwitchClient.authorize_url(client_id, redirect_uri)
+        flow.start(auth_url)
+
+        self._oauth_flow = flow
+        self._oauth_timer = QTimer(self)
+        self._oauth_timer.setInterval(500)
+        self._oauth_timer.timeout.connect(self._check_twitch_oauth)
+        self._oauth_timer.start()
+
+    def _check_twitch_oauth(self) -> None:
+        """Poll the OAuth flow for a result (non-blocking)."""
+        if self._oauth_flow is None:
+            return
+
+        result = self._oauth_flow.get_result(timeout=0)
+        if result is not None:
+            # Got a result — stop polling
+            if self._oauth_timer is not None:
+                self._oauth_timer.stop()
+                self._oauth_timer = None
+
+            token = result.get("access_token", "")
+            if token:
+                self._twitch_access_token = token
+                self._twitch_status.setText("Connected")
+                self._twitch_status.setStyleSheet(_STATUS_CONNECTED)
+            else:
+                self._twitch_status.setText("Failed — no token received")
+                self._twitch_status.setStyleSheet(
+                    "color: #f87171; background: transparent; font-size: 12px;"
+                )
+
+            self._twitch_connect_btn.setEnabled(True)
+            self._twitch_connect_btn.setText("Connect with Twitch")
+            self._oauth_flow = None
 
     # -- Actions --------------------------------------------------------------
 
@@ -379,13 +500,17 @@ class SettingsPage(QScrollArea):
         updates["library.scan_interval_minutes"] = self._scan_interval.value()
 
         # Services
+        twitch_cfg: dict[str, str] = {
+            "client_id": self._twitch_id.text().strip(),
+            "client_secret": self._twitch_secret.text().strip(),
+        }
+        if self._twitch_access_token:
+            twitch_cfg["access_token"] = self._twitch_access_token
+
         updates["services"] = {
             "rawg": {"api_key": self._rawg_key.text().strip()},
             "youtube": {"api_key": self._youtube_key.text().strip()},
-            "twitch": {
-                "client_id": self._twitch_id.text().strip(),
-                "client_secret": self._twitch_secret.text().strip(),
-            },
+            "twitch": twitch_cfg,
         }
 
         # Read existing TOML, patch, and write back

@@ -269,21 +269,23 @@ class ControllerBridge(QObject):
         if widget is None:
             return
 
-        # If the focused widget is inside a TileGrid, send arrow keys
-        # (TileGrid handles 2D grid navigation internally)
+        # Check if focused widget is inside a TileGrid or QTreeView
+        # (these handle arrow keys for 2D/tree navigation)
         from pixiis.ui.widgets.tile_grid import TileGrid
+        from PySide6.QtWidgets import QTreeView
         parent = widget
-        in_grid = False
+        in_arrow_widget = False
         while parent is not None:
-            if isinstance(parent, TileGrid):
-                in_grid = True
+            if isinstance(parent, (TileGrid, QTreeView)):
+                in_arrow_widget = True
                 break
             parent = parent.parentWidget()
 
-        if in_grid:
+        if in_arrow_widget:
+            # Inside grid/tree: arrows for spatial navigation
             ControllerBridge._post_key(key)
         else:
-            # Outside grid: use Tab/Shift+Tab for linear focus navigation
+            # Outside: Tab/Backtab for linear focus traversal
             if key in (_KEY_DOWN, _KEY_RIGHT):
                 ControllerBridge._post_key(Qt.Key.Key_Tab)
             elif key in (_KEY_UP, _KEY_LEFT):

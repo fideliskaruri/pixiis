@@ -58,13 +58,21 @@ class ControllerBridge(QObject):
     search_requested = Signal()
     tab_next = Signal()      # RB — next page/tab
     tab_prev = Signal()      # LB — previous page/tab
+    voice_start = Signal()   # Hold A — start voice recording
+    voice_stop = Signal()    # Release A after hold — stop voice recording
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
 
         self._backend = None
         self._prev_buttons: dict[int, bool] = {}
-        self._prev_nav: str | None = None  # "up"/"down"/"left"/"right" or None
+        self._prev_nav: str | None = None
+
+        # A-button hold detection for voice
+        self._a_down_time: float = 0.0
+        self._a_held_for_voice = False
+        import time as _time
+        self._time = _time
 
         # Try to connect a controller
         self._try_connect()
@@ -141,17 +149,44 @@ class ControllerBridge(QObject):
 
     # ── Button handling (edge detection) ────────────────────────────────────
 
-    def _process_buttons(self) -> None:
-        """Detect button press edges (was up, now down)."""
-        # A = select, B = back
-        for btn_idx, qt_key in ((_BTN_A, _KEY_RETURN), (_BTN_B, _KEY_ESCAPE)):
-            now = self._backend.get_button(btn_idx)
-            was = self._prev_buttons.get(btn_idx, False)
-            if now and not was:
-                self._post_key(qt_key)
-            self._prev_buttons[btn_idx] = now
+    # Hold threshold: A held longer than this = voice, shorter = select
+    _HOLD_MS = 300
 
-        # LB = previous tab, RB = next tab
+    def _process_buttons(self) -> None:
+        """Detect button presses. A has hold detection for voice recording."""
+        now_time = self._time.time()
+
+        # ── A button: tap = select, hold = voice record ──
+        a_now = self._backend.get_button(_BTN_A)
+        a_was = self._prev_buttons.get(_BTN_A, False)
+
+        if a_now and not a_was:
+            # A just pressed — record time
+            self._a_down_time = now_time
+            self._a_held_for_voice = False
+        elif a_now and a_was:
+            # A still held — check if hold threshold crossed
+            if not self._a_held_for_voice and (now_time - self._a_down_time) > self._HOLD_MS / 1000:
+                self._a_held_for_voice = True
+                self.voice_start.emit()
+        elif not a_now and a_was:
+            # A released
+            if self._a_held_for_voice:
+                self.voice_stop.emit()
+                self._a_held_for_voice = False
+            else:
+                # Short press — select/confirm
+                self._post_key(_KEY_RETURN)
+        self._prev_buttons[_BTN_A] = a_now
+
+        # ── B = back ──
+        b_now = self._backend.get_button(_BTN_B)
+        b_was = self._prev_buttons.get(_BTN_B, False)
+        if b_now and not b_was:
+            self._post_key(_KEY_ESCAPE)
+        self._prev_buttons[_BTN_B] = b_now
+
+        # ── LB/RB = page switching ──
         for btn_idx, sig in ((_BTN_LB, self.tab_prev), (_BTN_RB, self.tab_next)):
             now = self._backend.get_button(btn_idx)
             was = self._prev_buttons.get(btn_idx, False)

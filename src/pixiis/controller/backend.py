@@ -138,15 +138,18 @@ class PygameBackend:
 
     def __init__(self) -> None:
         try:
+            import os
             import pygame  # noqa: F401
             self._pygame = pygame
         except ImportError:
             raise RuntimeError("pygame is not installed")
 
-        # Only init joystick subsystem — pygame.init() inits display which
-        # conflicts with PySide6's Qt event loop on Windows.
-        if not self._pygame.joystick.get_init():
-            self._pygame.joystick.init()
+        # Use dummy video driver so pygame.init() doesn't create a visible
+        # window or fight with PySide6, but the event system still works
+        # (needed for joystick polling via event.get/pump).
+        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        if not self._pygame.get_init():
+            self._pygame.init()
 
         self._joystick = None
         if self._pygame.joystick.get_count() > 0:
@@ -154,9 +157,8 @@ class PygameBackend:
             self._joystick.init()
 
     def poll(self) -> list:
-        # pump() requires display init on some platforms. Use get/peek instead.
         try:
-            self._pygame.event.get()
+            self._pygame.event.pump()
         except self._pygame.error:
             pass
         # Re-check connection (hot-plug)

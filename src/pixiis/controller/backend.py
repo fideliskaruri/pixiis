@@ -172,8 +172,15 @@ class PygameBackend:
         if self._joystick is None:
             return 0.0
         try:
+            # Axes 6/7 = D-pad, which is a HAT in pygame, not a stick axis
+            if index == 6:  # DPAD_X
+                return float(self._joystick.get_hat(0)[0]) if self._joystick.get_numhats() > 0 else 0.0
+            if index == 7:  # DPAD_Y
+                # pygame hat Y: 1=up, -1=down. We invert to match XInput convention (neg=up)
+                hat_y = self._joystick.get_hat(0)[1] if self._joystick.get_numhats() > 0 else 0
+                return float(-hat_y)
             return float(self._joystick.get_axis(index))
-        except self._pygame.error:
+        except (self._pygame.error, IndexError):
             return 0.0
 
     def get_name(self) -> str:

@@ -140,6 +140,8 @@ class MainWindow(QMainWindow):
         self._sidebar.maximize_requested.connect(self._toggle_maximize)
         self._sidebar.close_requested.connect(self.close)
         self._refresh_signal.connect(self._refresh_pages)
+        self._controller_bridge.tab_next.connect(self._nav_next_page)
+        self._controller_bridge.tab_prev.connect(self._nav_prev_page)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
 
     # -- page registration ---------------------------------------------------
@@ -230,6 +232,24 @@ class MainWindow(QMainWindow):
             prev = self._nav_stack[-1]
             self._page_stack.switch_to(prev, direction="left")
             self._sidebar.set_active(prev)
+
+    # -- bumper page cycling -------------------------------------------------
+
+    _PAGE_ORDER = ["home", "library", "settings", "file_manager"]
+
+    def _nav_next_page(self) -> None:
+        """RB — cycle to next page."""
+        current = self._page_stack.current_page_name()
+        if current in self._PAGE_ORDER:
+            idx = (self._PAGE_ORDER.index(current) + 1) % len(self._PAGE_ORDER)
+            self.navigate_to(self._PAGE_ORDER[idx])
+
+    def _nav_prev_page(self) -> None:
+        """LB — cycle to previous page."""
+        current = self._page_stack.current_page_name()
+        if current in self._PAGE_ORDER:
+            idx = (self._PAGE_ORDER.index(current) - 1) % len(self._PAGE_ORDER)
+            self.navigate_to(self._PAGE_ORDER[idx])
 
     def _toggle_maximize(self) -> None:
         if self.isMaximized():

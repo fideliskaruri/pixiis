@@ -15,6 +15,8 @@ from pixiis.core import get_config
 # Xbox button indices (from backend.py)
 _BTN_A = 0
 _BTN_B = 1
+_BTN_LB = 4
+_BTN_RB = 5
 
 # Axis indices
 _LEFT_STICK_X = 0
@@ -54,6 +56,8 @@ class ControllerBridge(QObject):
     """
 
     search_requested = Signal()
+    tab_next = Signal()      # RB — next page/tab
+    tab_prev = Signal()      # LB — previous page/tab
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -139,12 +143,20 @@ class ControllerBridge(QObject):
 
     def _process_buttons(self) -> None:
         """Detect button press edges (was up, now down)."""
+        # A = select, B = back
         for btn_idx, qt_key in ((_BTN_A, _KEY_RETURN), (_BTN_B, _KEY_ESCAPE)):
             now = self._backend.get_button(btn_idx)
             was = self._prev_buttons.get(btn_idx, False)
             if now and not was:
-                # Rising edge — button just pressed
                 self._post_key(qt_key)
+            self._prev_buttons[btn_idx] = now
+
+        # LB = previous tab, RB = next tab
+        for btn_idx, sig in ((_BTN_LB, self.tab_prev), (_BTN_RB, self.tab_next)):
+            now = self._backend.get_button(btn_idx)
+            was = self._prev_buttons.get(btn_idx, False)
+            if now and not was:
+                sig.emit()
             self._prev_buttons[btn_idx] = now
 
     # ── Stick/DPad navigation ──────────────────────────────────────────────

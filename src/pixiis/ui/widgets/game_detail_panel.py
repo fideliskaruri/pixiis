@@ -328,6 +328,9 @@ class GameDetailPanel(QScrollArea):
         )
 
         self._app: AppEntry | None = None
+        self._connected_rawg = None
+        self._connected_youtube = None
+        self._connected_twitch = None
 
         # Root container
         self._root = QWidget()
@@ -463,30 +466,58 @@ class GameDetailPanel(QScrollArea):
         w = self._hero.width() or 800
         self._hero.set_pixmap(_placeholder_header(w, 400))
 
+        # Disconnect previous signal handlers to avoid accumulation
+        if self._connected_rawg is not None:
+            try:
+                self._connected_rawg.game_found.disconnect(self._on_rawg_data)
+            except (TypeError, RuntimeError):
+                pass
+        if self._connected_youtube is not None:
+            try:
+                self._connected_youtube.results_ready.disconnect(self._on_youtube_data)
+            except (TypeError, RuntimeError):
+                pass
+        if self._connected_twitch is not None:
+            try:
+                self._connected_twitch.streams_ready.disconnect(self._on_twitch_data)
+            except (TypeError, RuntimeError):
+                pass
+
         # Kick off async fetches
         if rawg_client is not None:
             rawg_client.game_found.connect(self._on_rawg_data)
-            rawg_client.search(app.display_name)
+            rawg_client.search_game(app.display_name)
 
         if youtube_client is not None:
             youtube_client.results_ready.connect(self._on_youtube_data)
-            youtube_client.search(f"{app.display_name} trailer")
+            youtube_client.search_trailers(f"{app.display_name} trailer")
 
         if twitch_client is not None:
             twitch_client.streams_ready.connect(self._on_twitch_data)
-            twitch_client.search(app.display_name)
+            twitch_client.get_top_streams(app.display_name)
+
+        self._connected_rawg = rawg_client
+        self._connected_youtube = youtube_client
+        self._connected_twitch = twitch_client
+
+        # Fallback when no API clients are available
+        if rawg_client is None and youtube_client is None and twitch_client is None:
+            self._desc_label.setText(
+                "Configure API keys in Settings to see game details, "
+                "trailers, and live streams."
+            )
 
     def set_header_image(self, pixmap: QPixmap) -> None:
         self._hero.set_pixmap(pixmap)
 
     # ── Service callbacks ───────────────────────────────────────────────────
 
-    def _on_rawg_data(self, data: dict) -> None:
+    def _on_rawg_data(self, data) -> None:
         if self._app is None:
             return
 
         # Description
-        desc = data.get("description", "") or data.get("description_raw", "")
+        desc = getattr(data, "description", "")
         if desc:
             self._desc_label.setText(desc)
         else:
@@ -495,26 +526,25 @@ class GameDetailPanel(QScrollArea):
             )
 
         # Rating
-        rating = data.get("rating")
+        rating = getattr(data, "rating", 0)
         if rating:
             stars = int(round(float(rating)))
             self._hero.set_rating(f"{'★' * stars}{'☆' * (5 - stars)}  {rating}/5")
 
         # Info bar
         self._clear_info_bar()
-        for genre in data.get("genres", [])[:4]:
-            self._info_bar.addWidget(_pill(genre.get("name", "")))
-        released = data.get("released")
+        for genre in getattr(data, "genres", [])[:4]:
+            self._info_bar.addWidget(_pill(genre))
+        released = getattr(data, "released", "")
         if released:
             self._info_bar.addWidget(_pill(f"Released: {released}"))
-        playtime = data.get("playtime")
+        playtime = getattr(data, "playtime", 0)
         if playtime:
             self._info_bar.addWidget(_pill(f"{playtime}h avg"))
         self._info_bar.addStretch()
 
         # Screenshots — rounded thumbnail cards
-        for shot in data.get("short_screenshots", [])[:6]:
-            img_url = shot.get("image", "")
+        for img_url in getattr(data, "screenshots", [])[:6]:
             if img_url:
                 thumb = _ClickableImage(img_url)
                 thumb.setFixedSize(240, 135)
@@ -529,9 +559,10 @@ class GameDetailPanel(QScrollArea):
     def _on_youtube_data(self, results: list) -> None:
         self._clear_layout(self._trailers_layout)
         for item in results[:6]:
-            title = item.get("title", "")
-            channel = item.get("channel", "")
-            url = item.get("url", "")
+            title = getattr(item, "title", "")
+            channel = getattr(item, "channel", "")
+            video_id = getattr(item, "video_id", "")
+            url = f"https://www.youtube.com/watch?v={video_id}" if video_id else ""
             card = _MediaCard(280, 158, title, channel, url)
             self._trailers_layout.addWidget(card)
         self._trailers_layout.addStretch()
@@ -539,9 +570,9 @@ class GameDetailPanel(QScrollArea):
     def _on_twitch_data(self, streams: list) -> None:
         self._clear_layout(self._streams_layout)
         for stream in streams[:6]:
-            title = stream.get("user_name", "")
-            viewers = stream.get("viewer_count", 0)
-            url = stream.get("url", "")
+            title = getattr(stream, "user_name", "")
+            viewers = getattr(stream, "viewer_count", 0)
+            url = getattr(stream, "stream_url", "")
             card = _MediaCard(280, 158, title, f"{viewers:,} viewers", url)
             self._streams_layout.addWidget(card)
         self._streams_layout.addStretch()

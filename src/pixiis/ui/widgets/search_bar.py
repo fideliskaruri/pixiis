@@ -118,6 +118,7 @@ class SearchBar(QLineEdit):
 
     def keyPressEvent(self, event) -> None:  # noqa: N802
         if event.key() == Qt.Key.Key_Escape:
+            self._debounce.stop()  # prevent double-fire
             self.clear()
             self.search_changed.emit("")
             parent = self.parentWidget()

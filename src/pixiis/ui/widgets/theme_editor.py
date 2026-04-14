@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QFontDatabase
 from PySide6.QtWidgets import (
+    QApplication,
     QColorDialog,
     QComboBox,
     QFormLayout,
@@ -247,7 +248,7 @@ class ThemeEditor(QFrame):
             return
         color = self._color_buttons[key].color()
         if self._theme is not None and hasattr(self._theme, key):
-            setattr(self._theme, key, color)
+            setattr(self._theme, key, color.name())
         self._apply_live_preview()
 
     def _on_font_changed(self, family: str) -> None:
@@ -268,7 +269,9 @@ class ThemeEditor(QFrame):
     def _apply_live_preview(self) -> None:
         if self._theme is not None and hasattr(self._theme, "apply"):
             try:
-                self._theme.apply()
+                app = QApplication.instance()
+                if app is not None:
+                    self._theme.apply(app)
             except Exception:
                 pass
 
@@ -279,7 +282,7 @@ class ThemeEditor(QFrame):
         for key, default_color in _DEFAULT_COLORS.items():
             self._color_buttons[key].set_color(default_color)
             if self._theme is not None and hasattr(self._theme, key):
-                setattr(self._theme, key, default_color)
+                setattr(self._theme, key, default_color.name())
 
         idx = self._font_combo.findText(_DEFAULT_FONT)
         if idx >= 0:

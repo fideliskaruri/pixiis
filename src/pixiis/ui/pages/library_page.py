@@ -230,7 +230,7 @@ class LibraryPage(QWidget):
     def _apply_filter_and_display(self) -> None:
         apps = self._filtered_apps()
         if self._grid is not None and hasattr(self._grid, "set_apps"):
-            self._grid.set_apps(apps)
+            self._grid.set_apps(apps, image_loader=self._image_loader)
 
     def _on_search(self, query: str) -> None:
         self._search_query = query.strip()

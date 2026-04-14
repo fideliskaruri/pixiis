@@ -35,6 +35,7 @@ def launch_ui() -> None:
         theme = ThemeManager()
         theme.load_from_config()
         theme.apply(app)
+        app._theme_manager = theme  # store for MainWindow access
     except Exception:
         app.setStyleSheet(_FALLBACK_STYLESHEET)
 

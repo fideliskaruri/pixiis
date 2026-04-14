@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QObject, QThread, Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -94,6 +95,38 @@ class MainWindow(QMainWindow):
         # -- services --------------------------------------------------------
         self._controller_bridge = ControllerBridge(self)
 
+        self._image_loader = None
+        self._rawg_client = None
+        self._youtube_client = None
+        self._twitch_client = None
+        self._vibration = None
+
+        try:
+            from pixiis.services.image_loader import AsyncImageLoader
+            self._image_loader = AsyncImageLoader(self)
+        except Exception:
+            pass
+        try:
+            from pixiis.services.rawg import RawgClient
+            self._rawg_client = RawgClient(self)
+        except Exception:
+            pass
+        try:
+            from pixiis.services.youtube import YouTubeClient
+            self._youtube_client = YouTubeClient(self)
+        except Exception:
+            pass
+        try:
+            from pixiis.services.twitch import TwitchClient
+            self._twitch_client = TwitchClient(self)
+        except Exception:
+            pass
+        try:
+            from pixiis.services.vibration import VibrationService
+            self._vibration = VibrationService(self)
+        except Exception:
+            pass
+
         # -- register pages --------------------------------------------------
         self._register_pages()
 
@@ -134,17 +167,18 @@ class MainWindow(QMainWindow):
         try:
             if name == "home":
                 from pixiis.ui.pages.home_page import HomePage
-                page = HomePage(self._registry)
+                page = HomePage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
                 return page
             if name == "library":
                 from pixiis.ui.pages.library_page import LibraryPage
-                page = LibraryPage(self._registry)
+                page = LibraryPage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
                 return page
             if name == "settings":
                 from pixiis.ui.pages.settings_page import SettingsPage
-                return SettingsPage()
+                tm = getattr(QApplication.instance(), '_theme_manager', None)
+                return SettingsPage(theme_manager=tm, registry=self._registry)
             if name == "file_manager":
                 from pixiis.ui.pages.file_manager_page import FileManagerPage
                 return FileManagerPage()
@@ -285,7 +319,12 @@ class MainWindow(QMainWindow):
         """Navigate to game detail when a tile is activated."""
         detail = self._page_stack._pages.get("game_detail")
         if detail is not None and hasattr(detail, "set_game"):
-            detail.set_game(app)
+            detail.set_game(
+                app,
+                rawg_client=self._rawg_client,
+                youtube_client=self._youtube_client,
+                twitch_client=self._twitch_client,
+            )
         self.navigate_to("game_detail")
 
     def _on_launch_requested(self, app) -> None:

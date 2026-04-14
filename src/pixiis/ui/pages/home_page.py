@@ -223,7 +223,7 @@ class HomePage(QWidget):
     def _apply_sort_and_display(self) -> None:
         sorted_apps = self._sorted_apps(self._all_apps)
         if self._grid is not None and hasattr(self._grid, "set_apps"):
-            self._grid.set_apps(sorted_apps)
+            self._grid.set_apps(sorted_apps, image_loader=self._image_loader)
 
     def _on_search(self, query: str) -> None:
         if not query.strip():
@@ -239,7 +239,7 @@ class HomePage(QWidget):
             results = [a for a in self._all_apps if q in a.name.lower()]
         sorted_apps = self._sorted_apps(results)
         if self._grid is not None and hasattr(self._grid, "set_apps"):
-            self._grid.set_apps(sorted_apps)
+            self._grid.set_apps(sorted_apps, image_loader=self._image_loader)
 
     def _on_tile_activated(self, app: object) -> None:
         self.game_selected.emit(app)

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QScrollArea,
     QSlider,
@@ -155,6 +156,7 @@ class SettingsPage(QScrollArea):
         self._build_controller_section(cfg)
         self._build_voice_section(cfg)
         self._build_library_section(cfg)
+        self._build_services_section(cfg)
         self._build_about_section()
 
         # -- apply button -----------------------------------------------------
@@ -290,6 +292,41 @@ class SettingsPage(QScrollArea):
 
         self._layout.addWidget(group)
 
+    def _build_services_section(self, cfg: object) -> None:
+        group = QGroupBox("Services / API Keys")
+        group.setStyleSheet(_GROUP_STYLE)
+        form = QFormLayout(group)
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        line_style = (
+            "QLineEdit { background-color: #16213e; color: #e0e0e0; "
+            "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; }"
+        )
+
+        self._rawg_key = QLineEdit(str(cfg.get("services.rawg.api_key", "")))
+        self._rawg_key.setStyleSheet(line_style)
+        self._rawg_key.setPlaceholderText("RAWG API key")
+        form.addRow(_make_label("RAWG API Key"), self._rawg_key)
+
+        self._youtube_key = QLineEdit(str(cfg.get("services.youtube.api_key", "")))
+        self._youtube_key.setStyleSheet(line_style)
+        self._youtube_key.setPlaceholderText("YouTube API key")
+        form.addRow(_make_label("YouTube API Key"), self._youtube_key)
+
+        self._twitch_id = QLineEdit(str(cfg.get("services.twitch.client_id", "")))
+        self._twitch_id.setStyleSheet(line_style)
+        self._twitch_id.setPlaceholderText("Twitch Client ID")
+        form.addRow(_make_label("Twitch Client ID"), self._twitch_id)
+
+        self._twitch_secret = QLineEdit(str(cfg.get("services.twitch.client_secret", "")))
+        self._twitch_secret.setStyleSheet(line_style)
+        self._twitch_secret.setPlaceholderText("Twitch Client Secret")
+        self._twitch_secret.setEchoMode(QLineEdit.EchoMode.Password)
+        form.addRow(_make_label("Twitch Client Secret"), self._twitch_secret)
+
+        self._layout.addWidget(group)
+
     def _build_about_section(self) -> None:
         group = QGroupBox("About")
         group.setStyleSheet(_GROUP_STYLE)
@@ -340,6 +377,16 @@ class SettingsPage(QScrollArea):
         ]
         updates["library.providers"] = providers
         updates["library.scan_interval_minutes"] = self._scan_interval.value()
+
+        # Services
+        updates["services"] = {
+            "rawg": {"api_key": self._rawg_key.text().strip()},
+            "youtube": {"api_key": self._youtube_key.text().strip()},
+            "twitch": {
+                "client_id": self._twitch_id.text().strip(),
+                "client_secret": self._twitch_secret.text().strip(),
+            },
+        }
 
         # Read existing TOML, patch, and write back
         self._write_config(user_path, updates)

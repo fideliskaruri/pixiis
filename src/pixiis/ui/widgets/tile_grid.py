@@ -60,7 +60,24 @@ class TileGrid(QScrollArea):
           - ``request(url: str)`` method
           - ``image_ready(str, QPixmap)`` signal
         """
+        from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPlainTextEdit, QTextEdit
+
+        prev_focus = QApplication.focusWidget()
         self.clear()
+
+        if not apps:
+            empty = QLabel(
+                "No games found.\nCheck Settings \u2192 Library to configure providers,\n"
+                "or add games manually in config.toml"
+            )
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            empty.setStyleSheet(
+                "color: #6b6b80; font-size: 15px; padding: 60px; background: transparent;"
+            )
+            empty.setWordWrap(True)
+            self._layout.addWidget(empty)
+            return
+
         for app in apps:
             tile = GameTile(app, parent=self._container)
             tile.activated.connect(self.tile_activated.emit)
@@ -72,7 +89,12 @@ class TileGrid(QScrollArea):
                 # Connect the loader once per tile using a closure.
                 _connect_loader(tile, app.art_url, image_loader)
 
-        if self._tiles:
+        if prev_focus is not None and not prev_focus.isHidden():
+            if isinstance(prev_focus, (QLineEdit, QTextEdit, QPlainTextEdit)):
+                prev_focus.setFocus()
+            elif self._tiles:
+                self._tiles[0].setFocus()
+        elif self._tiles:
             self._tiles[0].setFocus()
 
     def set_sort_order(self, order: str) -> None:

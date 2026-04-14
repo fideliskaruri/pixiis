@@ -56,12 +56,11 @@ scan_interval_minutes = 60
 # icon = ""
 
 [ui]
-theme = "dark_gaming"
 tile_size = "large"             # "small", "medium", "large"
 animations = true
 fullscreen = false
 
-[ui.theme]
+[ui.colors]
 primary = "#1a1a2e"
 secondary = "#16213e"
 accent = "#0f3460"

@@ -87,7 +87,7 @@ QScrollBar::handle:vertical {{
 class ThemeManager(QObject):
     """Manages UI theme colors and generates QSS stylesheets.
 
-    Reads theme configuration from ``[ui.theme]`` in the config TOML,
+    Reads theme configuration from ``[ui.colors]`` in the config TOML,
     generates QSS from a template (with ``{{variable}}`` placeholders),
     and applies it to the application.
     """
@@ -168,15 +168,15 @@ class ThemeManager(QObject):
     # ── config I/O ──────────────────────────────────────────────────────
 
     def load_from_config(self) -> None:
-        """Read ``[ui.theme]`` section from config and apply values."""
+        """Read ``[ui.colors]`` section from config and apply values."""
         cfg = get_config()
-        self._primary = cfg.get("ui.theme.primary", _DEFAULTS["primary"])
-        self._secondary = cfg.get("ui.theme.secondary", _DEFAULTS["secondary"])
-        self._accent = cfg.get("ui.theme.accent", _DEFAULTS["accent"])
-        self._background = cfg.get("ui.theme.background", _DEFAULTS["background"])
-        self._font_family = cfg.get("ui.theme.font_family", _DEFAULTS["font_family"])
+        self._primary = cfg.get("ui.colors.primary", _DEFAULTS["primary"])
+        self._secondary = cfg.get("ui.colors.secondary", _DEFAULTS["secondary"])
+        self._accent = cfg.get("ui.colors.accent", _DEFAULTS["accent"])
+        self._background = cfg.get("ui.colors.background", _DEFAULTS["background"])
+        self._font_family = cfg.get("ui.colors.font_family", _DEFAULTS["font_family"])
         self._border_radius = int(
-            cfg.get("ui.theme.border_radius", _DEFAULTS["border_radius"])
+            cfg.get("ui.colors.border_radius", _DEFAULTS["border_radius"])
         )
         self.theme_changed.emit()
 
@@ -188,7 +188,7 @@ class ThemeManager(QObject):
             lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
 
         theme_block = (
-            "\n[ui.theme]\n"
+            "\n[ui.colors]\n"
             f'background = "{self._background}"\n'
             f'primary = "{self._primary}"\n'
             f'secondary = "{self._secondary}"\n'
@@ -197,8 +197,8 @@ class ThemeManager(QObject):
             f"border_radius = {self._border_radius}\n"
         )
 
-        # Try to replace existing [ui.theme] section
-        new_lines, replaced = self._replace_section(lines, "[ui.theme]", theme_block)
+        # Try to replace existing [ui.colors] section
+        new_lines, replaced = self._replace_section(lines, "[ui.colors]", theme_block)
         if replaced:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("".join(new_lines), encoding="utf-8")

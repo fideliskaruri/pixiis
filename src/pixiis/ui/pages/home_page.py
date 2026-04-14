@@ -173,7 +173,7 @@ class HomePage(QWidget):
 
         # -- tile grid --------------------------------------------------------
         if TileGrid is not None:
-            self._grid = TileGrid(image_loader=image_loader)
+            self._grid = TileGrid()
             if hasattr(self._grid, "tile_activated"):
                 self._grid.tile_activated.connect(self._on_tile_activated)
             root.addWidget(self._grid, stretch=1)

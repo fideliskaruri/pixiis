@@ -23,10 +23,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
-from PySide6.QtWidgets import (
-    QGraphicsDropShadowEffect,
-    QWidget,
-)
+from PySide6.QtWidgets import QWidget
 
 from pixiis.core.types import AppEntry
 
@@ -86,22 +83,10 @@ class GameTile(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
-        # ── Drop-shadow glow (accent colored, starts invisible) ─────────
-        self._shadow = QGraphicsDropShadowEffect(self)
-        self._shadow.setOffset(0, 0)
-        self._shadow.setColor(ACCENT_COLOR)
-        self._shadow.setBlurRadius(0)
-        self.setGraphicsEffect(self._shadow)
+        # No QGraphicsEffect — we paint the glow border manually in paintEvent
+        # to avoid the "paint device can only be painted by one painter" conflict.
 
         # ── Animations ──────────────────────────────────────────────────
-        self._glow_anim = QPropertyAnimation(self._shadow, b"blurRadius", self)
-        self._glow_anim.setDuration(ANIM_DURATION_MS)
-        self._glow_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-        self._scale_anim = QPropertyAnimation(self, b"geometry", self)
-        self._scale_anim.setDuration(ANIM_DURATION_MS)
-        self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
         self._hover_anim = QPropertyAnimation(self, b"hoverProgress", self)
         self._hover_anim.setDuration(ANIM_DURATION_MS)
         self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -222,14 +207,23 @@ class GameTile(QWidget):
         p.setPen(QColor(255, 255, 255, 200))
         p.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
 
-        # ── Focus / hover border ────────────────────────────────────────
+        # ── Focus / hover glow border (replaces QGraphicsDropShadowEffect) ──
         if hp > 0.0:
+            p.setClipping(False)
+            # Outer soft glow rings (painted outside → in, increasingly opaque)
+            for i in range(4, 0, -1):
+                glow_alpha = int(20 * hp * (5 - i) / 4)
+                pen = QPen(QColor(ACCENT_COLOR.red(), ACCENT_COLOR.green(), ACCENT_COLOR.blue(), glow_alpha))
+                pen.setWidthF(float(i) * 1.5)
+                p.setPen(pen)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                glow_rect = rect.adjusted(-i, -i, i, i)
+                p.drawRoundedRect(glow_rect, CORNER_RADIUS + i, CORNER_RADIUS + i)
+            # Inner solid accent border
             border_alpha = int(255 * hp)
             pen = QPen(QColor(ACCENT_COLOR.red(), ACCENT_COLOR.green(), ACCENT_COLOR.blue(), border_alpha))
             pen.setWidthF(2.0)
-            p.setClipping(False)
             p.setPen(pen)
-            # Inset border so it doesn't clip
             border_rect = rect.adjusted(1, 1, -1, -1)
             p.drawRoundedRect(border_rect, CORNER_RADIUS, CORNER_RADIUS)
 
@@ -238,47 +232,16 @@ class GameTile(QWidget):
     # ── Focus / hover animation helpers ─────────────────────────────────────
 
     def _animate_in(self) -> None:
-        # Hover progress
         self._hover_anim.stop()
         self._hover_anim.setStartValue(self._hover_progress)
         self._hover_anim.setEndValue(1.0)
         self._hover_anim.start()
 
-        # Glow
-        self._glow_anim.stop()
-        self._glow_anim.setStartValue(self._shadow.blurRadius())
-        self._glow_anim.setEndValue(30)
-        self._glow_anim.start()
-
-        # Scale-up via geometry
-        self._base_geo = self.geometry()
-        target = self._base_geo.adjusted(
-            -HOVER_EXPAND_PX, -HOVER_EXPAND_PX, HOVER_EXPAND_PX, HOVER_EXPAND_PX
-        )
-        self._scale_anim.stop()
-        self._scale_anim.setStartValue(self.geometry())
-        self._scale_anim.setEndValue(target)
-        self._scale_anim.start()
-
     def _animate_out(self) -> None:
-        # Hover progress
         self._hover_anim.stop()
         self._hover_anim.setStartValue(self._hover_progress)
         self._hover_anim.setEndValue(0.0)
         self._hover_anim.start()
-
-        # Glow
-        self._glow_anim.stop()
-        self._glow_anim.setStartValue(self._shadow.blurRadius())
-        self._glow_anim.setEndValue(0)
-        self._glow_anim.start()
-
-        # Scale back
-        if self._base_geo is not None:
-            self._scale_anim.stop()
-            self._scale_anim.setStartValue(self.geometry())
-            self._scale_anim.setEndValue(self._base_geo)
-            self._scale_anim.start()
 
     # ── Event overrides ─────────────────────────────────────────────────────
 

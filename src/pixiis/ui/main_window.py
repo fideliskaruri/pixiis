@@ -50,18 +50,24 @@ class _ScanWorker(QObject):
 class MainWindow(QMainWindow):
     """Top-level frameless window containing sidebar and page stack."""
 
+    _refresh_signal = Signal(list)  # emitted from any thread, handled on main
+
     def __init__(self) -> None:
         super().__init__()
         self._config = get_config()
 
-        # -- window chrome ---------------------------------------------------
+        # -- window chrome (always frameless) --------------------------------
         self.setWindowTitle("Pixiis")
         self.setMinimumSize(1280, 720)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+
+        self._dragging = False
+        self._drag_offset = None
 
         if self._config.get("ui.fullscreen", False):
-            self.setWindowFlags(
-                Qt.WindowType.FramelessWindowHint | self.windowFlags()
-            )
             self.showFullScreen()
 
         # -- central layout --------------------------------------------------
@@ -97,6 +103,10 @@ class MainWindow(QMainWindow):
 
         # -- signals ---------------------------------------------------------
         self._sidebar.page_requested.connect(self.navigate_to)
+        self._sidebar.minimize_requested.connect(self.showMinimized)
+        self._sidebar.maximize_requested.connect(self._toggle_maximize)
+        self._sidebar.close_requested.connect(self.close)
+        self._refresh_signal.connect(self._refresh_pages)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
 
     # -- page registration ---------------------------------------------------
@@ -123,22 +133,29 @@ class MainWindow(QMainWindow):
         """Attempt to import a real page; fall back to a placeholder."""
         try:
             if name == "home":
-                from pixiis.ui.pages.home import HomePage
-                return HomePage(self._registry)
+                from pixiis.ui.pages.home_page import HomePage
+                page = HomePage(self._registry)
+                page.game_selected.connect(self._on_game_selected)
+                return page
             if name == "library":
-                from pixiis.ui.pages.library import LibraryPage
-                return LibraryPage(self._registry)
+                from pixiis.ui.pages.library_page import LibraryPage
+                page = LibraryPage(self._registry)
+                page.game_selected.connect(self._on_game_selected)
+                return page
             if name == "settings":
-                from pixiis.ui.pages.settings import SettingsPage
+                from pixiis.ui.pages.settings_page import SettingsPage
                 return SettingsPage()
             if name == "file_manager":
-                from pixiis.ui.pages.file_manager import FileManagerPage
+                from pixiis.ui.pages.file_manager_page import FileManagerPage
                 return FileManagerPage()
             if name == "game_detail":
-                from pixiis.ui.pages.game_detail import GameDetailPage
-                return GameDetailPage(self._registry)
-        except Exception:
-            pass
+                from pixiis.ui.widgets.game_detail_panel import GameDetailPanel
+                panel = GameDetailPanel()
+                panel.back_requested.connect(self.go_back)
+                panel.launch_requested.connect(self._on_launch_requested)
+                return panel
+        except Exception as e:
+            print(f"[Pixiis] Failed to load page '{name}': {e}")
 
         return self._make_placeholder(label)
 
@@ -180,6 +197,48 @@ class MainWindow(QMainWindow):
             self._page_stack.switch_to(prev, direction="left")
             self._sidebar.set_active(prev)
 
+    def _toggle_maximize(self) -> None:
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+
+    # -- frameless window drag -----------------------------------------------
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Only drag from the top nav bar area (first 60px)
+            if event.position().y() <= 60:
+                self._dragging = True
+                self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._dragging and self._drag_offset is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._dragging = False
+            self._drag_offset = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        # Double-click on nav bar toggles fullscreen
+        if event.position().y() <= 60:
+            if self.isFullScreen():
+                self.showNormal()
+            else:
+                self.showFullScreen()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
     # -- keyboard shortcuts --------------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -212,10 +271,29 @@ class MainWindow(QMainWindow):
         thread.start()
 
     def _on_library_updated(self, event: LibraryUpdatedEvent) -> None:
-        """Refresh pages when the library finishes scanning."""
-        # Pages that care about the app list can subscribe to the event
-        # themselves. This is a hook point if we need window-level updates.
-        pass
+        """Called from scan thread — marshal to main thread via signal."""
+        self._refresh_signal.emit(event.apps)
+
+    def _refresh_pages(self, apps: list) -> None:
+        """Refresh pages on the main thread (safe for UI updates)."""
+        for name in ("home", "library"):
+            page = self._page_stack._pages.get(name)
+            if page is not None and hasattr(page, "refresh"):
+                page.refresh(apps)
+
+    def _on_game_selected(self, app) -> None:
+        """Navigate to game detail when a tile is activated."""
+        detail = self._page_stack._pages.get("game_detail")
+        if detail is not None and hasattr(detail, "set_game"):
+            detail.set_game(app)
+        self.navigate_to("game_detail")
+
+    def _on_launch_requested(self, app) -> None:
+        """Launch the selected game."""
+        try:
+            self._registry.launch(app)
+        except Exception as e:
+            print(f"[Pixiis] Launch failed: {e}")
 
     # -- cleanup -------------------------------------------------------------
 

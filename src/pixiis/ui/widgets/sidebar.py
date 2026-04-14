@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QWidget,
 )
@@ -151,6 +152,9 @@ class Sidebar(QFrame):
     """
 
     page_requested = Signal(str)
+    minimize_requested = Signal()
+    maximize_requested = Signal()
+    close_requested = Signal()
 
     _NAV_ITEMS: list[tuple[str, str]] = [
         ("Home", "home"),
@@ -195,17 +199,45 @@ class Sidebar(QFrame):
 
         layout.addStretch()
 
-        # -- version label on the right
-        version = QLabel("v0.1.0")
-        version.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        version.setStyleSheet(
-            "QLabel {"
-            "  font-size: 11px;"
-            "  color: #3a3a4a;"
+        # -- window control buttons (minimize, maximize, close)
+        _BTN_BASE = (
+            "QPushButton {"
             "  background: transparent;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "  font-size: 14px;"
+            "  padding: 0;"
             "}"
         )
-        layout.addWidget(version)
+        btn_min = QPushButton("\u2500")  # ─ minimize
+        btn_min.setFixedSize(36, 36)
+        btn_min.setStyleSheet(
+            _BTN_BASE
+            + "QPushButton { color: #6b6b80; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.08); color: #e8e8f0; }"
+        )
+        btn_min.clicked.connect(self.minimize_requested.emit)
+        layout.addWidget(btn_min)
+
+        btn_max = QPushButton("\u25a1")  # □ maximize
+        btn_max.setFixedSize(36, 36)
+        btn_max.setStyleSheet(
+            _BTN_BASE
+            + "QPushButton { color: #6b6b80; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.08); color: #e8e8f0; }"
+        )
+        btn_max.clicked.connect(self.maximize_requested.emit)
+        layout.addWidget(btn_max)
+
+        btn_close = QPushButton("\u2715")  # ✕ close
+        btn_close.setFixedSize(36, 36)
+        btn_close.setStyleSheet(
+            _BTN_BASE
+            + "QPushButton { color: #6b6b80; }"
+            "QPushButton:hover { background: rgba(233,69,96,0.8); color: #ffffff; }"
+        )
+        btn_close.clicked.connect(self.close_requested.emit)
+        layout.addWidget(btn_close)
 
     def paintEvent(self, event) -> None:
         """Custom background with subtle gradient and bottom border."""

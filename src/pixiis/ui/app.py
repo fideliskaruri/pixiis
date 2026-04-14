@@ -18,9 +18,11 @@ def launch_ui() -> None:
         )
         sys.exit(1)
 
-    # High-DPI support (must be set before QApplication is created)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps, True)
+    # High-DPI scaling is automatic in Qt6 — no setAttribute needed
+
+    # Allow Ctrl+C in terminal to kill the app
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     app = QApplication(sys.argv)
     app.setApplicationName("Pixiis")
@@ -47,9 +49,25 @@ def launch_ui() -> None:
         tray = QSystemTrayIcon(window)
         tray.setToolTip("Pixiis")
 
-        icon = app.windowIcon()
-        if not icon.isNull():
-            tray.setIcon(icon)
+        # Create a simple colored icon since we don't have an icon file
+        from PySide6.QtGui import QPixmap, QPainter, QColor
+        pm = QPixmap(32, 32)
+        pm.fill(QColor(0, 0, 0, 0))
+        _p = QPainter(pm)
+        _p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        _p.setBrush(QColor("#e94560"))
+        _p.setPen(Qt.PenStyle.NoPen)
+        _p.drawRoundedRect(2, 2, 28, 28, 6, 6)
+        _p.setPen(QColor("white"))
+        _f = _p.font()
+        _f.setPixelSize(16)
+        _f.setBold(True)
+        _p.setFont(_f)
+        _p.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, "P")
+        _p.end()
+        tray_icon = QIcon(pm)
+        tray.setIcon(tray_icon)
+        app.setWindowIcon(tray_icon)
 
         menu = QMenu()
         toggle_action = QAction("Show/Hide Dashboard", menu)

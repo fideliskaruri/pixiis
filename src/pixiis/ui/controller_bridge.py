@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QEvent, QObject, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QThread, QTimer, Signal
 from PySide6.QtGui import QKeyEvent, QWheelEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLineEdit, QTextEdit, QPlainTextEdit
 
 from pixiis.core import (
     ActionType,
@@ -75,12 +75,12 @@ class ControllerBridge(QObject):
         self._last_nav_direction: Direction | None = None
         self._nav_initial_fired = False
 
-        # Poll timer (16ms ≈ 60 Hz)
-        self._poll_timer = QTimer(self)
-        self._poll_timer.setInterval(16)
-        self._poll_timer.timeout.connect(self._poll)
+        # Poll on a background thread to avoid blocking the Qt event loop
+        # (inputs.get_gamepad() is a blocking call)
+        self._poll_thread: QThread | None = None
+        self._poll_running = False
         if self._mapper is not None:
-            self._poll_timer.start()
+            self._start_poll_thread()
 
         # Subscribe to events
         bus.subscribe(NavigationEvent, self._on_navigation)
@@ -88,15 +88,25 @@ class ControllerBridge(QObject):
         bus.subscribe(ControllerEvent, self._on_controller_button)
         bus.subscribe(AxisEvent, self._on_axis)
 
-    # -- polling -------------------------------------------------------------
+    # -- polling (background thread) -----------------------------------------
 
-    def _poll(self) -> None:
-        if self._mapper is None:
-            return
-        try:
-            self._mapper.poll()
-        except Exception:
-            pass
+    def _start_poll_thread(self) -> None:
+        """Start a daemon thread that polls the controller without blocking Qt."""
+        import threading
+
+        self._poll_running = True
+
+        def _poll_loop():
+            while self._poll_running:
+                try:
+                    if self._mapper is not None:
+                        self._mapper.poll()
+                except Exception:
+                    pass
+                time.sleep(0.016)  # ~60Hz
+
+        t = threading.Thread(target=_poll_loop, daemon=True)
+        t.start()
 
     # -- controller button events --------------------------------------------
 
@@ -170,10 +180,23 @@ class ControllerBridge(QObject):
     # -- helpers -------------------------------------------------------------
 
     @staticmethod
+    def _is_text_input_focused() -> bool:
+        """Return True if the currently focused widget is a text input."""
+        widget = QApplication.focusWidget()
+        if widget is None:
+            return False
+        return isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit))
+
+    @staticmethod
     def _post_key(key: int) -> None:
         widget = QApplication.focusWidget()
         if widget is None:
             return
+        # Don't inject nav/action keys into text inputs — let them type normally
+        if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit)):
+            # Only allow Escape (to leave the text field)
+            if key != _KEY_ESCAPE:
+                return
         press = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
         release = QKeyEvent(QEvent.Type.KeyRelease, key, Qt.KeyboardModifier.NoModifier)
         QApplication.postEvent(widget, press)
@@ -181,6 +204,9 @@ class ControllerBridge(QObject):
 
     @staticmethod
     def _post_nav_key(direction: Direction) -> None:
+        # Don't inject arrow keys into text inputs
+        if ControllerBridge._is_text_input_focused():
+            return
         key = _DIRECTION_TO_KEY.get(direction)
         if key is not None:
             ControllerBridge._post_key(key)
@@ -209,7 +235,7 @@ class ControllerBridge(QObject):
 
     def shutdown(self) -> None:
         """Stop polling and unsubscribe from the event bus."""
-        self._poll_timer.stop()
+        self._poll_running = False
         self._nav_repeat_timer.stop()
         bus.unsubscribe(NavigationEvent, self._on_navigation)
         bus.unsubscribe(MacroAction, self._on_macro)

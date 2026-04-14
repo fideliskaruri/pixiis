@@ -8,7 +8,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtWidgets import QScrollArea, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPlainTextEdit, QScrollArea, QTextEdit, QWidget
 
 from pixiis.core.types import AppEntry
 from pixiis.ui.widgets.flow_layout import FlowLayout
@@ -20,7 +20,13 @@ V_SPACING = 24
 
 
 class TileGrid(QScrollArea):
-    """Scrollable area containing a FlowLayout of GameTile widgets."""
+    """Scrollable area containing a FlowLayout of GameTile widgets.
+
+    Image loading uses the **single dispatcher** pattern: one connection to
+    ``image_ready`` for the lifetime of this widget, with a ``{url: tile}``
+    dict that is cleared on every rebuild. This gives O(1) signal overhead,
+    zero accumulation, and clean invalidation of stale downloads.
+    """
 
     tile_activated = Signal(object)  # forwards GameTile.activated
 
@@ -39,6 +45,11 @@ class TileGrid(QScrollArea):
 
         self._tiles: list[GameTile] = []
         self._focused_index: int = -1
+
+        # Image loading — single dispatcher pattern
+        self._url_to_tile: dict[str, GameTile] = {}
+        self._loader = None
+        self._loader_connected = False
 
         # Smooth scroll animation
         self._scroll_anim = QPropertyAnimation(
@@ -60,10 +71,14 @@ class TileGrid(QScrollArea):
           - ``request(url: str)`` method
           - ``image_ready(str, QPixmap)`` signal
         """
-        from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPlainTextEdit, QTextEdit
-
         prev_focus = QApplication.focusWidget()
         self.clear()
+
+        # One-time connection to the image loader (never accumulates)
+        if image_loader is not None and not self._loader_connected:
+            self._loader = image_loader
+            image_loader.image_ready.connect(self._on_image_ready)
+            self._loader_connected = True
 
         if not apps:
             empty = QLabel(
@@ -86,9 +101,10 @@ class TileGrid(QScrollArea):
             self._layout.addWidget(tile)
 
             if image_loader is not None and app.art_url:
-                # Connect the loader once per tile using a closure.
-                _connect_loader(tile, app.art_url, image_loader)
+                self._url_to_tile[app.art_url] = tile
+                image_loader.request(app.art_url)
 
+        # Restore focus: keep search bar focused if it was, otherwise focus first tile
         if prev_focus is not None and not prev_focus.isHidden():
             if isinstance(prev_focus, (QLineEdit, QTextEdit, QPlainTextEdit)):
                 prev_focus.setFocus()
@@ -109,7 +125,12 @@ class TileGrid(QScrollArea):
         self._rebuild_layout()
 
     def clear(self) -> None:
-        """Remove all tiles from the grid."""
+        """Remove all tiles from the grid.
+
+        Clears the url→tile dispatch dict so in-flight downloads for old
+        tiles harmlessly no-op when they arrive.
+        """
+        self._url_to_tile.clear()
         self._layout.clear()
         self._tiles.clear()
         self._focused_index = -1
@@ -119,6 +140,23 @@ class TileGrid(QScrollArea):
         avail = self._container.width()
         col_w = DEFAULT_TILE_WIDTH + H_SPACING
         return max(1, avail // col_w)
+
+    # ── Image delivery (single dispatcher) ─────────────────────────────────
+
+    def _on_image_ready(self, url: str, pixmap) -> None:
+        """Deliver a downloaded image to the tile that requested it.
+
+        If the tile was destroyed by a grid rebuild, ``dict.pop`` returns
+        ``None`` and we skip delivery. The ``try/except`` is a belt-and-
+        suspenders guard for the edge case where ``deleteLater()`` runs
+        between the dict check and the ``set_image`` call.
+        """
+        tile = self._url_to_tile.pop(url, None)
+        if tile is not None:
+            try:
+                tile.set_image(pixmap)
+            except RuntimeError:
+                pass  # C++ object already deleted — safe to ignore
 
     # ── 2-D keyboard navigation ─────────────────────────────────────────────
 
@@ -162,7 +200,6 @@ class TileGrid(QScrollArea):
 
     def _smooth_scroll_to(self, widget: QWidget) -> None:
         """Ensure *widget* is visible with a smooth scroll animation."""
-        # Map widget position to scroll area coordinates.
         y = widget.mapTo(self._container, widget.rect().topLeft()).y()
         bar = self.verticalScrollBar()
         viewport_h = self.viewport().height()
@@ -177,20 +214,8 @@ class TileGrid(QScrollArea):
 
     def _rebuild_layout(self) -> None:
         """Re-add tiles to the layout in their current order."""
-        # Detach without destroying widgets.
         while self._layout.count():
             self._layout.takeAt(0)
         for tile in self._tiles:
             self._layout.addWidget(tile)
         self._container.updateGeometry()
-
-
-def _connect_loader(tile: GameTile, url: str, loader) -> None:
-    """Wire *loader.image_ready* to deliver the pixmap for *url* to *tile*."""
-
-    def _on_image(loaded_url, pixmap):
-        if loaded_url == url:
-            tile.set_image(pixmap)
-
-    loader.request(url)
-    loader.image_ready.connect(_on_image)

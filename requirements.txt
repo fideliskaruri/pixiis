@@ -1,0 +1,8 @@
+faster-whisper
+torch
+numpy
+scipy
+watchdog
+pygame
+sounddevice
+soundfile

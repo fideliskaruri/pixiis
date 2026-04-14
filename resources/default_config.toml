@@ -1,0 +1,85 @@
+# Pixiis default configuration
+# Copy to %APPDATA%/pixiis/config.toml and customize
+
+[voice]
+live_model = "large-v3"
+final_model = "large-v3"
+device = "cuda"
+energy_threshold = 300.0
+vad_backend = "silero"          # "silero" or "webrtc"
+sample_rate = 16000
+
+[voice.tts]
+enabled = true
+voice = "am_michael"
+speed = 1.0
+
+[voice.transcription]
+fast_beam_size = 3
+quality_beam_size = 5
+language = "en"
+no_speech_threshold = 0.6
+compression_ratio_threshold = 2.4
+
+[controller]
+deadzone = 0.15
+vibration_enabled = true
+hold_threshold_ms = 200         # ms before a press becomes a hold
+combo_window_ms = 150           # ms window for combo detection
+
+[controller.macros]
+# Format: "button:N" or "combo:N+M" = { action = "...", mode = "press|hold", target = "..." }
+# Xbox A button = voice record (hold to talk)
+"button:0" = { action = "voice_record", mode = "hold" }
+# Xbox B button = go back
+"button:1" = { action = "navigate_ui", mode = "press", target = "back" }
+# Xbox X button = search
+"button:2" = { action = "navigate_ui", mode = "press", target = "search" }
+# Xbox Y button = launch selected
+"button:3" = { action = "launch_selected", mode = "press" }
+# LB+RB = open file manager
+"combo:4+5" = { action = "navigate_ui", mode = "combo", target = "file_manager" }
+
+[library]
+providers = ["steam", "xbox", "startmenu", "manual"]
+scan_interval_minutes = 60
+
+[library.steam]
+# Auto-detected from registry, override here if needed
+# install_path = "C:/Program Files (x86)/Steam"
+
+[library.manual]
+# Add custom apps here
+# [[library.manual.apps]]
+# name = "Discord"
+# path = "C:/Users/.../Discord.exe"
+# icon = ""
+
+[ui]
+theme = "dark_gaming"
+tile_size = "large"             # "small", "medium", "large"
+animations = true
+fullscreen = false
+
+[ui.theme]
+primary = "#1a1a2e"
+secondary = "#16213e"
+accent = "#0f3460"
+background = "#0d0d0f"
+text_color = "#e0e0e8"
+text_secondary = "#8888a0"
+font_family = "Segoe UI"
+border_radius = 8
+
+[services.rawg]
+api_key = ""
+
+[services.youtube]
+api_key = ""
+
+[services.twitch]
+client_id = ""
+client_secret = ""
+
+[daemon]
+autostart = false

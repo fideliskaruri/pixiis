@@ -1,0 +1,321 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Pixiis — Dark Gaming Theme
+   Template variables are substituted by ThemeManager at runtime.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base ─────────────────────────────────────────────────────────────────── */
+
+QMainWindow {
+    background: {{background}};
+}
+
+QWidget {
+    font-family: "{{font_family}}";
+    color: {{text_color}};
+}
+
+QFrame {
+    background: {{primary}};
+    border-radius: {{border_radius}}px;
+}
+
+QLabel {
+    background: transparent;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+#sidebar {
+    background: {{primary}};
+    border-right: 1px solid {{secondary}};
+}
+
+#sidebar QPushButton {
+    text-align: left;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 0;
+    color: {{text_secondary}};
+    background: transparent;
+    font-size: 13px;
+}
+
+#sidebar QPushButton:hover {
+    color: {{text_color}};
+    background: {{secondary}};
+}
+
+#sidebar QPushButton:checked {
+    color: {{accent}};
+    background: {{secondary}};
+    border-left: 3px solid {{accent}};
+}
+
+/* ── Game Tiles ───────────────────────────────────────────────────────────── */
+
+GameTile {
+    background: {{secondary}};
+    border: 2px solid transparent;
+    border-radius: {{border_radius}}px;
+}
+
+GameTile:focus,
+GameTile:hover {
+    border: 2px solid {{accent}};
+}
+
+/* ── Search Bar ───────────────────────────────────────────────────────────── */
+
+SearchBar {
+    background: {{secondary}};
+    border: 1px solid {{secondary}};
+    border-radius: 20px;
+    padding: 8px 16px;
+    color: {{text_color}};
+}
+
+SearchBar:focus {
+    border: 1px solid {{accent}};
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+QPushButton {
+    background: {{secondary}};
+    color: {{text_color}};
+    border: none;
+    border-radius: {{border_radius}}px;
+    padding: 8px 16px;
+    font-size: 13px;
+}
+
+QPushButton:hover {
+    background: {{accent}};
+}
+
+QPushButton:pressed {
+    background: darker({{accent}});
+}
+
+QPushButton:disabled {
+    color: {{text_secondary}};
+    background: {{primary}};
+}
+
+/* ── Scroll Bars (thin & subtle) ──────────────────────────────────────────── */
+
+QScrollBar:vertical {
+    width: 6px;
+    background: transparent;
+    margin: 0;
+}
+
+QScrollBar::handle:vertical {
+    background: {{secondary}};
+    border-radius: 3px;
+    min-height: 30px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: {{accent}};
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+
+QScrollBar:horizontal {
+    height: 6px;
+    background: transparent;
+    margin: 0;
+}
+
+QScrollBar::handle:horizontal {
+    background: {{secondary}};
+    border-radius: 3px;
+    min-width: 30px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: {{accent}};
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: transparent;
+}
+
+/* ── Scroll Area ──────────────────────────────────────────────────────────── */
+
+QScrollArea {
+    border: none;
+    background: {{background}};
+}
+
+/* ── Group Boxes (Settings) ───────────────────────────────────────────────── */
+
+QGroupBox {
+    border: 1px solid {{secondary}};
+    border-radius: {{border_radius}}px;
+    margin-top: 12px;
+    padding-top: 20px;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 16px;
+    padding: 0 8px;
+    color: {{accent}};
+}
+
+/* ── Sliders ──────────────────────────────────────────────────────────────── */
+
+QSlider::groove:horizontal {
+    height: 4px;
+    background: {{secondary}};
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    width: 16px;
+    height: 16px;
+    margin: -6px 0;
+    background: {{accent}};
+    border-radius: 8px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: lighter({{accent}});
+}
+
+/* ── Combo Box ────────────────────────────────────────────────────────────── */
+
+QComboBox {
+    background: {{secondary}};
+    border: 1px solid {{secondary}};
+    border-radius: {{border_radius}}px;
+    padding: 6px 12px;
+    color: {{text_color}};
+}
+
+QComboBox:focus {
+    border: 1px solid {{accent}};
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox QAbstractItemView {
+    background: {{primary}};
+    border: 1px solid {{secondary}};
+    selection-background-color: {{accent}};
+    color: {{text_color}};
+}
+
+/* ── Tree View (File Manager) ─────────────────────────────────────────────── */
+
+QTreeView {
+    background: {{primary}};
+    alternate-background-color: {{secondary}};
+    border: none;
+    outline: none;
+}
+
+QTreeView::item {
+    padding: 4px 0;
+}
+
+QTreeView::item:selected {
+    background: {{accent}};
+}
+
+QTreeView::item:hover {
+    background: {{secondary}};
+}
+
+/* ── Line Edits ───────────────────────────────────────────────────────────── */
+
+QLineEdit {
+    background: {{secondary}};
+    border: 1px solid {{secondary}};
+    border-radius: {{border_radius}}px;
+    padding: 6px 12px;
+    color: {{text_color}};
+}
+
+QLineEdit:focus {
+    border: 1px solid {{accent}};
+}
+
+/* ── Tab Widget ───────────────────────────────────────────────────────────── */
+
+QTabWidget::pane {
+    border: 1px solid {{secondary}};
+    border-radius: {{border_radius}}px;
+    background: {{primary}};
+}
+
+QTabBar::tab {
+    background: {{primary}};
+    color: {{text_secondary}};
+    padding: 8px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+QTabBar::tab:selected {
+    color: {{text_color}};
+    border-bottom: 2px solid {{accent}};
+}
+
+QTabBar::tab:hover {
+    color: {{text_color}};
+    background: {{secondary}};
+}
+
+/* ── Tooltips ─────────────────────────────────────────────────────────────── */
+
+QToolTip {
+    background: {{primary}};
+    color: {{text_color}};
+    border: 1px solid {{secondary}};
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+/* ── Menu ─────────────────────────────────────────────────────────────────── */
+
+QMenu {
+    background: {{primary}};
+    border: 1px solid {{secondary}};
+    border-radius: {{border_radius}}px;
+    padding: 4px 0;
+}
+
+QMenu::item {
+    padding: 6px 24px;
+    color: {{text_color}};
+}
+
+QMenu::item:selected {
+    background: {{accent}};
+}
+
+QMenu::separator {
+    height: 1px;
+    background: {{secondary}};
+    margin: 4px 8px;
+}

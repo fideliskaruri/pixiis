@@ -515,11 +515,17 @@ class MainWindow(QMainWindow):
 
         def _apply() -> None:
             current = self._page_stack.current_page_name()
+            print(f"[Pixiis Voice] Writing to search bar on page '{current}': '{text}'")
             if current in ("home", "library"):
                 page = self._page_stack._pages.get(current)
                 if page and hasattr(page, "_search") and page._search:
                     page._search.setText(text)
                     page._search.search_changed.emit(text)
+                    print(f"[Pixiis Voice] Text written to search bar OK")
+                else:
+                    print(f"[Pixiis Voice] No search bar found on page")
+            else:
+                print(f"[Pixiis Voice] Not on a searchable page")
             if self._voice_overlay:
                 self._voice_overlay.dismiss()
 

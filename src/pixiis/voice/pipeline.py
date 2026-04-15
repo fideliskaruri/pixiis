@@ -220,12 +220,11 @@ class VoicePipeline:
                         text, live_count=live_count,
                     )
                     self._add_to_history(text)
-                    self._injector.inject(text)
+                    # Don't inject via SendInput or speak via TTS —
+                    # the UI handles text placement via TranscriptionEvent
                     bus.publish(TranscriptionEvent(
                         text=text, is_final=True, timestamp=time.time(),
                     ))
-                    if self._tts is not None:
-                        self._tts_queue.put(text)
                     print()
                 else:
                     if self._is_duplicate(text):

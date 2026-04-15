@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
     """
 
     _refresh_signal = Signal(list)  # emitted from any thread, handled on main
+    _transcription_signal = Signal(str)  # marshals transcription text to main thread
 
     def __init__(
         self,
@@ -154,10 +155,22 @@ class MainWindow(QMainWindow):
 
         # Voice recording pipeline (faster-whisper)
         self._voice_pipeline = None
+        self._voice_ready = False
         try:
             from pixiis.voice.pipeline import VoicePipeline
             self._voice_pipeline = VoicePipeline()
-            print("[Pixiis] Voice pipeline created OK")
+            self._voice_pipeline.start()  # start worker threads
+            # Load Whisper model in background thread (3GB, takes seconds)
+            import threading
+            def _load_voice_model():
+                try:
+                    print("[Pixiis] Loading Whisper model in background...")
+                    self._voice_pipeline._ensure_models()
+                    self._voice_ready = True
+                    print("[Pixiis] Whisper model loaded — voice search ready")
+                except Exception as e:
+                    print(f"[Pixiis] Whisper model load failed: {e}")
+            threading.Thread(target=_load_voice_model, daemon=True).start()
         except Exception as e:
             print(f"[Pixiis] Voice pipeline unavailable: {e}")
             self._voice_pipeline = None
@@ -175,6 +188,7 @@ class MainWindow(QMainWindow):
         self._sidebar.maximize_requested.connect(self._toggle_maximize)
         self._sidebar.close_requested.connect(self.close)
         self._refresh_signal.connect(self._refresh_pages)
+        self._transcription_signal.connect(self._apply_transcription)
         self._controller_bridge.tab_next.connect(self._nav_next_page)
         self._controller_bridge.tab_prev.connect(self._nav_prev_page)
         self._controller_bridge.voice_start.connect(self._on_voice_start)
@@ -470,23 +484,11 @@ class MainWindow(QMainWindow):
                 print("[Pixiis Voice] Search bar focused + mic icon active")
 
         # Start actual voice recording
-        if self._voice_pipeline is not None:
-            print("[Pixiis Voice] Starting recording...")
+        if self._voice_pipeline is not None and self._voice_ready:
             try:
-                # Ensure workers are running
-                if not self._voice_pipeline._threads:
-                    self._voice_pipeline.start()
-                    print("[Pixiis Voice] Pipeline workers started")
-                # Start mic capture + rolling transcription
                 self._voice_pipeline._start_recording()
-                print("[Pixiis Voice] Recording from mic — speak now")
-            except Exception as e:
-                print(f"[Pixiis Voice] Recording start FAILED: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print("[Pixiis Voice] WARNING: No voice pipeline available!")
-            print("[Pixiis Voice] Check: pip install faster-whisper sounddevice numpy")
+            except Exception:
+                pass
 
     def _on_voice_stop(self) -> None:
         print("[Pixiis Voice] === VOICE STOP ===")
@@ -516,32 +518,29 @@ class MainWindow(QMainWindow):
             self._voice_overlay.show_text("Processing...", is_final=False)
 
     def _on_transcription(self, event: TranscriptionEvent) -> None:
-        """Write final transcription text into the active search bar."""
+        """Called from transcription worker thread — marshal to main thread via signal."""
         print(f"[Pixiis Voice] TranscriptionEvent: is_final={event.is_final} text='{event.text}'")
         if not event.is_final:
-            # Show interim text in overlay
-            if self._voice_overlay:
-                self._voice_overlay.show_text(event.text, is_final=False)
             return
-        text = event.text
+        # Signal is thread-safe — guaranteed to deliver on the main thread
+        self._transcription_signal.emit(event.text)
 
-        def _apply() -> None:
-            current = self._page_stack.current_page_name()
-            print(f"[Pixiis Voice] Writing to search bar on page '{current}': '{text}'")
-            if current in ("home", "library"):
-                page = self._page_stack._pages.get(current)
-                if page and hasattr(page, "_search") and page._search:
-                    page._search.setText(text)
-                    page._search.search_changed.emit(text)
-                    print(f"[Pixiis Voice] Text written to search bar OK")
-                else:
-                    print(f"[Pixiis Voice] No search bar found on page")
+    def _apply_transcription(self, text: str) -> None:
+        """Main-thread handler: write transcribed text to the search bar."""
+        current = self._page_stack.current_page_name()
+        print(f"[Pixiis Voice] Writing to search bar on page '{current}': '{text}'")
+        if current in ("home", "library"):
+            page = self._page_stack._pages.get(current)
+            if page and hasattr(page, "_search") and page._search:
+                page._search.setText(text)
+                page._search.search_changed.emit(text)
+                print(f"[Pixiis Voice] Text written to search bar OK")
             else:
-                print(f"[Pixiis Voice] Not on a searchable page")
-            if self._voice_overlay:
-                self._voice_overlay.dismiss()
-
-        QTimer.singleShot(0, _apply)
+                print(f"[Pixiis Voice] No search bar found on page")
+        else:
+            print(f"[Pixiis Voice] Not on a searchable page")
+        if self._voice_overlay:
+            self._voice_overlay.dismiss()
 
     def show_toast(self, msg: str, icon: str = "success") -> None:
         """Show a floating toast notification."""

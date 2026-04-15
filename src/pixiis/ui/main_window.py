@@ -179,6 +179,7 @@ class MainWindow(QMainWindow):
         self._controller_bridge.tab_prev.connect(self._nav_prev_page)
         self._controller_bridge.voice_start.connect(self._on_voice_start)
         self._controller_bridge.voice_stop.connect(self._on_voice_stop)
+        self._controller_bridge.toggle_app.connect(self._toggle_visibility)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
         bus.subscribe(TranscriptionEvent, self._on_transcription)
 
@@ -295,6 +296,16 @@ class MainWindow(QMainWindow):
         if current in self._PAGE_ORDER:
             idx = (self._PAGE_ORDER.index(current) + 1) % len(self._PAGE_ORDER)
             self.navigate_to(self._PAGE_ORDER[idx])
+
+    def _toggle_visibility(self) -> None:
+        """Start button — hide to background or show from background."""
+        if self.isVisible():
+            self.hide()
+            self.show_toast("Pixiis running in background — press Start to reopen", icon="info")
+        else:
+            self.showFullScreen() if self._config.get("ui.fullscreen", True) else self.showNormal()
+            self.activateWindow()
+            self.raise_()
 
     def _nav_prev_page(self) -> None:
         """LB — cycle to previous page."""

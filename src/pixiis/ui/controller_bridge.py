@@ -28,6 +28,8 @@ _BTN_A = 0
 _BTN_B = 1
 _BTN_LB = 4
 _BTN_RB = 5
+_BTN_START = 7   # Menu/hamburger button
+_BTN_SELECT = 6  # View/back button
 
 # Axis indices
 _LEFT_STICK_X = 0
@@ -75,8 +77,9 @@ class ControllerBridge(QObject):
     search_requested = Signal()
     tab_next = Signal()      # RB — next page/tab
     tab_prev = Signal()      # LB — previous page/tab
-    voice_start = Signal()   # Hold A — start voice recording
-    voice_stop = Signal()    # Release A after hold — stop voice recording
+    voice_start = Signal()   # RT — start voice recording
+    voice_stop = Signal()    # RT release — stop voice recording
+    toggle_app = Signal()    # Start button — hide/show app
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -200,6 +203,13 @@ class ControllerBridge(QObject):
             if now and not was:
                 sig.emit()
             self._prev_buttons[btn_idx] = now
+
+        # Start button = toggle hide/show app
+        start_now = self._backend.get_button(_BTN_START)
+        start_was = self._prev_buttons.get(_BTN_START, False)
+        if start_now and not start_was:
+            self.toggle_app.emit()
+        self._prev_buttons[_BTN_START] = start_now
 
     def _process_voice_trigger(self) -> None:
         """Configurable voice trigger — analog trigger or button hold."""

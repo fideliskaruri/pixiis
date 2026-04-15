@@ -38,6 +38,17 @@ class AppEntry:
     def display_name(self) -> str:
         return self.name
 
+    @property
+    def is_game(self) -> bool:
+        """True if this entry comes from a game launcher (Steam, Epic, GOG, EA, Xbox)."""
+        return self.source in (
+            AppSource.STEAM,
+            AppSource.EPIC,
+            AppSource.GOG,
+            AppSource.EA,
+            AppSource.XBOX,
+        )
+
 
 # ── Controller ───────────────────────────────────────────────────────────────
 

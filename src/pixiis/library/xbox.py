@@ -145,11 +145,18 @@ class XboxProvider:
 
     def launch(self, app: AppEntry) -> None:
         aumid = app.metadata.get("aumid", "")
+        cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         if aumid:
             # Use explorer with shell:appsFolder for reliable UWP launch
-            subprocess.Popen(["explorer.exe", f"shell:appsFolder\\{aumid}"])
+            subprocess.Popen(
+                ["explorer.exe", f"shell:appsFolder\\{aumid}"],
+                creationflags=cf,
+            )
         elif app.launch_command:
-            subprocess.Popen(["explorer.exe", app.launch_command])
+            subprocess.Popen(
+                ["explorer.exe", app.launch_command],
+                creationflags=cf,
+            )
 
     def get_icon(self, app: AppEntry) -> Path | None:
         logo = app.metadata.get("logo", "")
@@ -171,12 +178,14 @@ class XboxProvider:
     def _run_detection_script(self) -> list[dict] | None:
         """Run the PowerShell script to detect installed UWP apps."""
         try:
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-Command", _PS_SCRIPT],
                 capture_output=True,
                 text=True,
                 timeout=60,
+                creationflags=cf,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None

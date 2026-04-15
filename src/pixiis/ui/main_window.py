@@ -107,6 +107,7 @@ class MainWindow(QMainWindow):
         # -- registry & scanning ---------------------------------------------
         self._registry = registry or AppRegistry(self._config)
         self._scan_thread: QThread | None = None
+        self._has_cache = bool(self._registry.get_all())
         self._start_scan()
 
         # -- services --------------------------------------------------------
@@ -341,7 +342,8 @@ class MainWindow(QMainWindow):
     # -- library scanning ----------------------------------------------------
 
     def _start_scan(self) -> None:
-        self.show_toast("Scanning library...", icon="info")
+        if not self._has_cache:
+            self.show_toast("Scanning library...", icon="info")
 
         # Disable Scan Now button in settings if available
         settings = self._page_stack._pages.get("settings")
@@ -376,7 +378,12 @@ class MainWindow(QMainWindow):
                 page.refresh(apps)
 
         # Scan-complete feedback
-        self.show_toast(f"{len(apps)} games found")
+        n_games = sum(1 for a in apps if a.is_game)
+        n_apps = len(apps) - n_games
+        if n_apps:
+            self.show_toast(f"{n_games} games, {n_apps} apps found")
+        else:
+            self.show_toast(f"{n_games} games found")
 
         # Restore Scan Now button in settings
         settings = self._page_stack._pages.get("settings")

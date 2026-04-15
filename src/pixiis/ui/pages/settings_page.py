@@ -151,7 +151,7 @@ class SettingsPage(QScrollArea):
 
         # Page title (H1: 24px Bold, -0.02em letter-spacing)
         title = QLabel("Settings")
-        title.setObjectName("sectionTitle")
+        title.setObjectName("pageTitle")
         title_font = QFont()
         title_font.setPixelSize(24)
         title_font.setWeight(QFont.Weight.Bold)
@@ -174,6 +174,7 @@ class SettingsPage(QScrollArea):
         self._apply_btn = QPushButton("Apply")
         self._apply_btn.setObjectName("accentButton")
         self._apply_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._apply_btn.setMinimumWidth(120)
         self._apply_btn.clicked.connect(self._apply_settings)
         btn_row.addWidget(self._apply_btn)
@@ -305,6 +306,20 @@ class SettingsPage(QScrollArea):
 
         inner.addLayout(grid)
 
+        # When vibration is unchecked, gray-out the deadzone & hold controls
+        self._vibration_deps = [
+            self._deadzone_slider, self._dz_label,
+            self._hold_slider, self._hold_label,
+        ]
+        self._vibration_cb.toggled.connect(self._on_vibration_toggled)
+        # Apply initial state
+        self._on_vibration_toggled(self._vibration_cb.isChecked())
+
+    def _on_vibration_toggled(self, checked: bool) -> None:
+        """Enable/disable deadzone and hold controls based on vibration state."""
+        for w in self._vibration_deps:
+            w.setEnabled(checked)
+
     # ── Voice ───────────────────────────────────────────────────────────
 
     def _build_voice_section(self, cfg: object) -> None:
@@ -415,6 +430,7 @@ class SettingsPage(QScrollArea):
         scan_row.addSpacing(16)
         self._scan_btn = QPushButton("Scan Now")
         self._scan_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._scan_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._scan_btn.clicked.connect(self._scan_now)
         scan_row.addWidget(self._scan_btn)
         scan_row.addStretch()

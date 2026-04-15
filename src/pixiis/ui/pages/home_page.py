@@ -232,20 +232,20 @@ class HomePage(QWidget):
     # -- public API -----------------------------------------------------------
 
     def refresh(self, apps: list[AppEntry] | None = None) -> None:
-        """Refresh the tile grid with an updated app list."""
+        """Refresh the tile grid with an updated app list (games only)."""
         if hasattr(self, '_loading') and self._loading.isVisible():
             self._loading.hide()
         if apps is not None:
-            self._all_apps = list(apps)
+            self._all_apps = [a for a in apps if a.is_game]
         elif self._registry is not None:
-            self._all_apps = self._registry.get_all()
+            self._all_apps = [a for a in self._registry.get_all() if a.is_game]
         self._apply_sort_and_display()
 
     # -- internals ------------------------------------------------------------
 
     def _load_apps(self) -> None:
         if self._registry is not None:
-            self._all_apps = self._registry.get_all()
+            self._all_apps = [a for a in self._registry.get_all() if a.is_game]
         if self._all_apps:
             self._loading.hide()
             self._apply_sort_and_display()
@@ -277,12 +277,13 @@ class HomePage(QWidget):
     def _on_search(self, query: str) -> None:
         if not query.strip():
             self._all_apps = (
-                self._registry.get_all() if self._registry else []
+                [a for a in self._registry.get_all() if a.is_game]
+                if self._registry else []
             )
             self._apply_sort_and_display()
             return
         if self._registry is not None:
-            results = self._registry.search(query)
+            results = [a for a in self._registry.search(query) if a.is_game]
         else:
             q = query.lower()
             results = [a for a in self._all_apps if q in a.name.lower()]

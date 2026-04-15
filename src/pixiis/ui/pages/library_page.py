@@ -41,12 +41,15 @@ _PILL_FONT.setPixelSize(12)
 _PILL_FONT.setWeight(QFont.Weight.Medium)
 
 # Maps UI label → source filter spec.
-# None means "all", a list means union of those sources.
-_FILTER_MAP: dict[str, list[AppSource] | None] = {
-    "All": None,
+# "games" / "apps" are special string keys handled in _filtered_apps().
+# A list means union of those sources.
+_FILTER_MAP: dict[str, list[AppSource] | str] = {
+    "Games": "games",
+    "Apps": "apps",
     "Steam": [AppSource.STEAM],
+    "Epic": [AppSource.EPIC],
     "Xbox": [AppSource.XBOX],
-    "Apps": [AppSource.STARTMENU, AppSource.MANUAL],
+    "GOG": [AppSource.GOG],
 }
 
 
@@ -177,7 +180,7 @@ class LibraryPage(QWidget):
         self._registry = registry
         self._image_loader = image_loader
         self._services = services or {}
-        self._active_filter: str = "All"
+        self._active_filter: str = "Games"
         self._search_query: str = ""
 
         self.setObjectName("LibraryPage")
@@ -196,7 +199,7 @@ class LibraryPage(QWidget):
         for label in _FILTER_MAP:
             pill = _FilterPill(label)
             pill.setFixedWidth(max(52, len(label) * 10 + 20))
-            if label == "All":
+            if label == "Games":
                 pill.setChecked(True)
             pill.clicked.connect(lambda _l=label: self._set_filter(_l))
             self._filter_pills[label] = pill
@@ -256,13 +259,19 @@ class LibraryPage(QWidget):
         if self._registry is None:
             return []
 
-        sources = _FILTER_MAP.get(self._active_filter)
-        if sources is None:
-            apps = self._registry.get_all()
-        else:
+        filter_spec = _FILTER_MAP.get(self._active_filter)
+        all_apps = self._registry.get_all()
+
+        if filter_spec == "games":
+            apps = [a for a in all_apps if a.is_game]
+        elif filter_spec == "apps":
+            apps = [a for a in all_apps if not a.is_game]
+        elif isinstance(filter_spec, list):
             apps = []
-            for src in sources:
+            for src in filter_spec:
                 apps.extend(self._registry.filter_by_source(src))
+        else:
+            apps = all_apps
 
         # Apply search within filter
         if self._search_query:
@@ -277,8 +286,10 @@ class LibraryPage(QWidget):
         if self._grid is not None and hasattr(self._grid, "set_apps"):
             # Choose contextual empty-state message
             if self._search_query:
-                empty_msg = "No matching games"
-            elif self._active_filter != "All":
+                empty_msg = "No matching items"
+            elif self._active_filter == "Apps":
+                empty_msg = "No apps found"
+            elif self._active_filter != "Games":
                 empty_msg = "No games in this category"
             else:
                 empty_msg = None  # use default

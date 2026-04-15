@@ -85,7 +85,12 @@ class FolderScanProvider:
 
     def launch(self, app: AppEntry) -> None:
         if app.exe_path and app.exe_path.exists():
-            subprocess.Popen([str(app.exe_path)], cwd=str(app.exe_path.parent))
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            subprocess.Popen(
+                [str(app.exe_path)],
+                cwd=str(app.exe_path.parent),
+                creationflags=cf,
+            )
 
     def get_icon(self, app: AppEntry) -> Path | None:
         return None

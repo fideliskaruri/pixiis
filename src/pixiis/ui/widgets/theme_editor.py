@@ -87,14 +87,17 @@ class ColorPickerButton(QPushButton):
         self.setStyleSheet(
             f"QPushButton {{"
             f"  background-color: {hex_color};"
-            f"  border: 2px solid #7a7690;"
+            f"  border: 2px solid rgba(122, 118, 144, 0.6);"
             f"  border-radius: 6px;"
             f"}}"
             f"QPushButton:hover {{"
-            f"  border: 2px solid #f0eef5;"
+            f"  border-color: rgba(240, 238, 245, 0.8);"
             f"}}"
             f"QPushButton:focus {{"
-            f"  border: 2px solid #e94560;"
+            f"  border-color: #e94560;"
+            f"}}"
+            f"QPushButton:disabled {{"
+            f"  border-color: rgba(122, 118, 144, 0.3);"
             f"}}"
         )
 
@@ -119,8 +122,10 @@ class ThemeEditor(QFrame):
         self._building = True  # suppress change signals during init
 
         self.setObjectName("ThemeEditor")
+        # Use border: none so this QFrame doesn't get the settingsCard/QFrame border.
+        # This is acceptable because ThemeEditor lives INSIDE a settingsCard.
         self.setStyleSheet(
-            "#ThemeEditor { background-color: transparent; }"
+            "#ThemeEditor { background: transparent; border: none; }"
         )
 
         layout = QVBoxLayout(self)
@@ -177,8 +182,8 @@ class ThemeEditor(QFrame):
         self._radius_slider.setValue(current_radius)
         self._radius_slider.setFixedWidth(180)
         self._radius_label = QLabel(f"{current_radius}px")
+        self._radius_label.setObjectName("valueLabel")
         self._radius_label.setFixedWidth(40)
-        self._radius_label.setStyleSheet("color: #f0eef5; background: transparent;")
         self._radius_slider.valueChanged.connect(self._on_radius_changed)
         radius_row.addWidget(self._radius_slider)
         radius_row.addWidget(self._radius_label)
@@ -191,20 +196,15 @@ class ThemeEditor(QFrame):
         btn_row.setSpacing(12)
 
         self._reset_btn = QPushButton("Reset to Default")
-        self._reset_btn.setStyleSheet(
-            "QPushButton { background-color: #1c1a24; color: #f0eef5; "
-            "border: 1px solid #1c1a24; border-radius: 6px; padding: 6px 14px; }"
-            "QPushButton:hover { background-color: #e94560; }"
-        )
+        self._reset_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._reset_btn.clicked.connect(self._reset_defaults)
         btn_row.addWidget(self._reset_btn)
 
         self._save_btn = QPushButton("Save")
-        self._save_btn.setStyleSheet(
-            "QPushButton { background-color: #e94560; color: #ffffff; "
-            "border: none; border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #c73652; }"
-        )
+        self._save_btn.setObjectName("accentButton")
+        self._save_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._save_btn.clicked.connect(self._save_theme)
         btn_row.addWidget(self._save_btn)
 
@@ -218,18 +218,13 @@ class ThemeEditor(QFrame):
     @staticmethod
     def _make_label(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet("color: #8a8698; background: transparent; font-size: 13px;")
+        lbl.setObjectName("formLabel")
         return lbl
 
     @staticmethod
     def _style_combo(combo: QComboBox) -> None:
-        combo.setStyleSheet(
-            "QComboBox { background-color: #1c1a24; color: #f0eef5; "
-            "border: 1px solid #1c1a24; border-radius: 4px; padding: 4px 8px; }"
-            "QComboBox::drop-down { border: none; }"
-            "QComboBox QAbstractItemView { background-color: #1c1a24; color: #f0eef5; "
-            "selection-background-color: #e94560; }"
-        )
+        # Let global QSS handle all combo styling — no inline overrides.
+        combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def _read_theme_color(self, key: str, default: QColor) -> QColor:
         if self._theme is not None and hasattr(self._theme, key):

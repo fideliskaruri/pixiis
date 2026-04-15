@@ -59,7 +59,8 @@ class SteamProvider:
         if cmd.startswith("steam://"):
             webbrowser.open(cmd)
         else:
-            subprocess.Popen(cmd, shell=True)
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            subprocess.Popen(cmd, shell=True, creationflags=cf)
 
     def get_icon(self, app: AppEntry) -> Path | None:
         return None  # Handled by IconCache via art_url

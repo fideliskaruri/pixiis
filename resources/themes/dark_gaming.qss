@@ -81,9 +81,13 @@ QPushButton:pressed {
 
 QPushButton:disabled {
     color: {{text_muted}};
-    background: {{surface}};
+    background: rgba(255, 255, 255, 0.03);
     border-color: transparent;
-    opacity: 0.4;
+}
+
+QPushButton:hover:disabled {
+    border-color: transparent;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 
@@ -114,7 +118,13 @@ QPushButton#accentButton:pressed {
 }
 
 QPushButton#accentButton:disabled {
-    opacity: 0.4;
+    background: {{text_muted}};
+    color: rgba(255, 255, 255, 0.5);
+    border-color: transparent;
+}
+
+QPushButton#accentButton:hover:disabled {
+    background: {{text_muted}};
     border-color: transparent;
 }
 
@@ -127,6 +137,7 @@ QPushButton#linkButton {
     border: 2px solid transparent;
     padding: 4px 8px;
     font-weight: 400;
+    text-decoration: underline;
 }
 
 QPushButton#linkButton:hover {
@@ -136,6 +147,15 @@ QPushButton#linkButton:hover {
 
 QPushButton#linkButton:focus {
     border-color: {{accent}};
+}
+
+QPushButton#linkButton:pressed {
+    color: {{accent_pressed}};
+}
+
+QPushButton#linkButton:disabled {
+    color: {{text_muted}};
+    text-decoration: none;
 }
 
 
@@ -260,9 +280,12 @@ QComboBox:focus {
 
 QComboBox:disabled {
     color: {{text_muted}};
-    background: {{surface}};
+    background: rgba(255, 255, 255, 0.03);
     border-color: transparent;
-    opacity: 0.4;
+}
+
+QComboBox:hover:disabled {
+    border-color: transparent;
 }
 
 QComboBox::drop-down {
@@ -321,9 +344,12 @@ QLineEdit:focus {
 
 QLineEdit:disabled {
     color: {{text_muted}};
-    background: {{surface}};
+    background: rgba(255, 255, 255, 0.03);
     border-color: transparent;
-    opacity: 0.4;
+}
+
+QLineEdit:hover:disabled {
+    border-color: transparent;
 }
 
 QTextEdit, QPlainTextEdit {
@@ -360,9 +386,12 @@ QSpinBox:focus, QDoubleSpinBox:focus {
 
 QSpinBox:disabled, QDoubleSpinBox:disabled {
     color: {{text_muted}};
-    background: {{surface}};
+    background: rgba(255, 255, 255, 0.03);
     border-color: transparent;
-    opacity: 0.4;
+}
+
+QSpinBox:hover:disabled, QDoubleSpinBox:hover:disabled {
+    border-color: transparent;
 }
 
 QSpinBox::up-button, QDoubleSpinBox::up-button,
@@ -386,7 +415,7 @@ QSlider:focus {
 }
 
 QSlider:disabled {
-    opacity: 0.4;
+    /* Qt does not support opacity — rely on handle:disabled color instead */
 }
 
 QSlider::groove:horizontal {
@@ -418,6 +447,10 @@ QSlider::handle:horizontal:hover {
 }
 
 QSlider::handle:horizontal:disabled {
+    background: {{text_muted}};
+}
+
+QSlider::sub-page:horizontal:disabled {
     background: {{text_muted}};
 }
 
@@ -454,7 +487,6 @@ QCheckBox:focus {
 
 QCheckBox:disabled {
     color: {{text_muted}};
-    opacity: 0.4;
 }
 
 QCheckBox::indicator {
@@ -502,7 +534,6 @@ QRadioButton:focus {
 
 QRadioButton:disabled {
     color: {{text_muted}};
-    opacity: 0.4;
 }
 
 QRadioButton::indicator {
@@ -896,6 +927,13 @@ QFrame#settingsCard {
     background: {{surface}};
     border: 2px solid {{surface_border}};
     border-radius: 12px;
+}
+
+QLabel#pageTitle {
+    background: transparent;
+    border: none;
+    color: {{text_color}};
+    padding: 0;
 }
 
 QLabel#sectionTitle {

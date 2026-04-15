@@ -42,7 +42,12 @@ class StartMenuProvider:
 
     def launch(self, app: AppEntry) -> None:
         if app.exe_path and app.exe_path.exists():
-            subprocess.Popen([str(app.exe_path)], cwd=str(app.exe_path.parent))
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            subprocess.Popen(
+                [str(app.exe_path)],
+                cwd=str(app.exe_path.parent),
+                creationflags=cf,
+            )
         else:
             os.startfile(app.launch_command)  # type: ignore[attr-defined]
 
@@ -125,11 +130,13 @@ class StartMenuProvider:
             "$s.TargetPath + '|' + $s.WorkingDirectory"
         )
         try:
+            cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", script],
                 capture_output=True,
                 text=True,
                 timeout=5,
+                creationflags=cf,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return (None, None)

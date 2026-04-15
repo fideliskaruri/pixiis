@@ -72,6 +72,13 @@ class AppRegistry:
         self._providers: list[LibraryProvider] = []
         self._apps: list[AppEntry] = []
 
+        # Try to load cached library for instant startup
+        from pixiis.library.cache import LibraryCache
+        self._cache = LibraryCache()
+        cached = self._cache.load()
+        if cached:
+            self._apps = cached
+
         provider_names: list[str] = config.get("library.providers", [])
         for name in provider_names:
             cls = _get_provider_class(name)
@@ -97,6 +104,7 @@ class AppRegistry:
                 continue
 
         self._apps = _deduplicate(results)
+        self._cache.save(self._apps)
         bus.publish(LibraryUpdatedEvent(self._apps))
         return self._apps
 

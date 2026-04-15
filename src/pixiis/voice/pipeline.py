@@ -89,23 +89,50 @@ class VoicePipeline:
     # ── model loading ────────────────────────────────────────────────
 
     def _ensure_models(self) -> None:
-        """Lazy-load Whisper models on first recording."""
+        """Load Whisper models. Checks for bundled model first, then downloads."""
         if self._live_model is not None:
             return
 
         compute = "float16" if self._device == "cuda" else "int8"
-        print(f"Loading Whisper live model ({self._live_model_name})...")
+
+        # Check for bundled model (PyInstaller distribution)
+        model_name = self._live_model_name
+        bundled = self._find_bundled_model(model_name)
+        if bundled is not None:
+            model_name = str(bundled)
+            print(f"Using bundled Whisper model: {bundled}")
+        else:
+            print(f"Loading Whisper model ({model_name})...")
+
         self._live_model = self._transcriber.load_model(
-            self._live_model_name, device=self._device, compute_type=compute,
+            model_name, device=self._device, compute_type=compute,
         )
 
         if self._final_model_name == self._live_model_name:
             self._final_model = self._live_model
         else:
-            print(f"Loading Whisper final model ({self._final_model_name})...")
+            final_name = self._final_model_name
+            bundled_final = self._find_bundled_model(final_name)
+            if bundled_final is not None:
+                final_name = str(bundled_final)
             self._final_model = self._transcriber.load_model(
-                self._final_model_name, device=self._device, compute_type=compute,
+                final_name, device=self._device, compute_type=compute,
             )
+
+    @staticmethod
+    def _find_bundled_model(name: str) -> Path | None:
+        """Check if a Whisper model is bundled with the app."""
+        import sys
+        # PyInstaller sets sys._MEIPASS to the temp extraction dir
+        base = Path(getattr(sys, '_MEIPASS', Path(__file__).parent.parent.parent.parent))
+        candidates = [
+            base / "models" / f"whisper-{name}",
+            base / "models" / name,
+        ]
+        for p in candidates:
+            if p.exists() and any(p.iterdir()):
+                return p
+        return None
 
     # ── lifecycle ────────────────────────────────────────────────────
 

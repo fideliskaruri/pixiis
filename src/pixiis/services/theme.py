@@ -49,9 +49,9 @@ def darker(hex_color: str, amount: int = 30) -> str:
 # ── Defaults ────────────────────────────────────────────────────────────────
 
 _DEFAULTS = {
-    "background": "#0b0a10",
-    "primary": "#13121a",        # surface
-    "secondary": "#1c1a24",      # surface_elevated
+    "background": "#0a0a0e",
+    "primary": "#141418",        # surface — cleaner, less purple
+    "secondary": "#1e1e24",      # surface_elevated — visible step up
     "accent": "#e94560",
     "text_color": "#f0eef5",     # text_primary
     "text_secondary": "#8a8698",
@@ -279,22 +279,22 @@ class ThemeManager(QObject):
             "surface": self._primary,
             "surface_elevated": self._secondary,
             "text_primary": self._text_color,
-            "text_muted": "#7a7690",
+            "text_muted": "#8a869c",
             # Computed variants
             "primary_hover": lighter(self._primary, 20),
             "primary_pressed": darker(self._primary, 15),
             "secondary_hover": lighter(self._secondary, 20),
-            "surface_hover": "#252330",
+            "surface_hover": "#28282e",
             "accent_hover": "#ff5a78",
             "accent_pressed": "#c93a52",
             "accent_dark": darker(self._accent, 20),
             "background_lighter": lighter(self._background, 15),
-            "navbar_bg": "#0e0d14",
+            "navbar_bg": "#0e0e12",
             # Atmospheric extras
             "accent_dim": f"rgba({ar}, {ag}, {ab}, 0.10)",
             "accent_glow": f"rgba({ar}, {ag}, {ab}, 0.30)",
             "accent_atmospheric": f"rgba({ar}, {ag}, {ab}, 0.05)",
-            "surface_border": "rgba(255, 255, 255, 0.06)",
+            "surface_border": "rgba(255, 255, 255, 0.10)",
             "border_hover": "rgba(255, 255, 255, 0.12)",
             "shadow_color": "rgba(0, 0, 0, 0.40)",
         }

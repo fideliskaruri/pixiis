@@ -26,7 +26,8 @@ class SearchBar(QLineEdit):
     """Rounded search field with custom-painted magnifying glass, mic button, and accent focus glow."""
 
     search_changed = Signal(str)
-    mic_clicked = Signal()  # emitted when the mic button is clicked
+    mic_clicked = Signal()   # emitted when mic starts (click to record)
+    mic_stopped = Signal()   # emitted when mic stops (click again to stop)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -53,7 +54,7 @@ class SearchBar(QLineEdit):
         self._mic_icon_active = self._create_mic_icon(ACCENT)
         self._mic_action = QAction(self._mic_icon, "Voice search", self)
         self._mic_action.setToolTip("Voice search (RT on controller)")
-        self._mic_action.triggered.connect(self.mic_clicked.emit)
+        self._mic_action.triggered.connect(self._toggle_mic)
         self.addAction(self._mic_action, QLineEdit.ActionPosition.TrailingPosition)
 
         self._mic_recording = False
@@ -119,6 +120,13 @@ class SearchBar(QLineEdit):
 
     def _emit_search(self) -> None:
         self.search_changed.emit(self.text().strip())
+
+    def _toggle_mic(self) -> None:
+        """Toggle mic recording on/off when the mic button is clicked."""
+        if self._mic_recording:
+            self.mic_stopped.emit()
+        else:
+            self.mic_clicked.emit()
 
     # ── Mic recording state ───────────────────────────────────────────────
 

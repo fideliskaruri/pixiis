@@ -123,9 +123,21 @@ class ControllerBridge(QObject):
     def _try_connect(self) -> None:
         """Try to find and connect to a controller backend."""
         try:
-            from pixiis.controller.backend import get_backend
-            self._backend = get_backend()
-            if not self._backend.is_connected():
+            from pixiis.controller.backend import get_backend, PygameBackend
+            backend = get_backend()
+            # For PygameBackend, force a joystick rescan
+            if isinstance(backend, PygameBackend):
+                backend._pygame.joystick.quit()
+                backend._pygame.joystick.init()
+                if backend._pygame.joystick.get_count() > 0:
+                    backend._joystick = backend._pygame.joystick.Joystick(0)
+                    backend._joystick.init()
+                else:
+                    backend._joystick = None
+            if backend.is_connected():
+                self._backend = backend
+                print(f"[Pixiis] Controller connected: {backend.get_name()}")
+            else:
                 self._backend = None
         except Exception:
             self._backend = None
@@ -140,7 +152,22 @@ class ControllerBridge(QObject):
                 self._poll_timer.start()
         else:
             # Have a controller — check if still connected
+            # Force rescan for pygame
+            try:
+                from pixiis.controller.backend import PygameBackend
+                if isinstance(self._backend, PygameBackend):
+                    self._backend._pygame.joystick.quit()
+                    self._backend._pygame.joystick.init()
+                    if self._backend._pygame.joystick.get_count() > 0:
+                        if self._backend._joystick is None:
+                            self._backend._joystick = self._backend._pygame.joystick.Joystick(0)
+                            self._backend._joystick.init()
+                    else:
+                        self._backend._joystick = None
+            except Exception:
+                pass
             if not self._backend.is_connected():
+                print("[Pixiis] Controller disconnected")
                 self._backend = None
                 self._poll_timer.stop()
                 self._nav_repeat_timer.stop()

@@ -224,15 +224,21 @@ class MainWindow(QMainWindow):
                 from pixiis.ui.pages.home_page import HomePage
                 page = HomePage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
-                if hasattr(page, '_search') and page._search and hasattr(page._search, 'mic_clicked'):
-                    page._search.mic_clicked.connect(self._on_voice_start)
+                if hasattr(page, '_search') and page._search:
+                    if hasattr(page._search, 'mic_clicked'):
+                        page._search.mic_clicked.connect(self._on_voice_start)
+                    if hasattr(page._search, 'mic_stopped'):
+                        page._search.mic_stopped.connect(self._on_voice_stop)
                 return page
             if name == "library":
                 from pixiis.ui.pages.library_page import LibraryPage
                 page = LibraryPage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
-                if hasattr(page, '_search') and page._search and hasattr(page._search, 'mic_clicked'):
-                    page._search.mic_clicked.connect(self._on_voice_start)
+                if hasattr(page, '_search') and page._search:
+                    if hasattr(page._search, 'mic_clicked'):
+                        page._search.mic_clicked.connect(self._on_voice_start)
+                    if hasattr(page._search, 'mic_stopped'):
+                        page._search.mic_stopped.connect(self._on_voice_stop)
                 return page
             if name == "settings":
                 from pixiis.ui.pages.settings_page import SettingsPage

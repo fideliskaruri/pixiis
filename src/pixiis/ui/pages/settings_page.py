@@ -172,6 +172,7 @@ class SettingsPage(QScrollArea):
 
         self._build_theme_section()
         self._build_controller_section(cfg)
+        self._build_system_section(cfg)
         self._build_voice_section(cfg)
         self._build_library_section(cfg)
         self._build_services_section(cfg)
@@ -231,6 +232,42 @@ class SettingsPage(QScrollArea):
         self._hold_slider.setValue(int(cfg.get("controller.hold_threshold_ms", 200)))
         hold_row, _ = _make_slider_row(self._hold_slider, "ms")
         form.addRow(_make_label("Hold Threshold"), hold_row)
+
+        # voice trigger
+        self._voice_trigger = QComboBox()
+        _trigger_options = [
+            ("Right Trigger", "rt"),
+            ("Left Trigger", "lt"),
+            ("Hold Y", "hold_y"),
+            ("Hold X", "hold_x"),
+        ]
+        for label, value in _trigger_options:
+            self._voice_trigger.addItem(label, value)
+        current_trigger = str(cfg.get("controller.voice_trigger", "rt"))
+        idx = self._voice_trigger.findData(current_trigger)
+        if idx >= 0:
+            self._voice_trigger.setCurrentIndex(idx)
+        self._voice_trigger.setStyleSheet(_COMBO_STYLE)
+        form.addRow(_make_label("Voice Trigger"), self._voice_trigger)
+
+        self._layout.addWidget(group)
+
+    def _build_system_section(self, cfg: object) -> None:
+        group = QGroupBox("System")
+        group.setStyleSheet(_GROUP_STYLE)
+        form = QFormLayout(group)
+        form.setSpacing(10)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        # Start with Windows
+        self._autostart_cb = QCheckBox("Start with Windows")
+        self._autostart_cb.setStyleSheet(_CHECKBOX_STYLE)
+        try:
+            from pixiis.daemon.autostart import is_autostart_enabled
+            self._autostart_cb.setChecked(is_autostart_enabled())
+        except Exception:
+            self._autostart_cb.setChecked(bool(cfg.get("daemon.autostart", False)))
+        form.addRow(_make_label("Auto-start"), self._autostart_cb)
 
         self._layout.addWidget(group)
 
@@ -485,6 +522,19 @@ class SettingsPage(QScrollArea):
         updates["controller.vibration_enabled"] = self._vibration_cb.isChecked()
         updates["controller.deadzone"] = self._deadzone_slider.value() / 100.0
         updates["controller.hold_threshold_ms"] = self._hold_slider.value()
+        updates["controller.voice_trigger"] = self._voice_trigger.currentData()
+
+        # System — auto-start
+        autostart_wanted = self._autostart_cb.isChecked()
+        updates["daemon.autostart"] = autostart_wanted
+        try:
+            from pixiis.daemon.autostart import enable_autostart, disable_autostart
+            if autostart_wanted:
+                enable_autostart()
+            else:
+                disable_autostart()
+        except Exception:
+            pass  # Not on Windows or winreg unavailable
 
         # Voice
         updates["voice.live_model"] = self._live_model.currentText()

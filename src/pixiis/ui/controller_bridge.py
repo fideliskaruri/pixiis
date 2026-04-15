@@ -22,9 +22,14 @@ _BTN_RB = 5
 _LEFT_STICK_X = 0
 _LEFT_STICK_Y = 1
 _RIGHT_STICK_Y = 3
+_LEFT_TRIGGER = 4   # LT — analog 0.0 to 1.0
 _RIGHT_TRIGGER = 5  # RT — analog 0.0 to 1.0
 _DPAD_X = 6
 _DPAD_Y = 7
+
+# Button indices for hold-style voice triggers
+_BTN_X = 2
+_BTN_Y = 3
 
 # Qt key codes
 _KEY_UP = Qt.Key.Key_Up
@@ -69,7 +74,11 @@ class ControllerBridge(QObject):
         self._prev_buttons: dict[int, bool] = {}
         self._prev_nav: str | None = None
 
-        # RT voice trigger state
+        # Voice trigger config: "rt", "lt", "hold_y", "hold_x"
+        cfg = get_config()
+        self._voice_trigger_mode: str = str(cfg.get("controller.voice_trigger", "rt"))
+
+        # Voice trigger state (works for both analog and button modes)
         self._rt_active = False
 
         # Try to connect a controller
@@ -141,8 +150,8 @@ class ControllerBridge(QObject):
             self._poll_timer.stop()
             return
 
-        self._process_buttons()
         self._process_voice_trigger()
+        self._process_buttons()
         self._process_navigation()
         self._process_scroll()
 
@@ -150,8 +159,16 @@ class ControllerBridge(QObject):
 
     def _process_buttons(self) -> None:
         """Detect button press edges."""
+        # Determine which button is reserved for voice (if any)
+        _voice_btn = {
+            "hold_y": _BTN_Y,
+            "hold_x": _BTN_X,
+        }.get(self._voice_trigger_mode)
+
         # A = select, B = back
         for btn_idx, qt_key in ((_BTN_A, _KEY_RETURN), (_BTN_B, _KEY_ESCAPE)):
+            if btn_idx == _voice_btn:
+                continue
             now = self._backend.get_button(btn_idx)
             was = self._prev_buttons.get(btn_idx, False)
             if now and not was:
@@ -167,14 +184,27 @@ class ControllerBridge(QObject):
             self._prev_buttons[btn_idx] = now
 
     def _process_voice_trigger(self) -> None:
-        """RT (right trigger) > 0.5 = voice recording."""
-        rt = self._backend.get_axis(_RIGHT_TRIGGER)
-        if rt > 0.5 and not self._rt_active:
-            self._rt_active = True
-            self.voice_start.emit()
-        elif rt <= 0.3 and self._rt_active:
-            self._rt_active = False
-            self.voice_stop.emit()
+        """Configurable voice trigger — analog trigger or button hold."""
+        mode = self._voice_trigger_mode
+        if mode in ("rt", "lt"):
+            axis = _RIGHT_TRIGGER if mode == "rt" else _LEFT_TRIGGER
+            val = self._backend.get_axis(axis)
+            if val > 0.5 and not self._rt_active:
+                self._rt_active = True
+                self.voice_start.emit()
+            elif val <= 0.3 and self._rt_active:
+                self._rt_active = False
+                self.voice_stop.emit()
+        else:
+            # hold_y or hold_x
+            btn = _BTN_Y if mode == "hold_y" else _BTN_X
+            pressed = self._backend.get_button(btn)
+            if pressed and not self._rt_active:
+                self._rt_active = True
+                self.voice_start.emit()
+            elif not pressed and self._rt_active:
+                self._rt_active = False
+                self.voice_stop.emit()
 
     # ── Stick/DPad navigation ──────────────────────────────────────────────
 

@@ -49,13 +49,25 @@ class _ScanWorker(QObject):
 
 
 class MainWindow(QMainWindow):
-    """Top-level frameless window containing sidebar and page stack."""
+    """Top-level frameless window containing sidebar and page stack.
+
+    When *registry* and/or *controller_bridge* are provided (daemon mode)
+    the window uses them instead of creating its own.  In that case the
+    close button hides the window to the system tray rather than quitting.
+    """
 
     _refresh_signal = Signal(list)  # emitted from any thread, handled on main
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        registry: AppRegistry | None = None,
+        controller_bridge: ControllerBridge | None = None,
+    ) -> None:
         super().__init__()
         self._config = get_config()
+        self._owns_controller = controller_bridge is None
+        self._cleaned_up = False
 
         # -- window chrome (always frameless) --------------------------------
         self.setWindowTitle("Pixiis")
@@ -88,12 +100,12 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self._page_stack, stretch=1)
 
         # -- registry & scanning ---------------------------------------------
-        self._registry = AppRegistry(self._config)
+        self._registry = registry or AppRegistry(self._config)
         self._scan_thread: QThread | None = None
         self._start_scan()
 
         # -- services --------------------------------------------------------
-        self._controller_bridge = ControllerBridge(self)
+        self._controller_bridge = controller_bridge or ControllerBridge(self)
 
         self._image_loader = None
         self._rawg_client = None
@@ -364,7 +376,25 @@ class MainWindow(QMainWindow):
 
     # -- cleanup -------------------------------------------------------------
 
-    def closeEvent(self, event) -> None:
-        self._controller_bridge.shutdown()
+    def cleanup(self) -> None:
+        """Release event subscriptions and controller resources.
+
+        Called by the daemon before shutdown, and also from *closeEvent*
+        in standalone mode.  Safe to call more than once.
+        """
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+        if self._owns_controller:
+            self._controller_bridge.shutdown()
         bus.unsubscribe(LibraryUpdatedEvent, self._on_library_updated)
+
+    def closeEvent(self, event) -> None:
+        if not self._owns_controller:
+            # Daemon mode — hide to tray instead of quitting
+            event.ignore()
+            self.hide()
+            return
+        # Standalone mode — full cleanup and close
+        self.cleanup()
         super().closeEvent(event)

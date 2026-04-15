@@ -80,21 +80,35 @@ def cmd_scan() -> None:
 
 
 def cmd_daemon() -> None:
-    """Run background daemon."""
-    print("Daemon mode not yet implemented (Phase 5)")
+    """Run background daemon (tray icon, controller — no UI window)."""
+    from pixiis.daemon import DaemonService
+
+    svc = DaemonService()
+    sys.exit(svc.start(show_ui=False))
 
 
 def cmd_ui() -> None:
-    """Open dashboard UI."""
-    from pixiis.ui import launch_ui
+    """Open dashboard UI (connects to running daemon or starts one)."""
+    from pixiis.daemon.ipc import DaemonIPC
 
-    launch_ui()
+    if DaemonIPC.is_running() is not None:
+        resp = DaemonIPC.send_command("show")
+        if resp is not None:
+            return
+        # Daemon lock exists but unresponsive — start fresh
+
+    from pixiis.daemon import DaemonService
+
+    svc = DaemonService()
+    sys.exit(svc.start(show_ui=True))
 
 
 def cmd_full() -> None:
     """Default: launch daemon + UI together."""
-    print(f"Pixiis v{__version__}")
-    print("Full launch not yet implemented — use --scan, --daemon, or --ui")
+    from pixiis.daemon import DaemonService
+
+    svc = DaemonService()
+    sys.exit(svc.start(show_ui=True))
 
 
 def main() -> None:

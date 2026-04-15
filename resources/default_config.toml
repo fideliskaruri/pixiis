@@ -26,6 +26,7 @@ deadzone = 0.15
 vibration_enabled = true
 hold_threshold_ms = 200         # ms before a press becomes a hold
 combo_window_ms = 150           # ms window for combo detection
+voice_trigger = "rt"            # "rt", "lt", "hold_y", "hold_x"
 
 [controller.macros]
 # Format: "button:N" or "combo:N+M" = { action = "...", mode = "press|hold", target = "..." }

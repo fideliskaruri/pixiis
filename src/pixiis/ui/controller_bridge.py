@@ -443,13 +443,26 @@ class ControllerBridge(QObject):
 
     @staticmethod
     def _post_scroll(value: float) -> None:
+        """Send scroll event to the nearest parent QScrollArea."""
         widget = QApplication.focusWidget()
         if widget is None:
             return
         from PySide6.QtCore import QPoint, QPointF
+        from PySide6.QtWidgets import QScrollArea
+
+        # Find the nearest parent scroll area — wheel events should go
+        # there, not to the leaf widget which might swallow them.
+        target = widget
+        parent = widget.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                target = parent
+                break
+            parent = parent.parentWidget()
+
         delta = int(-value * 120)
         QApplication.postEvent(
-            widget,
+            target,
             QWheelEvent(
                 QPointF(0, 0), QPointF(0, 0),
                 QPoint(0, 0), QPoint(0, delta),

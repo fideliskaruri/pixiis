@@ -156,8 +156,10 @@ class MainWindow(QMainWindow):
         try:
             from pixiis.voice.pipeline import VoicePipeline
             self._voice_pipeline = VoicePipeline()
-        except Exception:
-            pass
+            print("[Pixiis] Voice pipeline created OK")
+        except Exception as e:
+            print(f"[Pixiis] Voice pipeline unavailable: {e}")
+            self._voice_pipeline = None
 
         # -- register pages --------------------------------------------------
         self._register_pages()
@@ -430,16 +432,20 @@ class MainWindow(QMainWindow):
             detail._hero._launch_btn.setFocus()
 
     def _on_voice_start(self) -> None:
+        print("[Pixiis Voice] === VOICE START ===")
+
         # Vibration feedback
         if self._vibration:
             try:
                 self._vibration.pulse(left=12000, right=12000, duration_ms=50)
-            except Exception:
-                pass
+                print("[Pixiis Voice] Vibration pulse sent")
+            except Exception as e:
+                print(f"[Pixiis Voice] Vibration failed: {e}")
 
         # Show overlay
         if self._voice_overlay:
             self._voice_overlay.show_text("Listening...", is_final=False)
+            print("[Pixiis Voice] Overlay shown: Listening...")
 
         # Focus search bar and show mic recording state
         current = self._page_stack.current_page_name()
@@ -449,21 +455,37 @@ class MainWindow(QMainWindow):
                 page._search.setFocus()
                 if hasattr(page._search, 'set_mic_recording'):
                     page._search.set_mic_recording(True)
+                print("[Pixiis Voice] Search bar focused + mic icon active")
 
         # Start actual voice recording pipeline
         if self._voice_pipeline is not None:
+            print("[Pixiis Voice] Starting voice pipeline...")
             try:
                 self._voice_pipeline.start()
+                print("[Pixiis Voice] Pipeline started OK — recording from mic")
             except Exception as e:
-                print(f"[Pixiis] Voice pipeline start failed: {e}")
+                print(f"[Pixiis Voice] Pipeline start FAILED: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("[Pixiis Voice] WARNING: No voice pipeline available!")
+            print("[Pixiis Voice] Check: pip install faster-whisper sounddevice numpy")
 
     def _on_voice_stop(self) -> None:
+        print("[Pixiis Voice] === VOICE STOP ===")
+
         # Stop recording — pipeline will publish TranscriptionEvent when done
         if self._voice_pipeline is not None:
+            print("[Pixiis Voice] Stopping pipeline...")
             try:
                 self._voice_pipeline.stop()
+                print("[Pixiis Voice] Pipeline stopped — waiting for transcription...")
             except Exception as e:
-                print(f"[Pixiis] Voice pipeline stop failed: {e}")
+                print(f"[Pixiis Voice] Pipeline stop FAILED: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("[Pixiis Voice] WARNING: No voice pipeline to stop")
 
         # Reset search bar mic state
         current = self._page_stack.current_page_name()
@@ -478,7 +500,11 @@ class MainWindow(QMainWindow):
 
     def _on_transcription(self, event: TranscriptionEvent) -> None:
         """Write final transcription text into the active search bar."""
+        print(f"[Pixiis Voice] TranscriptionEvent: is_final={event.is_final} text='{event.text}'")
         if not event.is_final:
+            # Show interim text in overlay
+            if self._voice_overlay:
+                self._voice_overlay.show_text(event.text, is_final=False)
             return
         text = event.text
 

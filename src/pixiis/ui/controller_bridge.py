@@ -393,6 +393,9 @@ class ControllerBridge(QObject):
         best = None
         best_dist = float("inf")
 
+        # Skip nav bar widgets — they're reached via LB/RB, not D-pad
+        from pixiis.ui.widgets.sidebar import Sidebar
+
         # Search all focusable, visible widgets in the window
         for child in window.findChildren(QW):
             if child is current:
@@ -400,6 +403,16 @@ class ControllerBridge(QObject):
             if not child.isVisibleTo(window):
                 continue
             if child.focusPolicy() == Qt.FocusPolicy.NoFocus:
+                continue
+            # Exclude sidebar/nav bar children from spatial search
+            p = child.parentWidget()
+            in_sidebar = False
+            while p is not None:
+                if isinstance(p, Sidebar):
+                    in_sidebar = True
+                    break
+                p = p.parentWidget()
+            if in_sidebar:
                 continue
             # Skip containers (scroll areas, frames) — only leaf widgets
             if child.findChildren(QW, options=Qt.FindChildOption.FindDirectChildrenOnly):

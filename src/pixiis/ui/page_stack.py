@@ -119,10 +119,16 @@ class PageStack(QStackedWidget):
             self._current_name = name
             self._animating = False
             # Restore remembered focus widget, or fall back to first focusable child
+            restored = False
             remembered = self._focus_memory.get(name)
-            if remembered is not None and remembered.isVisible():
-                remembered.setFocus()
-            else:
+            if remembered is not None:
+                try:
+                    if remembered.isVisible():
+                        remembered.setFocus()
+                        restored = True
+                except RuntimeError:
+                    pass  # C++ object already deleted — fall through
+            if not restored:
                 for child in incoming.findChildren(QWidget):
                     if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(incoming):
                         child.setFocus()

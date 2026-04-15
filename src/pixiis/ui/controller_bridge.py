@@ -293,83 +293,101 @@ class ControllerBridge(QObject):
 
     @staticmethod
     def _post_nav(key: int) -> None:
-        # Bug 2 fix: allow D-pad UP/DOWN to escape text inputs
+        """Move focus to the nearest focusable widget in the D-pad direction.
+
+        Dead simple spatial navigation — no zones, no Tab/Backtab.
+        Just finds the closest widget in the direction you pressed.
+        """
+        # Text inputs: UP/DOWN escape, LEFT/RIGHT stay for cursor
         if ControllerBridge._is_text_input():
-            if key in (_KEY_DOWN, _KEY_UP):
-                widget = QApplication.focusWidget()
-                if widget:
-                    widget.clearFocus()
-                    if key == _KEY_DOWN:
-                        ControllerBridge._post_key(Qt.Key.Key_Tab)
-                    else:
-                        ControllerBridge._post_key(Qt.Key.Key_Backtab)
-            return  # LEFT/RIGHT still blocked (cursor movement in text)
+            if key not in (_KEY_DOWN, _KEY_UP):
+                return
 
-        widget = QApplication.focusWidget()
-        if widget is None:
+        current = QApplication.focusWidget()
+        if current is None:
             return
 
-        from pixiis.ui.widgets.tile_grid import TileGrid
-        from pixiis.ui.widgets.sidebar import Sidebar
-        from PySide6.QtWidgets import QTreeView, QWidget
+        # Send arrow key synchronously so we can check if the widget handled it.
+        # (postEvent is async — focus wouldn't have moved yet when we check)
+        press = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        accepted = QApplication.sendEvent(current, press)
 
-        # Zone 1: TileGrid / QTreeView — post raw arrow keys
-        parent = widget
-        in_arrow_widget = False
-        while parent is not None:
-            if isinstance(parent, (TileGrid, QTreeView)):
-                in_arrow_widget = True
-                break
-            parent = parent.parentWidget()
-
-        if in_arrow_widget:
-            ControllerBridge._post_key(key)
+        # If focus moved, the widget handled it (TileGrid, QTreeView, etc.)
+        new_focus = QApplication.focusWidget()
+        if new_focus is not current and new_focus is not None:
             return
 
-        # Zone 2: Sidebar (horizontal nav bar)
-        parent = widget
-        in_sidebar = False
-        while parent is not None:
-            if isinstance(parent, Sidebar):
-                in_sidebar = True
-                break
-            parent = parent.parentWidget()
+        # Widget didn't handle it — do spatial focus search
+        ControllerBridge._spatial_focus_move(current, key)
 
-        if in_sidebar:
-            if key == _KEY_LEFT:
-                ControllerBridge._post_key(Qt.Key.Key_Backtab)
-            elif key == _KEY_RIGHT:
-                ControllerBridge._post_key(Qt.Key.Key_Tab)
-            elif key == _KEY_DOWN:
-                # Jump focus to first focusable child in current page
-                main_win = widget.window()
-                if hasattr(main_win, '_page_stack'):
-                    page = main_win._page_stack.currentWidget()
-                    if page:
-                        for child in page.findChildren(QWidget):
-                            if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(page):
-                                child.setFocus()
-                                return
-            # UP is a no-op (nothing above nav bar)
+    @staticmethod
+    def _spatial_focus_move(current: QWidget, direction: int) -> None:
+        """Find the nearest focusable widget in the given direction and focus it.
+
+        Pure geometry — no zones, no special cases. Works like a console.
+        """
+        from PySide6.QtWidgets import QWidget as QW
+        from PySide6.QtCore import QRect
+
+        window = current.window()
+        if window is None:
             return
 
-        # Zone 3: Everything else (sort pills, settings controls, etc.)
-        if key == _KEY_LEFT:
-            ControllerBridge._post_key(Qt.Key.Key_Backtab)
-        elif key == _KEY_RIGHT:
-            ControllerBridge._post_key(Qt.Key.Key_Tab)
-        elif key == _KEY_DOWN:
-            ControllerBridge._post_key(Qt.Key.Key_Tab)
-        elif key == _KEY_UP:
-            # Jump to sidebar's active nav button
-            main_win = widget.window()
-            if hasattr(main_win, '_sidebar'):
-                sidebar = main_win._sidebar
-                for btn in sidebar._buttons.values():
-                    if btn._active:
-                        btn.setFocus()
-                        return
-            ControllerBridge._post_key(Qt.Key.Key_Backtab)
+        # Get current widget's center in global coords
+        cur_rect = current.rect()
+        cur_center = current.mapToGlobal(cur_rect.center())
+        cx, cy = cur_center.x(), cur_center.y()
+
+        best = None
+        best_dist = float("inf")
+
+        # Search all focusable, visible widgets in the window
+        for child in window.findChildren(QW):
+            if child is current:
+                continue
+            if not child.isVisibleTo(window):
+                continue
+            if child.focusPolicy() == Qt.FocusPolicy.NoFocus:
+                continue
+            # Skip containers (scroll areas, frames) — only leaf widgets
+            if child.findChildren(QW, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                # Has focusable children — skip the container itself
+                has_focusable_child = False
+                for sub in child.findChildren(QW):
+                    if sub.focusPolicy() != Qt.FocusPolicy.NoFocus and sub.isVisibleTo(window):
+                        has_focusable_child = True
+                        break
+                if has_focusable_child:
+                    continue
+
+            # Get candidate center in global coords
+            c_rect = child.rect()
+            c_center = child.mapToGlobal(c_rect.center())
+            tx, ty = c_center.x(), c_center.y()
+
+            # Check direction constraint
+            if direction == _KEY_RIGHT and tx <= cx + 5:
+                continue
+            elif direction == _KEY_LEFT and tx >= cx - 5:
+                continue
+            elif direction == _KEY_DOWN and ty <= cy + 5:
+                continue
+            elif direction == _KEY_UP and ty >= cy - 5:
+                continue
+
+            # Distance: weight the perpendicular axis more to prefer
+            # widgets in the same row/column
+            if direction in (_KEY_LEFT, _KEY_RIGHT):
+                dist = abs(tx - cx) + abs(ty - cy) * 3
+            else:
+                dist = abs(ty - cy) + abs(tx - cx) * 3
+
+            if dist < best_dist:
+                best_dist = dist
+                best = child
+
+        if best is not None:
+            best.setFocus()
 
     @staticmethod
     def _post_scroll(value: float) -> None:

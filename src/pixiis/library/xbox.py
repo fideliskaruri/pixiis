@@ -58,6 +58,7 @@ foreach ($pkg in Get-AppxPackage) {
 
             $aumid = $pkg.PackageFamilyName + '!' + $appId
             $installDir = $pkg.InstallLocation
+            $isGame = Test-Path (Join-Path $pkg.InstallLocation 'MicrosoftGame.Config')
 
             $apps += @{
                 Name = $displayName
@@ -67,6 +68,7 @@ foreach ($pkg in Get-AppxPackage) {
                 Exe = $exe
                 Logo = $logo
                 InstallLocation = $installDir
+                IsGame = $isGame
             }
         }
     } catch {}
@@ -227,6 +229,8 @@ class XboxProvider:
             if candidate.exists():
                 exe_path = candidate
 
+        is_game = bool(item.get("IsGame", False))
+
         return AppEntry(
             id=family,
             name=display_name,
@@ -239,5 +243,6 @@ class XboxProvider:
                 "package_name": pkg_name,
                 "family": family,
                 "logo": logo,
+                "is_xbox_game": is_game,
             },
         )

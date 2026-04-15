@@ -104,7 +104,10 @@ class Toast(QWidget):
         self._fade_anim.start()
 
     def _on_fade_done(self) -> None:
-        if self.windowOpacity() < 0.1:
+        # windowOpacity may not work for SubWindow widgets on all platforms.
+        # Always hide when the fade-out animation finishes going toward 0.
+        end = self._fade_anim.endValue()
+        if end is not None and float(end) < 0.1:
             self.hide()
 
     def paintEvent(self, event) -> None:  # noqa: N802

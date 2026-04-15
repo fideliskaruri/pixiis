@@ -40,14 +40,17 @@ class AppEntry:
 
     @property
     def is_game(self) -> bool:
-        """True if this entry comes from a game launcher (Steam, Epic, GOG, EA, Xbox)."""
-        return self.source in (
-            AppSource.STEAM,
-            AppSource.EPIC,
-            AppSource.GOG,
-            AppSource.EA,
-            AppSource.XBOX,
-        )
+        """True if this entry is likely a game (not a regular app).
+
+        Steam, Epic, GOG, EA items are always games (those launchers only have games).
+        Xbox/UWP items are games only if they have MicrosoftGame.Config.
+        Start Menu, Folder Scanner, and Manual items are apps by default.
+        """
+        if self.source in (AppSource.STEAM, AppSource.EPIC, AppSource.GOG, AppSource.EA):
+            return True
+        if self.source == AppSource.XBOX:
+            return bool(self.metadata.get("is_xbox_game", False))
+        return False
 
 
 # ── Controller ───────────────────────────────────────────────────────────────

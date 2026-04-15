@@ -229,7 +229,9 @@ class HomePage(QWidget):
     def _load_apps(self) -> None:
         if self._registry is not None:
             self._all_apps = self._registry.get_all()
-        self._apply_sort_and_display()
+        if self._all_apps:
+            self._loading.hide()
+            self._apply_sort_and_display()
 
     def _set_sort(self, mode: str) -> None:
         self._current_sort = mode

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from pixiis.core.config import Config
 
 # Steam art CDN template
-_ART_URL = "https://steamcdn-a.akamaihd.net/steam/apps/{appid}/header.jpg"
+_ART_URL = "https://cdn.akamai.steamstatic.com/steam/apps/{appid}/library_600x900_2x.jpg"
 
 
 class SteamProvider:

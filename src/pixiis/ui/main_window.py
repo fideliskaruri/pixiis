@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QApplication,
@@ -20,6 +20,7 @@ from pixiis.library.registry import AppRegistry, LibraryUpdatedEvent
 from pixiis.ui.controller_bridge import ControllerBridge
 from pixiis.ui.page_stack import PageStack
 from pixiis.ui.widgets.sidebar import Sidebar
+from pixiis.ui.widgets.toast import Toast
 
 if TYPE_CHECKING:
     from pixiis.core.types import AppEntry
@@ -98,6 +99,9 @@ class MainWindow(QMainWindow):
         # Page stack (fills remaining space)
         self._page_stack = PageStack()
         root_layout.addWidget(self._page_stack, stretch=1)
+
+        # -- toast notification ----------------------------------------------
+        self._toast = Toast(central)
 
         # -- registry & scanning ---------------------------------------------
         self._registry = registry or AppRegistry(self._config)
@@ -200,7 +204,12 @@ class MainWindow(QMainWindow):
             if name == "settings":
                 from pixiis.ui.pages.settings_page import SettingsPage
                 tm = getattr(QApplication.instance(), '_theme_manager', None)
-                return SettingsPage(theme_manager=tm, registry=self._registry)
+                page = SettingsPage(theme_manager=tm, registry=self._registry)
+                page.settings_saved.connect(
+                    lambda: self.show_toast("Settings saved")
+                )
+                page.scan_requested.connect(self._start_scan)
+                return page
             if name == "file_manager":
                 from pixiis.ui.pages.file_manager_page import FileManagerPage
                 return FileManagerPage()
@@ -330,6 +339,14 @@ class MainWindow(QMainWindow):
     # -- library scanning ----------------------------------------------------
 
     def _start_scan(self) -> None:
+        self.show_toast("Scanning library...", icon="info")
+
+        # Disable Scan Now button in settings if available
+        settings = self._page_stack._pages.get("settings")
+        if settings and hasattr(settings, '_scan_btn'):
+            settings._scan_btn.setText("Scanning...")
+            settings._scan_btn.setEnabled(False)
+
         thread = QThread(self)
         worker = _ScanWorker(self._registry)
         worker.moveToThread(thread)
@@ -355,6 +372,15 @@ class MainWindow(QMainWindow):
             page = self._page_stack._pages.get(name)
             if page is not None and hasattr(page, "refresh"):
                 page.refresh(apps)
+
+        # Scan-complete feedback
+        self.show_toast(f"{len(apps)} games found")
+
+        # Restore Scan Now button in settings
+        settings = self._page_stack._pages.get("settings")
+        if settings and hasattr(settings, '_scan_btn'):
+            settings._scan_btn.setText("Scan Now")
+            settings._scan_btn.setEnabled(True)
 
     def _on_game_selected(self, app) -> None:
         """Navigate to game detail when a tile is activated."""
@@ -385,12 +411,26 @@ class MainWindow(QMainWindow):
         if self._voice_overlay:
             self._voice_overlay.show_text("Processing...", is_final=True)
 
+    def show_toast(self, msg: str, icon: str = "success") -> None:
+        """Show a floating toast notification."""
+        self._toast.show_message(msg, icon=icon)
+
     def _on_launch_requested(self, app) -> None:
         """Launch the selected game."""
+        name = getattr(app, "display_name", "game")
+        self.show_toast(f"Launching {name}...", icon="info")
+
+        # Update launch button text temporarily
+        detail = self._page_stack._pages.get("game_detail")
+        if detail and hasattr(detail, '_hero') and hasattr(detail._hero, '_launch_btn'):
+            btn = detail._hero._launch_btn
+            btn.setText("Launching...")
+            QTimer.singleShot(2000, lambda: btn.setText("\u25b6  LAUNCH"))
+
         try:
             self._registry.launch(app)
         except Exception as e:
-            print(f"[Pixiis] Launch failed: {e}")
+            self.show_toast(f"Launch failed: {e}", icon="error")
 
     # -- cleanup -------------------------------------------------------------
 

@@ -148,7 +148,9 @@ QPushButton:hover {
 }
 
 QPushButton:pressed {
-    background: rgba(233, 69, 96, 0.12);
+    background: rgba(233, 69, 96, 0.20);
+    padding-top: 12px;
+    padding-bottom: 8px;
 }
 
 QPushButton:focus {
@@ -178,6 +180,8 @@ QPushButton#accentButton:hover {
 
 QPushButton#accentButton:pressed {
     background: {{accent_pressed}};
+    padding-top: 12px;
+    padding-bottom: 8px;
 }
 
 

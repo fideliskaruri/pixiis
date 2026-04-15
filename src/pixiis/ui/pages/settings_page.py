@@ -1,4 +1,4 @@
-"""Settings page — scrollable settings organized in group-box sections."""
+"""Settings page — clean, scrollable settings organized in framed sections."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer, Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFormLayout,
-    QGroupBox,
+    QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -25,118 +25,73 @@ from PySide6.QtWidgets import (
 )
 
 from pixiis.core import get_config
-
-# ThemeEditor built alongside this file.
 from pixiis.ui.widgets.theme_editor import ThemeEditor
 
-# ThemeManager may not exist yet.
 try:
     from pixiis.services.theme import ThemeManager
 except ImportError:
     ThemeManager = None  # type: ignore[assignment,misc]
 
-# Version
 try:
     from pixiis import __version__
 except ImportError:
     __version__ = "0.1.0"
 
 
-# ── Style helpers ───────────────────────────────────────────────────────────
+# ── Design tokens (matches DESIGN_SPEC.md) ────────────────────────────────
 
-_GROUP_STYLE = (
-    "QGroupBox {"
-    "  font-size: 15px;"
-    "  font-weight: bold;"
-    "  color: #e94560;"
-    "  border: 1px solid #0f3460;"
-    "  border-radius: 8px;"
-    "  margin-top: 14px;"
-    "  padding: 18px 12px 12px 12px;"
-    "}"
-    "QGroupBox::title {"
-    "  subcontrol-origin: margin;"
-    "  left: 14px;"
-    "  padding: 0 6px;"
-    "}"
-)
-
-_LABEL_STYLE = "color: #a0a0b0; background: transparent; font-size: 13px;"
-
-_COMBO_STYLE = (
-    "QComboBox { background-color: #16213e; color: #e0e0e0; "
-    "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; }"
-    "QComboBox::drop-down { border: none; }"
-    "QComboBox QAbstractItemView { background-color: #16213e; color: #e0e0e0; "
-    "selection-background-color: #0f3460; }"
-)
-
-_CHECKBOX_STYLE = (
-    "QCheckBox { color: #e0e0e0; spacing: 6px; background: transparent; }"
-    "QCheckBox::indicator { width: 16px; height: 16px; }"
-)
-
-_SPINBOX_STYLE = (
-    "QSpinBox { background-color: #16213e; color: #e0e0e0; "
-    "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 6px; }"
-)
-
-_APPLY_STYLE = (
-    "QPushButton { background-color: #e94560; color: #ffffff; "
-    "border: none; border-radius: 6px; padding: 8px 24px; "
-    "font-weight: bold; font-size: 14px; }"
-    "QPushButton:hover { background-color: #c73652; }"
-)
-
-_SECONDARY_BTN_STYLE = (
-    "QPushButton { background-color: #16213e; color: #e0e0e0; "
-    "border: 1px solid #0f3460; border-radius: 6px; padding: 6px 14px; }"
-    "QPushButton:hover { background-color: #0f3460; }"
-)
-
-_CONNECT_BTN_STYLE = (
-    "QPushButton { background-color: #9146FF; color: #ffffff; "
-    "border: none; border-radius: 6px; padding: 6px 14px; font-weight: bold; }"
-    "QPushButton:hover { background-color: #7c3aed; }"
-    "QPushButton:disabled { background-color: #4a4a5a; color: #888; }"
-)
-
-_LINK_BTN_STYLE = (
-    "QPushButton { background: transparent; color: #e94560; "
-    "border: none; padding: 2px 0; text-decoration: underline; "
-    "font-size: 12px; text-align: left; }"
-    "QPushButton:hover { color: #ff6b8a; }"
-)
-
-_STATUS_CONNECTED = "color: #4ade80; background: transparent; font-size: 12px;"
-_STATUS_DISCONNECTED = "color: #a0a0b0; background: transparent; font-size: 12px;"
+_TEXT_SECONDARY = "#8a8698"
+_TEXT_MUTED = "#5c586a"
+_SUCCESS = "#4ade80"
+_ERROR = "#f87171"
 
 
-def _make_label(text: str) -> QLabel:
+# ── Widget factories ──────────────────────────────────────────────────────
+
+
+def _section_title(text: str) -> QLabel:
+    """H3-level section title: 16px SemiBold, inherits text_primary from QSS."""
     lbl = QLabel(text)
-    lbl.setStyleSheet(_LABEL_STYLE)
+    font = QFont()
+    font.setPixelSize(16)
+    font.setWeight(QFont.Weight.DemiBold)
+    lbl.setFont(font)
     return lbl
 
 
-def _make_slider_row(slider: QSlider, suffix: str = "") -> tuple[QHBoxLayout, QLabel]:
-    """Return (layout, value_label) for a slider + value readout."""
-    row = QHBoxLayout()
-    slider.setFixedWidth(200)
-    value_label = QLabel(f"{slider.value()}{suffix}")
-    value_label.setFixedWidth(50)
-    value_label.setStyleSheet("color: #e0e0e0; background: transparent;")
-    slider.valueChanged.connect(lambda v: value_label.setText(f"{v}{suffix}"))
-    row.addWidget(slider)
-    row.addWidget(value_label)
-    row.addStretch()
-    return row, value_label
+def _form_label(text: str) -> QLabel:
+    """Secondary-color form label."""
+    lbl = QLabel(text)
+    lbl.setStyleSheet(f"color: {_TEXT_SECONDARY};")
+    return lbl
 
 
-# ── SettingsPage ────────────────────────────────────────────────────────────
+def _value_label(text: str) -> QLabel:
+    """Prominent slider value readout."""
+    lbl = QLabel(text)
+    font = QFont()
+    font.setPixelSize(14)
+    font.setWeight(QFont.Weight.DemiBold)
+    lbl.setFont(font)
+    lbl.setMinimumWidth(50)
+    return lbl
+
+
+def _slider(min_val: int, max_val: int, value: int) -> QSlider:
+    """Horizontal slider with StrongFocus and sensible minimum width."""
+    s = QSlider(Qt.Orientation.Horizontal)
+    s.setRange(min_val, max_val)
+    s.setValue(value)
+    s.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    s.setMinimumWidth(160)
+    return s
+
+
+# ── SettingsPage ──────────────────────────────────────────────────────────
 
 
 class SettingsPage(QScrollArea):
-    """Scrollable settings page with grouped sections.
+    """Scrollable settings page with framed sections.
 
     Parameters
     ----------
@@ -145,6 +100,9 @@ class SettingsPage(QScrollArea):
     registry : object | None
         An ``AppRegistry`` for triggering library scans.
     """
+
+    settings_saved = Signal()
+    scan_requested = Signal()
 
     def __init__(
         self,
@@ -156,317 +114,401 @@ class SettingsPage(QScrollArea):
         self._theme = theme_manager
         self._registry = registry
 
+        self.setObjectName("SettingsPage")
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setStyleSheet(
-            "QScrollArea { background-color: transparent; border: none; }"
-        )
 
         container = QWidget()
-        container.setStyleSheet("background-color: transparent;")
+        container.setObjectName("SettingsContainer")
         self._layout = QVBoxLayout(container)
-        self._layout.setContentsMargins(16, 12, 16, 16)
-        self._layout.setSpacing(16)
+        self._layout.setContentsMargins(32, 24, 32, 16)
+        self._layout.setSpacing(24)
+
+        # Page title (H1: 24px Bold)
+        title = QLabel("Settings")
+        title_font = QFont()
+        title_font.setPixelSize(24)
+        title_font.setWeight(QFont.Weight.Bold)
+        title.setFont(title_font)
+        self._layout.addWidget(title)
 
         cfg = get_config()
 
         self._build_theme_section()
         self._build_controller_section(cfg)
-        self._build_system_section(cfg)
         self._build_voice_section(cfg)
         self._build_library_section(cfg)
         self._build_services_section(cfg)
-        self._build_about_section()
+        self._build_system_section(cfg)
 
-        # -- apply button -----------------------------------------------------
+        # Apply button — right-aligned, accent style via objectName
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        apply_btn = QPushButton("Apply")
-        apply_btn.setStyleSheet(_APPLY_STYLE)
-        apply_btn.clicked.connect(self._apply_settings)
-        btn_row.addWidget(apply_btn)
+        self._apply_btn = QPushButton("Apply")
+        self._apply_btn.setObjectName("accentButton")
+        self._apply_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._apply_btn.clicked.connect(self._apply_settings)
+        btn_row.addWidget(self._apply_btn)
         self._layout.addLayout(btn_row)
 
         self._layout.addStretch()
         self.setWidget(container)
 
-    # -- Section builders -----------------------------------------------------
+    # ── Section helper ───────────────────────────────────────────────────
+
+    def _add_section(self, title: str) -> QVBoxLayout:
+        """Add a titled QFrame section and return its inner layout.
+
+        A wrapper QWidget keeps the title label and frame together with tight
+        8px spacing, while the main layout's 24px gap separates sections.
+        """
+        wrapper = QWidget()
+        wrapper_layout = QVBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.setSpacing(8)
+
+        wrapper_layout.addWidget(_section_title(title))
+
+        frame = QFrame()
+        frame.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        inner = QVBoxLayout(frame)
+        inner.setContentsMargins(16, 16, 16, 16)
+        inner.setSpacing(16)
+        wrapper_layout.addWidget(frame)
+
+        self._layout.addWidget(wrapper)
+        return inner
+
+    # ── Theme ────────────────────────────────────────────────────────────
 
     def _build_theme_section(self) -> None:
-        group = QGroupBox("Theme")
-        group.setStyleSheet(_GROUP_STYLE)
-        inner = QVBoxLayout(group)
-        inner.setContentsMargins(8, 8, 8, 8)
+        inner = self._add_section("Theme")
         self._theme_editor = ThemeEditor(theme_manager=self._theme)
+        self._theme_editor.setStyleSheet(
+            "#ThemeEditor { background: transparent; border: none; }"
+        )
         inner.addWidget(self._theme_editor)
-        self._layout.addWidget(group)
+
+    # ── Controller ───────────────────────────────────────────────────────
 
     def _build_controller_section(self, cfg: object) -> None:
-        group = QGroupBox("Controller")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        inner = self._add_section("Controller")
 
-        # vibration enabled
-        self._vibration_cb = QCheckBox("Vibration enabled")
-        self._vibration_cb.setStyleSheet(_CHECKBOX_STYLE)
-        self._vibration_cb.setChecked(bool(cfg.get("controller.vibration_enabled", True)))
-        form.addRow(_make_label("Vibration"), self._vibration_cb)
+        grid = QGridLayout()
+        grid.setSpacing(16)
+        grid.setColumnMinimumWidth(0, 100)
+        grid.setColumnMinimumWidth(2, 100)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
-        # deadzone slider (0–50 mapped to 0.0–0.5)
-        self._deadzone_slider = QSlider(Qt.Orientation.Horizontal)
-        self._deadzone_slider.setRange(0, 50)
-        dz_val = int(float(cfg.get("controller.deadzone", 0.15)) * 100)
-        self._deadzone_slider.setValue(dz_val)
-        dz_row, self._dz_label = _make_slider_row(self._deadzone_slider)
-        self._dz_label.setText(f"{dz_val / 100:.2f}")
-        self._deadzone_slider.valueChanged.connect(
-            lambda v: self._dz_label.setText(f"{v / 100:.2f}")
+        # Row 0: Vibration | Voice Trigger
+        grid.addWidget(
+            _form_label("Vibration"), 0, 0, Qt.AlignmentFlag.AlignRight
         )
-        form.addRow(_make_label("Deadzone"), dz_row)
+        self._vibration_cb = QCheckBox("Enabled")
+        self._vibration_cb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._vibration_cb.setChecked(
+            bool(cfg.get("controller.vibration_enabled", True))
+        )
+        grid.addWidget(self._vibration_cb, 0, 1)
 
-        # hold threshold slider (100–500 ms)
-        self._hold_slider = QSlider(Qt.Orientation.Horizontal)
-        self._hold_slider.setRange(100, 500)
-        self._hold_slider.setValue(int(cfg.get("controller.hold_threshold_ms", 200)))
-        hold_row, _ = _make_slider_row(self._hold_slider, "ms")
-        form.addRow(_make_label("Hold Threshold"), hold_row)
-
-        # voice trigger
+        grid.addWidget(
+            _form_label("Voice Trigger"), 0, 2, Qt.AlignmentFlag.AlignRight
+        )
         self._voice_trigger = QComboBox()
-        _trigger_options = [
+        self._voice_trigger.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        for label, value in [
             ("Right Trigger", "rt"),
             ("Left Trigger", "lt"),
             ("Hold Y", "hold_y"),
             ("Hold X", "hold_x"),
-        ]
-        for label, value in _trigger_options:
+        ]:
             self._voice_trigger.addItem(label, value)
-        current_trigger = str(cfg.get("controller.voice_trigger", "rt"))
-        idx = self._voice_trigger.findData(current_trigger)
+        idx = self._voice_trigger.findData(
+            str(cfg.get("controller.voice_trigger", "rt"))
+        )
         if idx >= 0:
             self._voice_trigger.setCurrentIndex(idx)
-        self._voice_trigger.setStyleSheet(_COMBO_STYLE)
-        form.addRow(_make_label("Voice Trigger"), self._voice_trigger)
+        grid.addWidget(self._voice_trigger, 0, 3)
 
-        self._layout.addWidget(group)
+        # Row 1: Deadzone slider | Hold slider
+        grid.addWidget(
+            _form_label("Deadzone"), 1, 0, Qt.AlignmentFlag.AlignRight
+        )
+        dz_val = int(float(cfg.get("controller.deadzone", 0.15)) * 100)
+        self._deadzone_slider = _slider(0, 50, dz_val)
+        self._dz_label = _value_label(f"{dz_val / 100:.2f}")
+        self._deadzone_slider.valueChanged.connect(
+            lambda v: self._dz_label.setText(f"{v / 100:.2f}")
+        )
+        dz_row = QHBoxLayout()
+        dz_row.addWidget(self._deadzone_slider)
+        dz_row.addWidget(self._dz_label)
+        grid.addLayout(dz_row, 1, 1)
 
-    def _build_system_section(self, cfg: object) -> None:
-        group = QGroupBox("System")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(
+            _form_label("Hold"), 1, 2, Qt.AlignmentFlag.AlignRight
+        )
+        hold_val = int(cfg.get("controller.hold_threshold_ms", 200))
+        self._hold_slider = _slider(100, 500, hold_val)
+        self._hold_label = _value_label(f"{hold_val}ms")
+        self._hold_slider.valueChanged.connect(
+            lambda v: self._hold_label.setText(f"{v}ms")
+        )
+        hold_row = QHBoxLayout()
+        hold_row.addWidget(self._hold_slider)
+        hold_row.addWidget(self._hold_label)
+        grid.addLayout(hold_row, 1, 3)
 
-        # Start with Windows
-        self._autostart_cb = QCheckBox("Start with Windows")
-        self._autostart_cb.setStyleSheet(_CHECKBOX_STYLE)
-        try:
-            from pixiis.daemon.autostart import is_autostart_enabled
-            self._autostart_cb.setChecked(is_autostart_enabled())
-        except Exception:
-            self._autostart_cb.setChecked(bool(cfg.get("daemon.autostart", False)))
-        form.addRow(_make_label("Auto-start"), self._autostart_cb)
+        inner.addLayout(grid)
 
-        self._layout.addWidget(group)
+    # ── Voice ────────────────────────────────────────────────────────────
 
     def _build_voice_section(self, cfg: object) -> None:
-        group = QGroupBox("Voice")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        inner = self._add_section("Voice")
 
-        whisper_models = ["tiny", "base", "small", "medium", "large-v2", "large-v3"]
+        grid = QGridLayout()
+        grid.setSpacing(16)
+        grid.setColumnMinimumWidth(0, 100)
+        grid.setColumnMinimumWidth(2, 100)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
 
-        # live model
+        whisper_models = [
+            "tiny", "base", "small", "medium", "large-v2", "large-v3",
+        ]
+
+        # Row 0: Live Model | Final Model
+        grid.addWidget(
+            _form_label("Live Model"), 0, 0, Qt.AlignmentFlag.AlignRight
+        )
         self._live_model = QComboBox()
+        self._live_model.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._live_model.addItems(whisper_models)
-        self._live_model.setCurrentText(str(cfg.get("voice.live_model", "large-v3")))
-        self._live_model.setStyleSheet(_COMBO_STYLE)
-        form.addRow(_make_label("Live Model"), self._live_model)
+        self._live_model.setCurrentText(
+            str(cfg.get("voice.live_model", "large-v3"))
+        )
+        grid.addWidget(self._live_model, 0, 1)
 
-        # final model
+        grid.addWidget(
+            _form_label("Final"), 0, 2, Qt.AlignmentFlag.AlignRight
+        )
         self._final_model = QComboBox()
+        self._final_model.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._final_model.addItems(whisper_models)
-        self._final_model.setCurrentText(str(cfg.get("voice.final_model", "large-v3")))
-        self._final_model.setStyleSheet(_COMBO_STYLE)
-        form.addRow(_make_label("Final Model"), self._final_model)
+        self._final_model.setCurrentText(
+            str(cfg.get("voice.final_model", "large-v3"))
+        )
+        grid.addWidget(self._final_model, 0, 3)
 
-        # device
+        # Row 1: Device | Energy slider
+        grid.addWidget(
+            _form_label("Device"), 1, 0, Qt.AlignmentFlag.AlignRight
+        )
         self._device_combo = QComboBox()
+        self._device_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._device_combo.addItems(["cuda", "cpu"])
-        self._device_combo.setCurrentText(str(cfg.get("voice.device", "cuda")))
-        self._device_combo.setStyleSheet(_COMBO_STYLE)
-        form.addRow(_make_label("Device"), self._device_combo)
+        self._device_combo.setCurrentText(
+            str(cfg.get("voice.device", "cuda"))
+        )
+        grid.addWidget(self._device_combo, 1, 1)
 
-        # energy threshold
-        self._energy_slider = QSlider(Qt.Orientation.Horizontal)
-        self._energy_slider.setRange(50, 1000)
-        self._energy_slider.setValue(int(float(cfg.get("voice.energy_threshold", 300))))
-        energy_row, _ = _make_slider_row(self._energy_slider)
-        form.addRow(_make_label("Energy Threshold"), energy_row)
+        grid.addWidget(
+            _form_label("Energy"), 1, 2, Qt.AlignmentFlag.AlignRight
+        )
+        energy_val = int(float(cfg.get("voice.energy_threshold", 300)))
+        self._energy_slider = _slider(50, 1000, energy_val)
+        self._energy_label = _value_label(str(energy_val))
+        self._energy_slider.valueChanged.connect(
+            lambda v: self._energy_label.setText(str(v))
+        )
+        energy_row = QHBoxLayout()
+        energy_row.addWidget(self._energy_slider)
+        energy_row.addWidget(self._energy_label)
+        grid.addLayout(energy_row, 1, 3)
 
-        self._layout.addWidget(group)
+        inner.addLayout(grid)
+
+    # ── Library ──────────────────────────────────────────────────────────
 
     def _build_library_section(self, cfg: object) -> None:
-        group = QGroupBox("Library")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        inner = self._add_section("Library")
 
         enabled_providers: list[str] = cfg.get("library.providers", [])
 
-        # provider checkboxes
+        # Providers row
+        prov_row = QHBoxLayout()
+        prov_row.addWidget(_form_label("Providers"))
+        prov_row.addSpacing(8)
         self._provider_cbs: dict[str, QCheckBox] = {}
-        providers_row = QHBoxLayout()
-        for name in ("steam", "xbox", "startmenu", "manual"):
+        for name in ("steam", "xbox", "epic", "gog", "ea"):
             cb = QCheckBox(name.capitalize())
-            cb.setStyleSheet(_CHECKBOX_STYLE)
+            cb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             cb.setChecked(name in enabled_providers)
             self._provider_cbs[name] = cb
-            providers_row.addWidget(cb)
-        providers_row.addStretch()
-        form.addRow(_make_label("Providers"), providers_row)
+            prov_row.addWidget(cb)
+        prov_row.addStretch()
+        inner.addLayout(prov_row)
 
-        # scan interval
+        # Scan interval + Scan Now
+        scan_row = QHBoxLayout()
+        scan_row.addWidget(_form_label("Scan interval"))
+        scan_row.addSpacing(8)
         self._scan_interval = QSpinBox()
+        self._scan_interval.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._scan_interval.setRange(1, 1440)
         self._scan_interval.setSuffix(" min")
-        self._scan_interval.setValue(int(cfg.get("library.scan_interval_minutes", 60)))
-        self._scan_interval.setStyleSheet(_SPINBOX_STYLE)
-        form.addRow(_make_label("Scan Interval"), self._scan_interval)
-
-        # scan now button
+        self._scan_interval.setValue(
+            int(cfg.get("library.scan_interval_minutes", 60))
+        )
+        scan_row.addWidget(self._scan_interval)
+        scan_row.addSpacing(16)
         self._scan_btn = QPushButton("Scan Now")
-        self._scan_btn.setStyleSheet(_SECONDARY_BTN_STYLE)
+        self._scan_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._scan_btn.clicked.connect(self._scan_now)
-        form.addRow(_make_label(""), self._scan_btn)
+        scan_row.addWidget(self._scan_btn)
+        scan_row.addStretch()
+        inner.addLayout(scan_row)
 
-        self._layout.addWidget(group)
+    # ── Services ─────────────────────────────────────────────────────────
 
     def _build_services_section(self, cfg: object) -> None:
-        group = QGroupBox("Services / API Keys")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        inner = self._add_section("Services")
 
-        line_style = (
-            "QLineEdit { background-color: #16213e; color: #e0e0e0; "
-            "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; }"
+        grid = QGridLayout()
+        grid.setSpacing(12)
+        grid.setColumnMinimumWidth(0, 100)
+        grid.setColumnStretch(1, 1)
+
+        row = 0
+
+        # RAWG
+        grid.addWidget(
+            _form_label("RAWG"), row, 0, Qt.AlignmentFlag.AlignRight
         )
-
-        # ── RAWG ────────────────────────────────────────────────────────
         self._rawg_key = QLineEdit(str(cfg.get("services.rawg.api_key", "")))
-        self._rawg_key.setStyleSheet(line_style)
+        self._rawg_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rawg_key.setPlaceholderText("RAWG API key")
-        form.addRow(_make_label("RAWG API Key"), self._rawg_key)
-
-        rawg_link = QPushButton("Get API Key")
-        rawg_link.setStyleSheet(_LINK_BTN_STYLE)
+        grid.addWidget(self._rawg_key, row, 1)
+        rawg_link = QPushButton("Get Key")
+        rawg_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         rawg_link.setCursor(Qt.CursorShape.PointingHandCursor)
         rawg_link.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl("https://rawg.io/apidocs"))
         )
-        form.addRow(_make_label(""), rawg_link)
+        grid.addWidget(rawg_link, row, 2)
+        row += 1
 
-        # ── YouTube ─────────────────────────────────────────────────────
-        self._youtube_key = QLineEdit(str(cfg.get("services.youtube.api_key", "")))
-        self._youtube_key.setStyleSheet(line_style)
+        # YouTube
+        grid.addWidget(
+            _form_label("YouTube"), row, 0, Qt.AlignmentFlag.AlignRight
+        )
+        self._youtube_key = QLineEdit(
+            str(cfg.get("services.youtube.api_key", ""))
+        )
+        self._youtube_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._youtube_key.setPlaceholderText("YouTube API key")
-        form.addRow(_make_label("YouTube API Key"), self._youtube_key)
-
-        yt_link = QPushButton("Get API Key (Google Cloud Console)")
-        yt_link.setStyleSheet(_LINK_BTN_STYLE)
+        grid.addWidget(self._youtube_key, row, 1)
+        yt_link = QPushButton("Get Key")
+        yt_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         yt_link.setCursor(Qt.CursorShape.PointingHandCursor)
         yt_link.clicked.connect(
             lambda: QDesktopServices.openUrl(
                 QUrl("https://console.cloud.google.com/apis/credentials")
             )
         )
-        form.addRow(_make_label(""), yt_link)
+        grid.addWidget(yt_link, row, 2)
+        row += 1
 
-        # ── Twitch ──────────────────────────────────────────────────────
-        self._twitch_id = QLineEdit(str(cfg.get("services.twitch.client_id", "")))
-        self._twitch_id.setStyleSheet(line_style)
+        # Twitch Client ID
+        grid.addWidget(
+            _form_label("Twitch ID"), row, 0, Qt.AlignmentFlag.AlignRight
+        )
+        self._twitch_id = QLineEdit(
+            str(cfg.get("services.twitch.client_id", ""))
+        )
+        self._twitch_id.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._twitch_id.setPlaceholderText("Twitch Client ID")
-        form.addRow(_make_label("Twitch Client ID"), self._twitch_id)
+        grid.addWidget(self._twitch_id, row, 1)
+        row += 1
 
-        self._twitch_secret = QLineEdit(str(cfg.get("services.twitch.client_secret", "")))
-        self._twitch_secret.setStyleSheet(line_style)
-        self._twitch_secret.setPlaceholderText("Twitch Client Secret (optional with OAuth)")
+        # Twitch Client Secret + Connect
+        grid.addWidget(
+            _form_label("Twitch Secret"), row, 0, Qt.AlignmentFlag.AlignRight
+        )
+        self._twitch_secret = QLineEdit(
+            str(cfg.get("services.twitch.client_secret", ""))
+        )
+        self._twitch_secret.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._twitch_secret.setPlaceholderText("Twitch Client Secret")
         self._twitch_secret.setEchoMode(QLineEdit.EchoMode.Password)
-        form.addRow(_make_label("Twitch Client Secret"), self._twitch_secret)
+        grid.addWidget(self._twitch_secret, row, 1)
 
-        # Connect button + status
-        twitch_row = QHBoxLayout()
-        self._twitch_connect_btn = QPushButton("Connect with Twitch")
-        self._twitch_connect_btn.setStyleSheet(_CONNECT_BTN_STYLE)
+        connect_col = QHBoxLayout()
+        self._twitch_connect_btn = QPushButton("Connect")
+        self._twitch_connect_btn.setObjectName("accentButton")
+        self._twitch_connect_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._twitch_connect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._twitch_connect_btn.clicked.connect(self._connect_twitch)
-        twitch_row.addWidget(self._twitch_connect_btn)
+        connect_col.addWidget(self._twitch_connect_btn)
 
         has_token = bool(cfg.get("services.twitch.access_token", ""))
-        self._twitch_status = QLabel("Connected" if has_token else "Not connected")
-        self._twitch_status.setStyleSheet(
-            _STATUS_CONNECTED if has_token else _STATUS_DISCONNECTED
+        self._twitch_status = QLabel(
+            "Connected" if has_token else "Not connected"
         )
-        twitch_row.addWidget(self._twitch_status)
-        twitch_row.addStretch()
-        form.addRow(_make_label(""), twitch_row)
+        self._twitch_status.setStyleSheet(
+            f"color: {_SUCCESS if has_token else _TEXT_SECONDARY};"
+        )
+        connect_col.addWidget(self._twitch_status)
+        connect_col.addStretch()
+        grid.addLayout(connect_col, row, 2)
 
-        # Hidden field to hold the OAuth access token
+        # OAuth state
         self._twitch_access_token = cfg.get("services.twitch.access_token", "")
-
-        # Timer / flow state (created on demand)
         self._oauth_flow = None
         self._oauth_timer: QTimer | None = None
 
-        self._layout.addWidget(group)
+        inner.addLayout(grid)
 
-    def _build_about_section(self) -> None:
-        group = QGroupBox("About")
-        group.setStyleSheet(_GROUP_STYLE)
-        form = QFormLayout(group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+    # ── System ───────────────────────────────────────────────────────────
 
-        version_label = QLabel(f"Pixiis v{__version__}")
-        version_label.setStyleSheet(
-            "color: #e0e0e0; font-size: 14px; font-weight: bold; background: transparent;"
-        )
-        form.addRow(_make_label("Version"), version_label)
+    def _build_system_section(self, cfg: object) -> None:
+        inner = self._add_section("System")
 
-        link_label = QLabel("github.com/pixiis")
-        link_label.setStyleSheet(
-            "color: #e94560; font-size: 13px; background: transparent;"
-        )
-        form.addRow(_make_label("Project"), link_label)
+        row = QHBoxLayout()
+        row.addWidget(_form_label("Start with Windows"))
+        row.addSpacing(8)
+        self._autostart_cb = QCheckBox()
+        self._autostart_cb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        try:
+            from pixiis.daemon.autostart import is_autostart_enabled
 
-        self._layout.addWidget(group)
+            self._autostart_cb.setChecked(is_autostart_enabled())
+        except Exception:
+            self._autostart_cb.setChecked(
+                bool(cfg.get("daemon.autostart", False))
+            )
+        row.addWidget(self._autostart_cb)
+        row.addStretch()
+        inner.addLayout(row)
 
-    # -- Twitch OAuth ---------------------------------------------------------
+    # ── Twitch OAuth ─────────────────────────────────────────────────────
 
     def _connect_twitch(self) -> None:
         """Start the Twitch OAuth implicit-grant flow in the browser."""
         client_id = self._twitch_id.text().strip()
         if not client_id:
-            self._twitch_status.setText("Enter your Twitch Client ID first")
-            self._twitch_status.setStyleSheet(
-                "color: #f87171; background: transparent; font-size: 12px;"
-            )
+            self._twitch_status.setText("Enter Client ID first")
+            self._twitch_status.setStyleSheet(f"color: {_ERROR};")
             return
 
         from pixiis.services.oauth import OAuthFlow
         from pixiis.services.twitch import TwitchClient
 
         self._twitch_connect_btn.setEnabled(False)
-        self._twitch_connect_btn.setText("Waiting for browser...")
+        self._twitch_connect_btn.setText("Waiting\u2026")
         self._twitch_status.setText("Check your browser")
-        self._twitch_status.setStyleSheet(_STATUS_DISCONNECTED)
+        self._twitch_status.setStyleSheet(f"color: {_TEXT_SECONDARY};")
 
         flow = OAuthFlow()
         redirect_uri = f"http://localhost:{flow.port}/callback"
@@ -486,7 +528,6 @@ class SettingsPage(QScrollArea):
 
         result = self._oauth_flow.get_result(timeout=0)
         if result is not None:
-            # Got a result — stop polling
             if self._oauth_timer is not None:
                 self._oauth_timer.stop()
                 self._oauth_timer = None
@@ -495,27 +536,22 @@ class SettingsPage(QScrollArea):
             if token:
                 self._twitch_access_token = token
                 self._twitch_status.setText("Connected")
-                self._twitch_status.setStyleSheet(_STATUS_CONNECTED)
+                self._twitch_status.setStyleSheet(f"color: {_SUCCESS};")
             else:
-                self._twitch_status.setText("Failed — no token received")
-                self._twitch_status.setStyleSheet(
-                    "color: #f87171; background: transparent; font-size: 12px;"
-                )
+                self._twitch_status.setText("Failed \u2014 no token")
+                self._twitch_status.setStyleSheet(f"color: {_ERROR};")
 
             self._twitch_connect_btn.setEnabled(True)
-            self._twitch_connect_btn.setText("Connect with Twitch")
+            self._twitch_connect_btn.setText("Connect")
             self._oauth_flow = None
 
-    # -- Actions --------------------------------------------------------------
+    # ── Apply settings ───────────────────────────────────────────────────
 
     def _apply_settings(self) -> None:
         """Write current control values back to the user config file."""
-        from pixiis.core.paths import config_file
-
         cfg = get_config()
         user_path = cfg.ensure_user_config()
 
-        # Build updated values
         updates: dict[str, Any] = {}
 
         # Controller
@@ -524,17 +560,18 @@ class SettingsPage(QScrollArea):
         updates["controller.hold_threshold_ms"] = self._hold_slider.value()
         updates["controller.voice_trigger"] = self._voice_trigger.currentData()
 
-        # System — auto-start
+        # System
         autostart_wanted = self._autostart_cb.isChecked()
         updates["daemon.autostart"] = autostart_wanted
         try:
             from pixiis.daemon.autostart import enable_autostart, disable_autostart
+
             if autostart_wanted:
                 enable_autostart()
             else:
                 disable_autostart()
         except Exception:
-            pass  # Not on Windows or winreg unavailable
+            pass
 
         # Voice
         updates["voice.live_model"] = self._live_model.currentText()
@@ -563,19 +600,24 @@ class SettingsPage(QScrollArea):
             "twitch": twitch_cfg,
         }
 
-        # Read existing TOML, patch, and write back
         self._write_config(user_path, updates)
-
-        # Reload config singleton
         cfg.load()
+
+        # Brief visual feedback
+        self._apply_btn.setText("Saved \u2713")
+        QTimer.singleShot(2000, self._restore_apply_btn)
+
+        self.settings_saved.emit()
+
+    def _restore_apply_btn(self) -> None:
+        """Restore the Apply button text after save feedback."""
+        self._apply_btn.setText("Apply")
+
+    # ── Config persistence ───────────────────────────────────────────────
 
     @staticmethod
     def _write_config(path: Path, updates: dict[str, Any]) -> None:
-        """Read the TOML file, apply dotted-key updates, and write back.
-
-        Uses tomlkit if available (preserves comments/formatting), otherwise
-        falls back to a simple re-serialization with tomli_w / manual approach.
-        """
+        """Read the TOML file, apply dotted-key updates, and write back."""
         try:
             import tomlkit
 
@@ -593,10 +635,7 @@ class SettingsPage(QScrollArea):
 
             path.write_text(tomlkit.dumps(doc), encoding="utf-8")
         except ImportError:
-            # Fallback: load, patch raw dict, write with tomli_w
-            import sys as _sys
-
-            if _sys.version_info >= (3, 11):
+            if sys.version_info >= (3, 11):
                 import tomllib
             else:
                 try:
@@ -622,7 +661,6 @@ class SettingsPage(QScrollArea):
                 with open(path, "wb") as f:
                     tomli_w.dump(data, f)
             except ImportError:
-                # Last resort: manual TOML (flat sections only)
                 lines: list[str] = []
                 SettingsPage._dict_to_toml(data, lines, [])
                 path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -642,12 +680,13 @@ class SettingsPage(QScrollArea):
             elif isinstance(val, (int, float)):
                 lines.append(f"{key} = {val}")
             elif isinstance(val, list):
-                items = ", ".join(f'"{v}"' if isinstance(v, str) else str(v) for v in val)
+                items = ", ".join(
+                    f'"{v}"' if isinstance(v, str) else str(v) for v in val
+                )
                 lines.append(f"{key} = [{items}]")
             else:
                 lines.append(f'{key} = "{val}"')
 
     def _scan_now(self) -> None:
         """Trigger an immediate library scan."""
-        if self._registry is not None and hasattr(self._registry, "scan_all"):
-            self._registry.scan_all()
+        self.scan_requested.emit()

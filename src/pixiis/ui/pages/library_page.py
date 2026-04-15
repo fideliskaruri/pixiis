@@ -216,7 +216,9 @@ class LibraryPage(QWidget):
         root.addWidget(self._loading)
 
         # -- initial load -----------------------------------------------------
-        self._apply_filter_and_display()
+        if self._registry is not None and self._registry.get_all():
+            self._loading.hide()
+            self._apply_filter_and_display()
 
     # -- public API -----------------------------------------------------------
 

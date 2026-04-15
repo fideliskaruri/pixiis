@@ -8,6 +8,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPlainTextEdit, QScrollArea, QTextEdit, QWidget
 
 from pixiis.core.types import AppEntry
@@ -103,6 +104,20 @@ class TileGrid(QScrollArea):
             if image_loader is not None and app.art_url:
                 self._url_to_tile[app.art_url] = tile
                 image_loader.request(app.art_url)
+            elif app.icon_path:
+                # Fallback: load local icon (Xbox/UWP apps, etc.)
+                icon_file = app.icon_path
+                if not icon_file.exists():
+                    # Try scale variants common in UWP/Xbox packages
+                    for scale in ("scale-200", "scale-100", "scale-150"):
+                        variant = icon_file.parent / f"{icon_file.stem}.{scale}{icon_file.suffix}"
+                        if variant.exists():
+                            icon_file = variant
+                            break
+                if icon_file.exists():
+                    pixmap = QPixmap(str(icon_file))
+                    if not pixmap.isNull():
+                        tile.set_image(pixmap)
 
         # Restore focus: keep previous widget focused if still valid, otherwise first tile
         if prev_focus is not None and not prev_focus.isHidden():

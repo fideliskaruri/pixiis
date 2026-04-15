@@ -212,8 +212,19 @@ class PygameBackend:
                         return 1.0
                 return 0.0
             if index in (4, 5):  # LT/RT triggers
+                num_axes = self._joystick.get_numaxes()
+                if index >= num_axes:
+                    return 0.0
                 raw = self._joystick.get_axis(index)
-                return max(0.0, min(1.0, (raw + 1.0) / 2.0))
+                # Pygame trigger ranges vary by controller/driver:
+                # Some: -1.0 (released) to 1.0 (pressed) — normalize to 0-1
+                # Some: 0.0 (released) to 1.0 (pressed) — already 0-1
+                if raw < -0.5:
+                    # Range is -1 to 1 — normalize
+                    return max(0.0, min(1.0, (raw + 1.0) / 2.0))
+                else:
+                    # Range is already 0 to 1 (or trigger at rest = 0)
+                    return max(0.0, min(1.0, raw))
             return float(self._joystick.get_axis(index))
         except (self._pygame.error, IndexError):
             return 0.0

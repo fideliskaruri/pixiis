@@ -53,7 +53,7 @@ def _section_title(text: str) -> QLabel:
     """H3-level section title: 16px SemiBold, inherits text_primary from QSS."""
     lbl = QLabel(text)
     font = QFont()
-    font.setPixelSize(16)
+    font.setPixelSize(20)
     font.setWeight(QFont.Weight.DemiBold)
     lbl.setFont(font)
     return lbl
@@ -147,6 +147,7 @@ class SettingsPage(QScrollArea):
         self._apply_btn = QPushButton("Apply")
         self._apply_btn.setObjectName("accentButton")
         self._apply_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._apply_btn.setMinimumWidth(120)
         self._apply_btn.clicked.connect(self._apply_settings)
         btn_row.addWidget(self._apply_btn)
         self._layout.addLayout(btn_row)
@@ -237,6 +238,7 @@ class SettingsPage(QScrollArea):
         )
         dz_val = int(float(cfg.get("controller.deadzone", 0.15)) * 100)
         self._deadzone_slider = _slider(0, 50, dz_val)
+        self._deadzone_slider.setSingleStep(5)
         self._dz_label = _value_label(f"{dz_val / 100:.2f}")
         self._deadzone_slider.valueChanged.connect(
             lambda v: self._dz_label.setText(f"{v / 100:.2f}")
@@ -251,6 +253,7 @@ class SettingsPage(QScrollArea):
         )
         hold_val = int(cfg.get("controller.hold_threshold_ms", 200))
         self._hold_slider = _slider(100, 500, hold_val)
+        self._hold_slider.setSingleStep(10)
         self._hold_label = _value_label(f"{hold_val}ms")
         self._hold_slider.valueChanged.connect(
             lambda v: self._hold_label.setText(f"{v}ms")
@@ -318,6 +321,7 @@ class SettingsPage(QScrollArea):
         )
         energy_val = int(float(cfg.get("voice.energy_threshold", 300)))
         self._energy_slider = _slider(50, 1000, energy_val)
+        self._energy_slider.setSingleStep(10)
         self._energy_label = _value_label(str(energy_val))
         self._energy_slider.valueChanged.connect(
             lambda v: self._energy_label.setText(str(v))
@@ -389,6 +393,7 @@ class SettingsPage(QScrollArea):
         self._rawg_key = QLineEdit(str(cfg.get("services.rawg.api_key", "")))
         self._rawg_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rawg_key.setPlaceholderText("RAWG API key")
+        self._rawg_key.setEchoMode(QLineEdit.EchoMode.Password)
         grid.addWidget(self._rawg_key, row, 1)
         rawg_link = QPushButton("Get Key")
         rawg_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -408,6 +413,7 @@ class SettingsPage(QScrollArea):
         )
         self._youtube_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._youtube_key.setPlaceholderText("YouTube API key")
+        self._youtube_key.setEchoMode(QLineEdit.EchoMode.Password)
         grid.addWidget(self._youtube_key, row, 1)
         yt_link = QPushButton("Get Key")
         yt_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)

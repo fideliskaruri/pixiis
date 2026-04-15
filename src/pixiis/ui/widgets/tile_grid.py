@@ -83,8 +83,7 @@ class TileGrid(QScrollArea):
 
         if not apps:
             empty = QLabel(
-                "No games found.\nCheck Settings \u2192 Library to configure providers,\n"
-                "or add games manually in config.toml"
+                "No games found\n\nGo to Settings \u2192 Library to add your game sources."
             )
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setStyleSheet(

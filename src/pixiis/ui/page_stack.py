@@ -25,6 +25,7 @@ class PageStack(QStackedWidget):
         self._pages: dict[str, QWidget] = {}
         self._current_name: str = ""
         self._animating = False
+        self._focus_memory: dict[str, QWidget] = {}  # page name -> last focused widget
 
     # -- public API ----------------------------------------------------------
 
@@ -54,6 +55,12 @@ class PageStack(QStackedWidget):
             self.setCurrentWidget(incoming)
             self._current_name = name
             return
+
+        # Save the currently focused widget for the outgoing page
+        from PySide6.QtWidgets import QApplication
+        focus_widget = QApplication.focusWidget()
+        if focus_widget is not None and self._current_name:
+            self._focus_memory[self._current_name] = focus_widget
 
         self._animating = True
         width = self.width()
@@ -103,11 +110,15 @@ class PageStack(QStackedWidget):
             outgoing.setGraphicsEffect(None)
             self._current_name = name
             self._animating = False
-            # Focus the first focusable child in the new page
-            for child in incoming.findChildren(QWidget):
-                if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(incoming):
-                    child.setFocus()
-                    break
+            # Restore remembered focus widget, or fall back to first focusable child
+            remembered = self._focus_memory.get(name)
+            if remembered is not None and remembered.isVisible():
+                remembered.setFocus()
+            else:
+                for child in incoming.findChildren(QWidget):
+                    if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(incoming):
+                        child.setFocus()
+                        break
 
         group.finished.connect(_on_finished)
         group.start()

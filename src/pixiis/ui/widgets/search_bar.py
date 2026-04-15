@@ -76,14 +76,6 @@ class SearchBar(QLineEdit):
         p.setPen(pen)
         p.drawRoundedRect(rect, RADIUS, RADIUS)
 
-        # ── Focus accent glow at bottom ─────────────────────────────────
-        if focused:
-            glow_pen = QPen(QColor(ACCENT.red(), ACCENT.green(), ACCENT.blue(), 50), 2.0)
-            p.setPen(glow_pen)
-            # Subtle bottom glow line
-            glow_rect = rect.adjusted(8, rect.height() - 6, -8, -2)
-            p.drawRoundedRect(glow_rect, 2, 2)
-
         # ── Magnifying glass icon ───────────────────────────────────────
         icon_color = ACCENT if focused else PLACEHOLDER_COLOR
         p.setPen(QPen(icon_color, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))

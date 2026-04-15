@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
             pass
         try:
             from pixiis.services.vibration import VibrationService
-            self._vibration = VibrationService(self)
+            self._vibration = VibrationService(parent=self)
         except Exception:
             pass
 
@@ -292,8 +292,8 @@ class MainWindow(QMainWindow):
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            # Only drag from the top nav bar area (first 60px)
-            if event.position().y() <= 60:
+            # Only drag from the top nav bar area
+            if event.position().y() <= 52:
                 self._dragging = True
                 self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 event.accept()
@@ -315,7 +315,7 @@ class MainWindow(QMainWindow):
 
     def mouseDoubleClickEvent(self, event) -> None:
         # Double-click on nav bar toggles fullscreen
-        if event.position().y() <= 60:
+        if event.position().y() <= 52:
             if self.isFullScreen():
                 self.showNormal()
             else:
@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
 
     def _on_voice_stop(self) -> None:
         if self._voice_overlay:
-            self._voice_overlay.show_text("Processing...", is_final=False)
+            self._voice_overlay.dismiss()
 
     def _on_transcription(self, event: TranscriptionEvent) -> None:
         """Write final transcription text into the active search bar."""

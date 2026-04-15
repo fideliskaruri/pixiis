@@ -199,7 +199,7 @@ class GameTile(QWidget):
 
         # ── Brightness overlay on hover ─────────────────────────────────
         if hp > 0.0 and fp == 0.0:
-            overlay_alpha = int(8 * hp)  # subtle ~3% white overlay
+            overlay_alpha = int(20 * hp)  # subtle ~3% white overlay
             p.fillRect(rect, QColor(255, 255, 255, overlay_alpha))
 
         # ── Bottom gradient overlay (lower 35%) ─────────────────────────
@@ -212,7 +212,7 @@ class GameTile(QWidget):
 
         # ── Game name text (13px SemiBold, max 2 lines) ─────────────────
         name_font = QFont()
-        name_font.setPixelSize(13)
+        name_font.setPixelSize(16)
         name_font.setWeight(QFont.Weight.DemiBold)
         p.setFont(name_font)
         p.setPen(TEXT_PRIMARY)
@@ -220,9 +220,9 @@ class GameTile(QWidget):
         text_pad = 12
         text_rect = QRectF(
             text_pad,
-            rect.height() - 44,
+            rect.height() - 50,
             rect.width() - text_pad * 2,
-            32,
+            38,
         )
         fm = QFontMetrics(name_font)
         elided = fm.elidedText(
@@ -263,7 +263,7 @@ class GameTile(QWidget):
         if fp > 0.0:
             # Focus state: strong accent border + outer glow
             for i in range(4, 0, -1):
-                glow_alpha = int(25 * fp * (5 - i) / 4)
+                glow_alpha = int(40 * fp * (5 - i) / 4)
                 pen = QPen(QColor(ACCENT_COLOR.red(), ACCENT_COLOR.green(), ACCENT_COLOR.blue(), glow_alpha))
                 pen.setWidthF(float(i) * 1.5)
                 p.setPen(pen)

@@ -21,7 +21,7 @@ class FileManagerPage(QWidget):
         self.setStyleSheet("#FileManagerPage { background-color: transparent; }")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 8)
+        layout.setContentsMargins(32, 24, 32, 16)
         layout.setSpacing(10)
 
         # -- header -----------------------------------------------------------
@@ -29,7 +29,7 @@ class FileManagerPage(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         title.setStyleSheet(
             "QLabel {"
-            "  font-size: 20px;"
+            "  font-size: 24px;"
             "  font-weight: bold;"
             "  color: #f0eef5;"
             "  background: transparent;"

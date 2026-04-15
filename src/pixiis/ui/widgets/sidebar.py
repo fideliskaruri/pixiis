@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QFrame,
@@ -21,7 +21,7 @@ _TEXT_MUTED = QColor("#5c586a")
 _TEXT_SECONDARY = QColor("#8a8698")
 _TEXT_PRIMARY = QColor("#f0eef5")
 _HOVER_BG = QColor(233, 69, 96, 20)  # rgba(233,69,96,0.08)
-_ACTIVE_BG = QColor(233, 69, 96, 20) # rgba(233,69,96,0.08)
+_ACTIVE_BG = QColor(233, 69, 96, 38) # rgba(233,69,96,0.15)
 _FOCUS_BG = QColor(233, 69, 96, 31)  # rgba(233,69,96,0.12)
 _FOCUS_BORDER = QColor(233, 69, 96, 77)  # rgba(233,69,96,0.30)
 _BORDER_COLOR = QColor(255, 255, 255, 10) # rgba(255,255,255,0.04)
@@ -46,6 +46,7 @@ class NavButton(QWidget):
         self._icon = _ICONS.get(page_name, "\u2022")
         self._active = False
         self._hovered = False
+        self._hover_progress: float = 0.0
 
         self.setFixedHeight(52)
         self.setMinimumWidth(90)
@@ -54,18 +55,40 @@ class NavButton(QWidget):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
+        # Hover animation
+        self._hover_anim = QPropertyAnimation(self, b"hoverProgress", self)
+        self._hover_anim.setDuration(100)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+    # ── Animated property ──────────────────────────────────────────────────
+
+    def _get_hover_progress(self) -> float:
+        return self._hover_progress
+
+    def _set_hover_progress(self, value: float) -> None:
+        self._hover_progress = value
+        self.update()
+
+    hoverProgress = Property(float, _get_hover_progress, _set_hover_progress)
+
     def set_active(self, active: bool) -> None:
         self._active = active
         self.update()
 
     def enterEvent(self, event) -> None:
         self._hovered = True
-        self.update()
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(1.0)
+        self._hover_anim.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
         self._hovered = False
-        self.update()
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self._hover_progress)
+        self._hover_anim.setEndValue(0.0)
+        self._hover_anim.start()
         super().leaveEvent(event)
 
     def mousePressEvent(self, event) -> None:
@@ -98,10 +121,12 @@ class NavButton(QWidget):
             bg_path = QPainterPath()
             bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
             p.fillPath(bg_path, _ACTIVE_BG)
-        elif self._hovered:
+        elif self._hover_progress > 0.0:
+            hover_alpha = int(20 * self._hover_progress)
+            hover_bg = QColor(233, 69, 96, hover_alpha)
             bg_path = QPainterPath()
             bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
-            p.fillPath(bg_path, _HOVER_BG)
+            p.fillPath(bg_path, hover_bg)
 
         # Bottom accent bar (active only) — full width of text+padding, 2px tall
         if self._active:
@@ -183,13 +208,13 @@ class Sidebar(QFrame):
         # -- logo / title
         title = QLabel("PIXIIS")
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        title.setFixedWidth(110)
+        title.setFixedWidth(90)
         title.setStyleSheet(
             "QLabel {"
             "  font-size: 18px;"
             "  font-weight: bold;"
             "  color: #e94560;"
-            "  letter-spacing: 5px;"
+            "  letter-spacing: 2px;"
             "  background-color: transparent;"
             "}"
         )

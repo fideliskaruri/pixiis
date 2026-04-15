@@ -49,7 +49,7 @@ def _pill(text: str) -> QLabel:
     """Small rounded info badge."""
     lbl = QLabel(text)
     lbl.setStyleSheet(
-        f"background: {_SURFACE_ELEVATED}; color: {_TEXT_MUTED}; "
+        f"background: {_SURFACE_ELEVATED}; color: {_TEXT_BODY}; "
         "border-radius: 8px; padding: 4px 10px; font-size: 12px;"
     )
     lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
@@ -61,7 +61,7 @@ def _section_title(text: str) -> QLabel:
     lbl = QLabel(text.upper())
     lbl.setStyleSheet(
         f"color: {_TEXT_MUTED}; font-size: 12px; font-weight: bold; "
-        "letter-spacing: 2px; background: transparent; margin-top: 16px;"
+        "letter-spacing: 2px; background: transparent; margin-top: 24px;"
     )
     return lbl
 
@@ -200,7 +200,7 @@ class _HeroWidget(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(360)
+        self.setFixedHeight(280)
         self._pixmap: QPixmap | None = None
         self._title = ""
         self._rating_text = ""
@@ -218,6 +218,12 @@ class _HeroWidget(QWidget):
         self._back_btn.setFixedSize(40, 40)
         self._back_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._back_btn.clicked.connect(self.back_clicked.emit)
+        self._back_btn.setStyleSheet(
+            "QPushButton { background: rgba(11,10,16,180); color: #f0eef5; "
+            "border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 18px; }"
+            "QPushButton:hover { background: rgba(233,69,96,0.3); }"
+            "QPushButton:focus { border: 2px solid #e94560; }"
+        )
 
     def set_pixmap(self, pixmap: QPixmap) -> None:
         self._pixmap = pixmap
@@ -276,6 +282,13 @@ class _HeroWidget(QWidget):
         p.setPen(QPen(QColor(240, 238, 245)))
         title_rect = p.boundingRect(0, 0, w - 260, 50, Qt.TextFlag.TextWordWrap, self._title)
         title_y = h - 60 - title_rect.height()
+        # Shadow
+        p.setPen(QPen(QColor(0, 0, 0, 180)))
+        p.drawText(30, int(title_y) + 2, w - 260, title_rect.height() + 10,
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
+                    self._title)
+        # Actual title
+        p.setPen(QPen(QColor(240, 238, 245)))
         p.drawText(28, int(title_y), w - 260, title_rect.height() + 10,
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
                     self._title)
@@ -283,7 +296,7 @@ class _HeroWidget(QWidget):
         # Rating — below title
         if self._rating_text:
             rating_font = QFont()
-            rating_font.setPixelSize(15)
+            rating_font.setPixelSize(17)
             p.setFont(rating_font)
             p.setPen(QPen(QColor(251, 191, 36)))  # warning/amber
             p.drawText(28, h - 52, w - 260, 24,
@@ -342,7 +355,7 @@ class GameDetailPanel(QScrollArea):
         # ── Body (below hero) ──────────────────────────────────────────
         body = QWidget()
         self._body_layout = QVBoxLayout(body)
-        self._body_layout.setContentsMargins(28, 20, 28, 0)
+        self._body_layout.setContentsMargins(32, 20, 32, 0)
         self._body_layout.setSpacing(12)
 
         # Info bar (genre pills, platform, date, playtime)
@@ -365,7 +378,8 @@ class GameDetailPanel(QScrollArea):
         self._body_layout.addWidget(self._desc_label)
 
         # Screenshots
-        self._body_layout.addWidget(_section_title("Screenshots"))
+        self._screenshots_title = _section_title("Screenshots")
+        self._body_layout.addWidget(self._screenshots_title)
         self._screenshots_scroll = self._make_horizontal_scroll(150)
         self._screenshots_container = QWidget()
         self._screenshots_layout = QHBoxLayout(self._screenshots_container)
@@ -381,7 +395,8 @@ class GameDetailPanel(QScrollArea):
         # Trailers column
         trailers_col = QVBoxLayout()
         trailers_col.setSpacing(8)
-        trailers_col.addWidget(_section_title("Trailers"))
+        self._trailers_title = _section_title("Trailers")
+        trailers_col.addWidget(self._trailers_title)
         self._trailers_scroll = self._make_horizontal_scroll(240)
         self._trailers_container = QWidget()
         self._trailers_layout = QHBoxLayout(self._trailers_container)
@@ -394,7 +409,8 @@ class GameDetailPanel(QScrollArea):
         # Streams column
         streams_col = QVBoxLayout()
         streams_col.setSpacing(8)
-        streams_col.addWidget(_section_title("Live Streams"))
+        self._streams_title = _section_title("Live Streams")
+        streams_col.addWidget(self._streams_title)
         self._streams_scroll = self._make_horizontal_scroll(240)
         self._streams_container = QWidget()
         self._streams_layout = QHBoxLayout(self._streams_container)
@@ -407,7 +423,8 @@ class GameDetailPanel(QScrollArea):
         self._body_layout.addLayout(media_row)
 
         # Fan Profile — coming soon
-        fan_frame = QFrame()
+        self._fan_frame = QFrame()
+        fan_frame = self._fan_frame
         fan_frame.setStyleSheet(
             f"background: {_SURFACE}; "
             f"border: 1px dashed {_TEXT_DIM}; "
@@ -456,9 +473,18 @@ class GameDetailPanel(QScrollArea):
         self._clear_layout(self._streams_layout)
         self._clear_info_bar()
 
+        # Hide all media sections until data arrives
+        self._screenshots_title.hide()
+        self._screenshots_scroll.hide()
+        self._trailers_title.hide()
+        self._trailers_scroll.hide()
+        self._streams_title.hide()
+        self._streams_scroll.hide()
+        self._fan_frame.hide()
+
         # Placeholder header
         w = self._hero.width() or 800
-        self._hero.set_pixmap(_placeholder_header(w, 360))
+        self._hero.set_pixmap(_placeholder_header(w, 280))
 
         # Disconnect previous signal handlers to avoid accumulation
         if self._connected_rawg is not None:
@@ -538,7 +564,11 @@ class GameDetailPanel(QScrollArea):
         self._info_bar.addStretch()
 
         # Screenshots — rounded thumbnail cards
-        for img_url in getattr(data, "screenshots", [])[:6]:
+        screenshots = getattr(data, "screenshots", [])[:6]
+        if screenshots:
+            self._screenshots_title.show()
+            self._screenshots_scroll.show()
+        for img_url in screenshots:
             if img_url:
                 thumb = _ClickableImage(img_url)
                 thumb.setFixedSize(240, 135)
@@ -552,6 +582,9 @@ class GameDetailPanel(QScrollArea):
 
     def _on_youtube_data(self, results: list) -> None:
         self._clear_layout(self._trailers_layout)
+        if results:
+            self._trailers_title.show()
+            self._trailers_scroll.show()
         for item in results[:6]:
             title = getattr(item, "title", "")
             channel = getattr(item, "channel", "")
@@ -563,6 +596,9 @@ class GameDetailPanel(QScrollArea):
 
     def _on_twitch_data(self, streams: list) -> None:
         self._clear_layout(self._streams_layout)
+        if streams:
+            self._streams_title.show()
+            self._streams_scroll.show()
         for stream in streams[:6]:
             title = getattr(stream, "user_name", "")
             viewers = getattr(stream, "viewer_count", 0)

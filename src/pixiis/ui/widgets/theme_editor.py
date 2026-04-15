@@ -56,6 +56,7 @@ class ColorPickerButton(QPushButton):
         super().__init__(parent)
         self._color = QColor(color)
         self.setFixedSize(40, 40)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.clicked.connect(self._pick_color)
         self._apply_style()
@@ -91,6 +92,9 @@ class ColorPickerButton(QPushButton):
             f"}}"
             f"QPushButton:hover {{"
             f"  border: 2px solid #f0eef5;"
+            f"}}"
+            f"QPushButton:focus {{"
+            f"  border: 2px solid #e94560;"
             f"}}"
         )
 

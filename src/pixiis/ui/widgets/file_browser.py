@@ -49,7 +49,7 @@ class FileBrowser(QFrame):
             "QLabel {"
             "  color: #8a8698;"
             "  background-color: #1c1a24;"
-            "  border: 1px solid #e94560;"
+            "  border: 1px solid rgba(255, 255, 255, 0.06);"
             "  border-radius: 4px;"
             "  padding: 4px 8px;"
             "  font-size: 13px;"

@@ -10,7 +10,10 @@ from PySide6.QtCore import QEvent, QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QWheelEvent
 from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
 
-from pixiis.core import get_config
+import time as _time
+
+from pixiis.core import get_config, bus as _bus
+from pixiis.core.types import NavigationEvent, Direction
 
 # Xbox button indices (from backend.py)
 _BTN_A = 0
@@ -219,6 +222,10 @@ class ControllerBridge(QObject):
                 self._nav_repeat_key = nav_key
                 self._nav_repeat_started = False
                 self._post_nav(nav_key)
+                _dir_map = {_KEY_UP: Direction.UP, _KEY_DOWN: Direction.DOWN, _KEY_LEFT: Direction.LEFT, _KEY_RIGHT: Direction.RIGHT}
+                d = _dir_map.get(nav_key)
+                if d:
+                    _bus.publish(NavigationEvent(direction=d, timestamp=_time.monotonic()))
                 self._nav_repeat_timer.start(_INITIAL_DELAY_MS)
         else:
             # Released — stop repeat

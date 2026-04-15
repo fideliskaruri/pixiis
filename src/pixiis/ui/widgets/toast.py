@@ -52,10 +52,18 @@ class Toast(QWidget):
         self.setFixedWidth(text_w + 60)  # icon + padding
 
         self._reposition()
-        self.show()
-        self.raise_()
-        self._fade_in()
-        self._hide_timer.start(duration_ms)
+        self.update()  # repaint with new text
+
+        if self.isVisible() and self.windowOpacity() > 0.1:
+            # Already showing — just update text and restart the timer
+            self._hide_timer.stop()
+            self._hide_timer.start(duration_ms)
+        else:
+            # Fresh show
+            self.show()
+            self.raise_()
+            self._fade_in()
+            self._hide_timer.start(duration_ms)
 
     def _reposition(self) -> None:
         parent = self.parentWidget()

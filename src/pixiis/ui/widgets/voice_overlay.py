@@ -33,11 +33,14 @@ class VoiceOverlay(QWidget):
         super().__init__(parent)
 
         # ── window flags ────────────────────────────────────────────
-        self.setWindowFlags(
-            Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Tool
-        )
+        if parent is not None:
+            self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        else:
+            self.setWindowFlags(
+                Qt.WindowType.WindowStaysOnTopHint
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.Tool
+            )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowOpacity(0.0)
 
@@ -122,6 +125,7 @@ class VoiceOverlay(QWidget):
 
         if not self.isVisible():
             self.show()
+            self.raise_()
             self._fade_in.stop()
             self.setWindowOpacity(0.0)
             self._fade_in.start()
@@ -154,7 +158,7 @@ class VoiceOverlay(QWidget):
         QTimer.singleShot(0, lambda: self.show_text(event.text, event.is_final))
 
     def _position_on_screen(self) -> None:
-        """Place the overlay at the bottom-centre of the parent window,
+        """Place the overlay at the bottom-centre of the parent widget,
         falling back to the primary screen if no parent is set."""
         if self._custom_pos is not None:
             self.move(self._custom_pos)
@@ -162,16 +166,18 @@ class VoiceOverlay(QWidget):
 
         parent = self.parentWidget()
         if parent is not None:
-            geo = parent.window().geometry()
+            # Position relative to parent (we are a child widget, not a window)
+            x = (parent.width() - self.width()) // 2
+            y = parent.height() - self.height() - 80
+            self.move(x, y)
         else:
             screen = QApplication.primaryScreen()
             if screen is None:
                 return
             geo = screen.availableGeometry()
-
-        x = geo.x() + (geo.width() - self.width()) // 2
-        y = geo.y() + geo.height() - self.height() - 80
-        self.move(x, y)
+            x = geo.x() + (geo.width() - self.width()) // 2
+            y = geo.y() + geo.height() - self.height() - 80
+            self.move(x, y)
 
     # ── dragging ────────────────────────────────────────────────────
 

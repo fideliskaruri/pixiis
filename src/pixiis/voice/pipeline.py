@@ -56,9 +56,19 @@ class VoicePipeline:
         self._vad: VADBackend = get_vad(cfg.get("voice.vad_backend", "silero"))
 
         # ── models (lazy-loaded) ─────────────────────────────────────
-        self._live_model_name: str = cfg.get("voice.live_model", "large-v3")
-        self._final_model_name: str = cfg.get("voice.final_model", "large-v3")
-        self._device: str = cfg.get("voice.device", "cuda")
+        self._live_model_name: str = cfg.get("voice.live_model", "base")
+        self._final_model_name: str = cfg.get("voice.final_model", "base")
+
+        # Auto-detect CUDA — favor GPU if available, fall back to CPU
+        configured_device = cfg.get("voice.device", "auto")
+        if configured_device == "auto":
+            try:
+                import torch
+                self._device = "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                self._device = "cpu"
+        else:
+            self._device = configured_device
         self._live_model = None
         self._final_model = None
 

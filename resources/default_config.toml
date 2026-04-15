@@ -4,7 +4,7 @@
 [voice]
 live_model = "base"
 final_model = "base"
-device = "cuda"
+device = "auto"                # "auto" = CUDA if available, else CPU
 energy_threshold = 300.0
 vad_backend = "silero"          # "silero" or "webrtc"
 sample_rate = 16000

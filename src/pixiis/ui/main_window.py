@@ -206,11 +206,15 @@ class MainWindow(QMainWindow):
                 from pixiis.ui.pages.home_page import HomePage
                 page = HomePage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
+                if hasattr(page, '_search') and page._search and hasattr(page._search, 'mic_clicked'):
+                    page._search.mic_clicked.connect(self._on_voice_start)
                 return page
             if name == "library":
                 from pixiis.ui.pages.library_page import LibraryPage
                 page = LibraryPage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
+                if hasattr(page, '_search') and page._search and hasattr(page._search, 'mic_clicked'):
+                    page._search.mic_clicked.connect(self._on_voice_start)
                 return page
             if name == "settings":
                 from pixiis.ui.pages.settings_page import SettingsPage
@@ -437,12 +441,14 @@ class MainWindow(QMainWindow):
         if self._voice_overlay:
             self._voice_overlay.show_text("Listening...", is_final=False)
 
-        # Focus search bar on searchable pages
+        # Focus search bar and show mic recording state
         current = self._page_stack.current_page_name()
         if current in ("home", "library"):
             page = self._page_stack._pages.get(current)
             if page and hasattr(page, '_search') and page._search:
                 page._search.setFocus()
+                if hasattr(page._search, 'set_mic_recording'):
+                    page._search.set_mic_recording(True)
 
         # Start actual voice recording pipeline
         if self._voice_pipeline is not None:
@@ -458,6 +464,14 @@ class MainWindow(QMainWindow):
                 self._voice_pipeline.stop()
             except Exception as e:
                 print(f"[Pixiis] Voice pipeline stop failed: {e}")
+
+        # Reset search bar mic state
+        current = self._page_stack.current_page_name()
+        if current in ("home", "library"):
+            page = self._page_stack._pages.get(current)
+            if page and hasattr(page, '_search') and page._search:
+                if hasattr(page._search, 'set_mic_recording'):
+                    page._search.set_mic_recording(False)
 
         if self._voice_overlay:
             self._voice_overlay.show_text("Processing...", is_final=False)

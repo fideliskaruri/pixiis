@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPointF, QRectF, QSize, QTimer, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QLineEdit, QWidget
 
 # Dark cinema palette v2
@@ -23,9 +23,10 @@ ICON_AREA = 44  # left padding for magnifying glass
 
 
 class SearchBar(QLineEdit):
-    """Rounded search field with custom-painted magnifying glass and accent focus glow."""
+    """Rounded search field with custom-painted magnifying glass, mic button, and accent focus glow."""
 
     search_changed = Signal(str)
+    mic_clicked = Signal()  # emitted when the mic button is clicked
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -43,9 +44,19 @@ class SearchBar(QLineEdit):
             f"  color: {TEXT_COLOR.name()};"
             "  font-size: 14px;"
             f"  padding-left: {ICON_AREA}px;"
-            "  padding-right: 16px;"
+            "  padding-right: 40px;"  # room for mic icon
             "}"
         )
+
+        # Mic button — trailing action on the line edit
+        self._mic_icon = self._create_mic_icon(PLACEHOLDER_COLOR)
+        self._mic_icon_active = self._create_mic_icon(ACCENT)
+        self._mic_action = QAction(self._mic_icon, "Voice search", self)
+        self._mic_action.setToolTip("Voice search (RT on controller)")
+        self._mic_action.triggered.connect(self.mic_clicked.emit)
+        self.addAction(self._mic_action, QLineEdit.ActionPosition.TrailingPosition)
+
+        self._mic_recording = False
 
         # Debounce timer
         self._debounce = QTimer(self)
@@ -108,6 +119,38 @@ class SearchBar(QLineEdit):
 
     def _emit_search(self) -> None:
         self.search_changed.emit(self.text().strip())
+
+    # ── Mic recording state ───────────────────────────────────────────────
+
+    def set_mic_recording(self, active: bool) -> None:
+        """Update the mic icon to show recording state."""
+        self._mic_recording = active
+        self._mic_action.setIcon(self._mic_icon_active if active else self._mic_icon)
+        if active:
+            self.setPlaceholderText("Listening...")
+        else:
+            self.setPlaceholderText("Search games...")
+
+    @staticmethod
+    def _create_mic_icon(color: QColor) -> QIcon:
+        """Paint a simple mic icon as a QIcon."""
+        size = 16
+        pm = QPixmap(size, size)
+        pm.fill(QColor(0, 0, 0, 0))
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        p.setPen(pen)
+        # Mic body (rounded rect)
+        p.drawRoundedRect(QRectF(5, 1, 6, 9), 3, 3)
+        # Mic base arc
+        p.drawArc(QRectF(3, 5, 10, 8), 0, -180 * 16)
+        # Stem
+        p.drawLine(QPointF(8, 13), QPointF(8, 15))
+        # Base
+        p.drawLine(QPointF(5, 15), QPointF(11, 15))
+        p.end()
+        return QIcon(pm)
 
     # ── Key overrides ───────────────────────────────────────────────────────
 

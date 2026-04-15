@@ -457,14 +457,19 @@ class MainWindow(QMainWindow):
                     page._search.set_mic_recording(True)
                 print("[Pixiis Voice] Search bar focused + mic icon active")
 
-        # Start actual voice recording pipeline
+        # Start actual voice recording
         if self._voice_pipeline is not None:
-            print("[Pixiis Voice] Starting voice pipeline...")
+            print("[Pixiis Voice] Starting recording...")
             try:
-                self._voice_pipeline.start()
-                print("[Pixiis Voice] Pipeline started OK — recording from mic")
+                # Ensure workers are running
+                if not self._voice_pipeline._threads:
+                    self._voice_pipeline.start()
+                    print("[Pixiis Voice] Pipeline workers started")
+                # Start mic capture + rolling transcription
+                self._voice_pipeline._start_recording()
+                print("[Pixiis Voice] Recording from mic — speak now")
             except Exception as e:
-                print(f"[Pixiis Voice] Pipeline start FAILED: {e}")
+                print(f"[Pixiis Voice] Recording start FAILED: {e}")
                 import traceback
                 traceback.print_exc()
         else:
@@ -474,14 +479,14 @@ class MainWindow(QMainWindow):
     def _on_voice_stop(self) -> None:
         print("[Pixiis Voice] === VOICE STOP ===")
 
-        # Stop recording — pipeline will publish TranscriptionEvent when done
+        # Stop recording — triggers final transcription
         if self._voice_pipeline is not None:
-            print("[Pixiis Voice] Stopping pipeline...")
+            print("[Pixiis Voice] Stopping recording...")
             try:
-                self._voice_pipeline.stop()
-                print("[Pixiis Voice] Pipeline stopped — waiting for transcription...")
+                self._voice_pipeline._stop_recording()
+                print("[Pixiis Voice] Final transcription queued — waiting for result...")
             except Exception as e:
-                print(f"[Pixiis Voice] Pipeline stop FAILED: {e}")
+                print(f"[Pixiis Voice] Recording stop FAILED: {e}")
                 import traceback
                 traceback.print_exc()
         else:

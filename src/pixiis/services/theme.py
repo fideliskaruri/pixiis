@@ -49,14 +49,14 @@ def darker(hex_color: str, amount: int = 30) -> str:
 # ── Defaults ────────────────────────────────────────────────────────────────
 
 _DEFAULTS = {
-    "background": "#08080c",
-    "primary": "#0f0f15",
-    "secondary": "#161620",
+    "background": "#0b0a10",
+    "primary": "#13121a",        # surface
+    "secondary": "#1c1a24",      # surface_elevated
     "accent": "#e94560",
-    "text_color": "#e8e8f0",
-    "text_secondary": "#6b6b80",
-    "font_family": "Segoe UI",
-    "border_radius": 12,
+    "text_color": "#f0eef5",     # text_primary
+    "text_secondary": "#8a8698",
+    "font_family": "Segoe UI Variable",
+    "border_radius": 10,
 }
 
 _FALLBACK_QSS = """\
@@ -268,25 +268,35 @@ class ThemeManager(QObject):
         return {
             # Core palette
             "background": self._background,
-            "primary": self._primary,
-            "secondary": self._secondary,
+            "primary": self._primary,             # surface
+            "secondary": self._secondary,         # surface_elevated
             "accent": self._accent,
-            "text_color": self._text_color,
+            "text_color": self._text_color,       # text_primary
             "text_secondary": self._text_secondary,
             "font_family": self._font_family,
             "border_radius": str(self._border_radius),
+            # Semantic aliases
+            "surface": self._primary,
+            "surface_elevated": self._secondary,
+            "text_primary": self._text_color,
+            "text_muted": "#5c586a",
             # Computed variants
             "primary_hover": lighter(self._primary, 20),
             "primary_pressed": darker(self._primary, 15),
             "secondary_hover": lighter(self._secondary, 20),
-            "accent_hover": lighter(self._accent, 25),
+            "surface_hover": "#252330",
+            "accent_hover": "#ff5a78",
+            "accent_pressed": "#c93a52",
             "accent_dark": darker(self._accent, 20),
             "background_lighter": lighter(self._background, 15),
+            "navbar_bg": "#0e0d14",
             # Atmospheric extras
-            "accent_dim": f"rgba({ar}, {ag}, {ab}, 0.15)",
+            "accent_dim": f"rgba({ar}, {ag}, {ab}, 0.10)",
             "accent_glow": f"rgba({ar}, {ag}, {ab}, 0.30)",
+            "accent_atmospheric": f"rgba({ar}, {ag}, {ab}, 0.05)",
             "surface_border": "rgba(255, 255, 255, 0.06)",
-            "surface_hover": lighter(self._secondary, 12),
+            "border_hover": "rgba(255, 255, 255, 0.12)",
+            "shadow_color": "rgba(0, 0, 0, 0.40)",
         }
 
     @staticmethod

@@ -25,11 +25,12 @@ except ImportError:
     TileGrid = None  # type: ignore[assignment,misc]
 
 
-# ── Dark Cinema palette ────────────────────────────────────────────────────
+# ── Dark Cinema palette v2 ─────────────────────────────────────────────────
 
-_SURFACE_LIGHT = "#161620"
+_SURFACE = "#13121a"
 _ACCENT = "#e94560"
-_TEXT_MUTED = "#6b6b80"
+_TEXT_SECONDARY = "#8a8698"
+_TEXT_MUTED = "#5c586a"
 
 
 # ── Sort pill button ───────────────────────────────────────────────────────
@@ -87,24 +88,37 @@ class _SortPill(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+        focused = self.hasFocus()
 
         path = QPainterPath()
-        path.addRoundedRect(0.0, 0.0, float(w), float(h), 12.0, 12.0)
+        path.addRoundedRect(0.5, 0.5, float(w) - 1.0, float(h) - 1.0, 16.0, 16.0)
 
         if self._checked:
-            p.fillPath(path, QColor(_ACCENT))
-            p.setPen(QColor(255, 255, 255))
+            # Active pill: accent-tinted bg
+            p.fillPath(path, QColor(233, 69, 96, 38))  # rgba(accent, 0.15)
+            p.setPen(QPen(QColor(233, 69, 96, 77), 1.0))  # accent 0.30 border
+            p.drawPath(path)
+            p.setPen(QColor(_ACCENT))
+        elif focused:
+            # Focus: accent border ring
+            p.fillPath(path, QColor(233, 69, 96, 20))
+            p.setPen(QPen(QColor(233, 69, 96, 77), 1.0))
+            p.drawPath(path)
+            p.setPen(QColor(_ACCENT))
         elif self._hovered:
-            p.fillPath(path, QColor(22, 22, 32, 200))
-            p.setPen(QColor(232, 232, 240))
+            p.fillPath(path, QColor(37, 35, 48))  # surface_hover
+            p.setPen(QPen(QColor(255, 255, 255, 15), 1.0))
+            p.drawPath(path)
+            p.setPen(QColor("#f0eef5"))
         else:
-            p.fillPath(path, QColor(_SURFACE_LIGHT))
-            p.setPen(QColor(_TEXT_MUTED))
+            p.fillPath(path, QColor(_SURFACE))
+            p.setPen(QPen(QColor(255, 255, 255, 15), 1.0))  # border
+            p.drawPath(path)
+            p.setPen(QColor(_TEXT_SECONDARY))
 
         font = QFont()
-        font.setPixelSize(13)
-        if self._checked:
-            font.setWeight(QFont.Weight.Bold)
+        font.setPixelSize(12)
+        font.setWeight(QFont.Weight.Medium)
         p.setFont(font)
         p.drawText(0, 0, w, h, Qt.AlignmentFlag.AlignCenter, self._text)
         p.end()
@@ -146,8 +160,8 @@ class HomePage(QWidget):
         self.setStyleSheet("#HomePage { background-color: transparent; }")
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 16, 24, 16)
-        root.setSpacing(16)
+        root.setContentsMargins(32, 24, 32, 16)
+        root.setSpacing(24)
 
         # -- top bar ----------------------------------------------------------
         top_bar = QHBoxLayout()

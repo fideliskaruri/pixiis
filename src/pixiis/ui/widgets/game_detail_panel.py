@@ -16,7 +16,6 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -28,17 +27,18 @@ from PySide6.QtWidgets import (
 
 from pixiis.core.types import AppEntry
 
-# ── Dark Cinema palette ────────────────────────────────────────────────────
+# ── Dark Cinema palette v2 ─────────────────────────────────────────────────
 
-_BASE = "#08080c"
-_SURFACE = "#0f0f15"
-_SURFACE_LIGHT = "#161620"
+_BASE = "#0b0a10"
+_SURFACE = "#13121a"
+_SURFACE_ELEVATED = "#1c1a24"
 _ACCENT = "#e94560"
-_ACCENT_HOVER = "#d13a52"
-_AMBER = "#f0a030"
-_TEXT_PRIMARY = "#e8e8f0"
-_TEXT_BODY = "#c0c0cc"
-_TEXT_MUTED = "#6b6b80"
+_ACCENT_HOVER = "#ff5a78"
+_ACCENT_PRESSED = "#c93a52"
+_AMBER = "#fbbf24"
+_TEXT_PRIMARY = "#f0eef5"
+_TEXT_BODY = "#8a8698"
+_TEXT_MUTED = "#5c586a"
 _TEXT_DIM = "#3a3a4a"
 
 
@@ -49,7 +49,7 @@ def _pill(text: str) -> QLabel:
     """Small rounded info badge."""
     lbl = QLabel(text)
     lbl.setStyleSheet(
-        f"background: {_SURFACE_LIGHT}; color: {_TEXT_MUTED}; "
+        f"background: {_SURFACE_ELEVATED}; color: {_TEXT_MUTED}; "
         "border-radius: 8px; padding: 4px 10px; font-size: 12px;"
     )
     lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
@@ -71,8 +71,8 @@ def _placeholder_header(width: int, height: int) -> QPixmap:
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)
     grad = QLinearGradient(0, 0, 0, height)
-    grad.setColorAt(0.0, QColor(30, 30, 40))
-    grad.setColorAt(1.0, QColor(8, 8, 12))
+    grad.setColorAt(0.0, QColor(28, 26, 36))   # surface_elevated
+    grad.setColorAt(1.0, QColor(11, 10, 16))    # background
     p.fillRect(pix.rect(), grad)
     p.end()
     return pix
@@ -155,7 +155,7 @@ class _MediaCard(QFrame):
         path.addRoundedRect(QRectF(0, 0, w, h), 12.0, 12.0)
 
         # Background
-        bg = QColor(_SURFACE_LIGHT) if self._hovered else QColor(_SURFACE)
+        bg = QColor(_SURFACE_ELEVATED) if self._hovered else QColor(_SURFACE)
         p.fillPath(path, bg)
 
         # Hover glow border
@@ -184,7 +184,7 @@ class _HeroWidget(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(400)
+        self.setFixedHeight(360)
         self._pixmap: QPixmap | None = None
         self._title = ""
         self._rating_text = ""
@@ -220,16 +220,16 @@ class _HeroWidget(QWidget):
         else:
             # Fallback dark gradient
             grad = QLinearGradient(0, 0, 0, h)
-            grad.setColorAt(0.0, QColor(30, 30, 40))
-            grad.setColorAt(1.0, QColor(8, 8, 12))
+            grad.setColorAt(0.0, QColor(28, 26, 36))
+            grad.setColorAt(1.0, QColor(11, 10, 16))
             p.fillRect(0, 0, w, h, grad)
 
-        # Heavy gradient overlay: transparent top → base bottom
+        # Heavy gradient overlay: transparent top → background bottom
         overlay = QLinearGradient(0, 0, 0, h)
-        overlay.setColorAt(0.0, QColor(8, 8, 12, 0))
-        overlay.setColorAt(0.4, QColor(8, 8, 12, 30))
-        overlay.setColorAt(0.7, QColor(8, 8, 12, 160))
-        overlay.setColorAt(1.0, QColor(8, 8, 12, 245))
+        overlay.setColorAt(0.0, QColor(11, 10, 16, 0))
+        overlay.setColorAt(0.4, QColor(11, 10, 16, 30))
+        overlay.setColorAt(0.7, QColor(11, 10, 16, 160))
+        overlay.setColorAt(1.0, QColor(11, 10, 16, 245))
         p.fillRect(0, 0, w, h, overlay)
 
         # Back arrow — top left
@@ -237,15 +237,16 @@ class _HeroWidget(QWidget):
         back_font.setPixelSize(22)
         back_font.setWeight(QFont.Weight.Bold)
         p.setFont(back_font)
-        p.setPen(QPen(QColor(232, 232, 240, 180)))
-        p.drawText(20, 20, 40, 40, Qt.AlignmentFlag.AlignCenter, "←")
+        p.setPen(QPen(QColor(240, 238, 245, 180)))
+        p.drawText(20, 20, 40, 40, Qt.AlignmentFlag.AlignCenter, "\u2190")
 
-        # Title — bottom left
+        # Title — bottom left (Display: 32px Bold)
         title_font = QFont()
-        title_font.setPixelSize(36)
+        title_font.setPixelSize(32)
         title_font.setWeight(QFont.Weight.Bold)
+        title_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 97.0)  # -0.03em
         p.setFont(title_font)
-        p.setPen(QPen(QColor(255, 255, 255)))
+        p.setPen(QPen(QColor(240, 238, 245)))
         title_rect = p.boundingRect(0, 0, w - 260, 50, Qt.TextFlag.TextWordWrap, self._title)
         title_y = h - 60 - title_rect.height()
         p.drawText(28, int(title_y), w - 260, title_rect.height() + 10,
@@ -257,7 +258,7 @@ class _HeroWidget(QWidget):
             rating_font = QFont()
             rating_font.setPixelSize(15)
             p.setFont(rating_font)
-            p.setPen(QPen(QColor(240, 160, 48)))  # amber
+            p.setPen(QPen(QColor(251, 191, 36)))  # warning/amber
             p.drawText(28, h - 52, w - 260, 24,
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                         self._rating_text)
@@ -269,20 +270,20 @@ class _HeroWidget(QWidget):
         btn_path = QPainterPath()
         btn_path.addRoundedRect(QRectF(btn_x, btn_y, btn_w, btn_h), 22.0, 22.0)
 
-        # Gradient fill for the button
-        btn_grad = QLinearGradient(btn_x, btn_y, btn_x + btn_w, btn_y + btn_h)
-        btn_grad.setColorAt(0.0, QColor(233, 69, 96))
-        btn_grad.setColorAt(1.0, QColor(200, 50, 80))
+        # Gradient fill for the button (primary button spec)
+        btn_grad = QLinearGradient(btn_x, btn_y, btn_x, btn_y + btn_h)
+        btn_grad.setColorAt(0.0, QColor(233, 69, 96))     # accent
+        btn_grad.setColorAt(1.0, QColor(201, 58, 82))     # accent_pressed
         p.fillPath(btn_path, btn_grad)
 
-        # Button text
+        # Button text (14px SemiBold per spec primary button)
         btn_font = QFont()
-        btn_font.setPixelSize(16)
-        btn_font.setWeight(QFont.Weight.Bold)
-        btn_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 2.0)
+        btn_font.setPixelSize(14)
+        btn_font.setWeight(QFont.Weight.DemiBold)
+        btn_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         p.setFont(btn_font)
         p.setPen(QPen(QColor(255, 255, 255)))
-        p.drawText(btn_x, btn_y, btn_w, btn_h, Qt.AlignmentFlag.AlignCenter, "LAUNCH")
+        p.drawText(btn_x, btn_y, btn_w, btn_h, Qt.AlignmentFlag.AlignCenter, "\u25b6  LAUNCH")
 
         # Store rects for click detection
         self._back_rect = QRectF(10, 10, 60, 60)
@@ -364,9 +365,9 @@ class GameDetailPanel(QScrollArea):
         self._desc_label.setWordWrap(True)
         self._desc_label.setTextFormat(Qt.TextFormat.RichText)
         self._desc_label.setStyleSheet(
-            f"background: {_SURFACE}; color: {_TEXT_BODY}; "
+            f"background: {_SURFACE_ELEVATED}; color: {_TEXT_BODY}; "
             "border-radius: 12px; padding: 20px; font-size: 14px; "
-            "line-height: 1.6;"
+            "line-height: 1.5;"
         )
         self._body_layout.addWidget(self._desc_label)
 
@@ -464,7 +465,7 @@ class GameDetailPanel(QScrollArea):
 
         # Placeholder header
         w = self._hero.width() or 800
-        self._hero.set_pixmap(_placeholder_header(w, 400))
+        self._hero.set_pixmap(_placeholder_header(w, 360))
 
         # Disconnect previous signal handlers to avoid accumulation
         if self._connected_rawg is not None:

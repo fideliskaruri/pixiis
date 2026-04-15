@@ -8,13 +8,14 @@ from PySide6.QtCore import QRectF, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-# Dark cinema palette
+# Dark cinema palette v2
 ACCENT = QColor("#e94560")
-BG_NORMAL = QColor("#161620")
-BG_FOCUS = QColor("#1a1a24")
-BORDER_NORMAL = QColor(255, 255, 255, 15)  # rgba(255,255,255,0.06)
-TEXT_COLOR = QColor("#e8e8f0")
-PLACEHOLDER_COLOR = QColor("#6b6b80")
+BG_NORMAL = QColor("#13121a")       # surface
+BG_FOCUS = QColor("#13121a")        # same bg, border changes
+BORDER_NORMAL = QColor(255, 255, 255, 15)   # rgba(255,255,255,0.06)
+BORDER_HOVER = QColor(255, 255, 255, 31)    # rgba(255,255,255,0.12)
+TEXT_COLOR = QColor("#f0eef5")       # text_primary
+PLACEHOLDER_COLOR = QColor("#5c586a") # text_muted
 
 BAR_HEIGHT = 44
 RADIUS = 22.0
@@ -69,7 +70,7 @@ class SearchBar(QLineEdit):
 
         # ── Border ──────────────────────────────────────────────────────
         if focused:
-            pen = QPen(ACCENT, 1.5)
+            pen = QPen(ACCENT, 2.0)
         else:
             pen = QPen(BORDER_NORMAL, 1.0)
         p.setPen(pen)
@@ -77,10 +78,11 @@ class SearchBar(QLineEdit):
 
         # ── Focus accent glow at bottom ─────────────────────────────────
         if focused:
-            glow_pen = QPen(QColor(ACCENT.red(), ACCENT.green(), ACCENT.blue(), 60), 2.0)
+            glow_pen = QPen(QColor(ACCENT.red(), ACCENT.green(), ACCENT.blue(), 50), 2.0)
             p.setPen(glow_pen)
-            glow_rect = rect.adjusted(4, 4, -4, -4)
-            p.drawRoundedRect(glow_rect, RADIUS - 2, RADIUS - 2)
+            # Subtle bottom glow line
+            glow_rect = rect.adjusted(8, rect.height() - 6, -8, -2)
+            p.drawRoundedRect(glow_rect, 2, 2)
 
         # ── Magnifying glass icon ───────────────────────────────────────
         icon_color = ACCENT if focused else PLACEHOLDER_COLOR

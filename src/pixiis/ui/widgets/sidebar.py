@@ -13,15 +13,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# ── Dark Cinema palette ────────────────────────────────────────────────────
+# ── Dark Cinema palette v2 ───────────────────────────────────────────────
 
-_NAV_BG = QColor(12, 12, 18)  # #0c0c12
-_ACCENT = QColor(233, 69, 96)  # #e94560
-_TEXT_MUTED = QColor(107, 107, 128)  # #6b6b80
-_TEXT_PRIMARY = QColor(232, 232, 240)  # #e8e8f0
+_NAV_BG = QColor("#0e0d14")
+_ACCENT = QColor(233, 69, 96)        # #e94560
+_TEXT_MUTED = QColor("#5c586a")
+_TEXT_SECONDARY = QColor("#8a8698")
+_TEXT_PRIMARY = QColor("#f0eef5")
 _HOVER_BG = QColor(233, 69, 96, 20)  # rgba(233,69,96,0.08)
-_ACTIVE_BG = QColor(233, 69, 96, 31)  # rgba(233,69,96,0.12)
-_BORDER_COLOR = QColor(255, 255, 255, 10)  # rgba(255,255,255,0.04)
+_ACTIVE_BG = QColor(233, 69, 96, 20) # rgba(233,69,96,0.08)
+_FOCUS_BG = QColor(233, 69, 96, 31)  # rgba(233,69,96,0.12)
+_FOCUS_BORDER = QColor(233, 69, 96, 77)  # rgba(233,69,96,0.30)
+_BORDER_COLOR = QColor(255, 255, 255, 10) # rgba(255,255,255,0.04)
 
 _ICONS: dict[str, str] = {
     "home": "\u2302",
@@ -44,8 +47,8 @@ class NavButton(QWidget):
         self._active = False
         self._hovered = False
 
-        self.setFixedHeight(56)
-        self.setMinimumWidth(100)
+        self.setFixedHeight(52)
+        self.setMinimumWidth(90)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
@@ -80,35 +83,41 @@ class NavButton(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+        focused = self.hasFocus()
 
-        # Background on hover/active
-        if self._active:
-            bg = _ACTIVE_BG
+        # Background
+        if focused and not self._active:
+            # Controller focus: accent border ring
+            bg_path = QPainterPath()
+            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+            p.fillPath(bg_path, _FOCUS_BG)
+            pen = QPen(_FOCUS_BORDER, 1.0)
+            p.setPen(pen)
+            p.drawRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+        elif self._active:
+            bg_path = QPainterPath()
+            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+            p.fillPath(bg_path, _ACTIVE_BG)
         elif self._hovered:
-            bg = _HOVER_BG
-        else:
-            bg = QColor(0, 0, 0, 0)
+            bg_path = QPainterPath()
+            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+            p.fillPath(bg_path, _HOVER_BG)
 
-        if bg.alpha() > 0:
-            path = QPainterPath()
-            path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 8.0, 8.0)
-            p.fillPath(path, bg)
-
-        # Bottom accent bar (active only) — centered horizontal pill
+        # Bottom accent bar (active only) — full width of text+padding, 2px tall
         if self._active:
-            bar_w = min(w * 0.5, 40)
-            bar_x = (w - bar_w) / 2.0
+            bar_w = w - 16.0
+            bar_x = 8.0
             accent_path = QPainterPath()
-            accent_path.addRoundedRect(bar_x, h - 4.0, bar_w, 3.0, 1.5, 1.5)
+            accent_path.addRoundedRect(bar_x, h - 3.0, bar_w, 2.0, 1.0, 1.0)
             p.fillPath(accent_path, _ACCENT)
 
-        # Icon + Label — centered horizontally
+        # Text color
         if self._active:
-            text_color = _ACCENT
-        elif self._hovered:
+            text_color = _TEXT_PRIMARY
+        elif self._hovered or focused:
             text_color = _TEXT_PRIMARY
         else:
-            text_color = _TEXT_MUTED
+            text_color = _TEXT_SECONDARY
 
         p.setPen(QPen(text_color))
 
@@ -116,14 +125,13 @@ class NavButton(QWidget):
         icon_font = QFont()
         icon_font.setPixelSize(16)
         p.setFont(icon_font)
-        icon_rect_w = 22
-        total_w = icon_rect_w + 6 + p.fontMetrics().horizontalAdvance(self._label)
+        icon_rect_w = 20
 
         label_font = QFont()
         label_font.setPixelSize(13)
         label_font.setWeight(QFont.Weight.Medium)
 
-        # Recalculate with label font for accurate centering
+        # Calculate centering
         p.setFont(label_font)
         label_w = p.fontMetrics().horizontalAdvance(self._label)
         total_w = icon_rect_w + 4 + label_w
@@ -165,23 +173,23 @@ class Sidebar(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setFixedHeight(60)
+        self.setFixedHeight(52)
         self.setObjectName("Sidebar")
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setContentsMargins(16, 0, 8, 0)
         layout.setSpacing(0)
 
         # -- logo / title
         title = QLabel("PIXIIS")
         title.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-        title.setFixedWidth(120)
+        title.setFixedWidth(110)
         title.setStyleSheet(
             "QLabel {"
-            "  font-size: 20px;"
+            "  font-size: 18px;"
             "  font-weight: bold;"
             "  color: #e94560;"
-            "  letter-spacing: 6px;"
+            "  letter-spacing: 5px;"
             "  background-color: transparent;"
             "}"
         )
@@ -210,44 +218,48 @@ class Sidebar(QFrame):
             "}"
         )
         btn_min = QPushButton("\u2500")  # ─ minimize
-        btn_min.setFixedSize(36, 36)
+        btn_min.setFixedSize(32, 32)
         btn_min.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #6b6b80; }"
-            "QPushButton:hover { background: rgba(255,255,255,0.08); color: #e8e8f0; }"
+            + "QPushButton { color: #5c586a; }"
+            "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_min.clicked.connect(self.minimize_requested.emit)
         layout.addWidget(btn_min)
 
+        layout.addSpacing(2)
+
         btn_max = QPushButton("\u25a1")  # □ maximize
-        btn_max.setFixedSize(36, 36)
+        btn_max.setFixedSize(32, 32)
         btn_max.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #6b6b80; }"
-            "QPushButton:hover { background: rgba(255,255,255,0.08); color: #e8e8f0; }"
+            + "QPushButton { color: #5c586a; }"
+            "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_max.clicked.connect(self.maximize_requested.emit)
         layout.addWidget(btn_max)
 
+        layout.addSpacing(2)
+
         btn_close = QPushButton("\u2715")  # ✕ close
-        btn_close.setFixedSize(36, 36)
+        btn_close.setFixedSize(32, 32)
         btn_close.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #6b6b80; }"
-            "QPushButton:hover { background: rgba(233,69,96,0.8); color: #ffffff; }"
+            + "QPushButton { color: #5c586a; }"
+            "QPushButton:hover { background: #e94560; color: #ffffff; }"
         )
         btn_close.clicked.connect(self.close_requested.emit)
         layout.addWidget(btn_close)
 
     def paintEvent(self, event) -> None:
-        """Custom background with subtle gradient and bottom border."""
+        """Custom background with warm gradient and bottom border."""
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
 
-        # Gradient background
+        # Warm gradient background
         grad = QLinearGradient(0, 0, w, 0)
-        grad.setColorAt(0.0, QColor(14, 14, 22))
+        grad.setColorAt(0.0, QColor("#0e0d14"))
         grad.setColorAt(1.0, _NAV_BG)
         p.fillRect(0, 0, w, h, grad)
 

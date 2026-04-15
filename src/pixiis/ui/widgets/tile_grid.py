@@ -14,9 +14,9 @@ from pixiis.core.types import AppEntry
 from pixiis.ui.widgets.flow_layout import FlowLayout
 from pixiis.ui.widgets.game_tile import DEFAULT_TILE_HEIGHT, DEFAULT_TILE_WIDTH, GameTile
 
-# Grid spacing tuned for portrait 300x420 tiles
-H_SPACING = 24
-V_SPACING = 24
+# Grid spacing — 20px gaps per design spec v2
+H_SPACING = 20
+V_SPACING = 20
 
 
 class TileGrid(QScrollArea):
@@ -87,7 +87,7 @@ class TileGrid(QScrollArea):
             )
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setStyleSheet(
-                "color: #6b6b80; font-size: 15px; padding: 60px; background: transparent;"
+                "color: #8a8698; font-size: 15px; padding: 60px; background: transparent;"
             )
             empty.setWordWrap(True)
             self._layout.addWidget(empty)

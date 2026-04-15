@@ -82,7 +82,8 @@ class MainWindow(QMainWindow):
         self._dragging = False
         self._drag_offset = None
 
-        if self._config.get("ui.fullscreen", False):
+        # Console experience — fullscreen by default
+        if self._config.get("ui.fullscreen", True):
             self.showFullScreen()
 
         # -- central layout --------------------------------------------------

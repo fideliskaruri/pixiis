@@ -63,7 +63,7 @@ extra_paths = []
 [ui]
 tile_size = "large"             # "small", "medium", "large"
 animations = true
-fullscreen = false
+fullscreen = true
 
 [ui.colors]
 primary = "#1a1a2e"

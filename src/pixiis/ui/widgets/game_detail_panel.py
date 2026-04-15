@@ -513,11 +513,23 @@ class GameDetailPanel(QScrollArea):
             f"<span style='color: {_TEXT_DIM}'>Loading game details…</span>"
         )
 
+        # Set launch button text based on install status
+        if app.is_installed:
+            self._hero._launch_btn.setText("\u25b6  PLAY")
+        else:
+            self._hero._launch_btn.setText("\u2b07  INSTALL")
+
         # Reset media sections
         self._clear_layout(self._screenshots_layout)
         self._clear_layout(self._trailers_layout)
         self._clear_layout(self._streams_layout)
         self._clear_info_bar()
+
+        # Show local playtime in info bar immediately (before RAWG data)
+        pt_display = app.playtime_display
+        if pt_display:
+            self._info_bar.addWidget(_pill(f"\u23f1 {pt_display} played"))
+            self._info_bar.addStretch()
 
         # Image dispatch map: url -> widget(s) to receive the image
         self._img_dispatch: dict[str, list[QLabel]] = {}
@@ -610,6 +622,18 @@ class GameDetailPanel(QScrollArea):
                 "trailers, and live streams."
             )
 
+    def focus_launch_button(self) -> None:
+        """Give keyboard focus to the launch button (for immediate A-press)."""
+        self._hero._launch_btn.setFocus()
+
+    def set_launch_button_enabled(self, enabled: bool) -> None:
+        """Enable or disable the launch button."""
+        self._hero._launch_btn.setEnabled(enabled)
+
+    def set_launch_button_text(self, text: str) -> None:
+        """Update the launch button label."""
+        self._hero._launch_btn.setText(text)
+
     def set_header_image(self, pixmap: QPixmap) -> None:
         self._hero.set_pixmap(pixmap)
 
@@ -681,6 +705,11 @@ class GameDetailPanel(QScrollArea):
         playtime = getattr(data, "playtime", 0)
         if playtime:
             self._info_bar.addWidget(_pill(f"{playtime}h avg"))
+        # Local playtime from tracker
+        if self._app is not None:
+            local_pt = self._app.playtime_display
+            if local_pt:
+                self._info_bar.addWidget(_pill(f"\u23f1 {local_pt} played"))
         self._info_bar.addStretch()
 
         # Screenshots — rounded thumbnail cards

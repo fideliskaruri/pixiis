@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 @runtime_checkable
@@ -83,7 +86,7 @@ class InputsBackend:
                 self._name = gamepads[0].name
                 self._connected = True
         except Exception:
-            pass
+            logger.debug("Gamepad detection failed", exc_info=True)
 
     def poll(self) -> list:
         """Read all pending gamepad events (non-blocking)."""

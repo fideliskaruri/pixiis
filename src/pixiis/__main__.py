@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import os
 import sys
+import warnings
+
+# Suppress noisy third-party messages before any imports
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")  # hide pygame hello
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
 
 from pixiis import __version__
 
@@ -112,6 +119,11 @@ def cmd_full() -> None:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(name)s] %(message)s",
+    )
+
     parser = build_parser()
     args = parser.parse_args()
 

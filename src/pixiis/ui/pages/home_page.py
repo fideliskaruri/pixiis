@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -21,9 +22,11 @@ if TYPE_CHECKING:
 # Widgets built by another agent — may not exist yet.
 try:
     from pixiis.ui.widgets import SearchBar, TileGrid
+    from pixiis.ui.widgets.game_tile import GameTile
 except ImportError:
     SearchBar = None  # type: ignore[assignment,misc]
     TileGrid = None  # type: ignore[assignment,misc]
+    GameTile = None  # type: ignore[assignment,misc]
 
 
 # ── Dark Cinema palette v2 ─────────────────────────────────────────────────
@@ -38,6 +41,16 @@ _TEXT_MUTED = "#7a7690"
 _PILL_FONT = QFont()
 _PILL_FONT.setPixelSize(12)
 _PILL_FONT.setWeight(QFont.Weight.Medium)
+
+_SECTION_FONT = QFont()
+_SECTION_FONT.setPixelSize(14)
+_SECTION_FONT.setWeight(QFont.Weight.Bold)
+_SECTION_FONT.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
+
+# Recently played carousel constants
+_CAROUSEL_TILE_W = 280
+_CAROUSEL_TILE_H = 160
+_CAROUSEL_MAX_ITEMS = 5
 
 
 # ── Sort pill button ───────────────────────────────────────────────────────
@@ -206,6 +219,41 @@ class HomePage(QWidget):
 
         root.addLayout(top_bar)
 
+        # -- "Continue Playing" carousel (recently played) --------------------
+        self._carousel_label = QLabel("CONTINUE PLAYING")
+        self._carousel_label.setStyleSheet(
+            f"color: {_TEXT_MUTED}; font-size: 12px; font-weight: bold; "
+            "letter-spacing: 2px; background: transparent; margin-bottom: 0px;"
+        )
+        self._carousel_label.setFont(_SECTION_FONT)
+        self._carousel_label.hide()
+        root.addWidget(self._carousel_label)
+
+        self._carousel_scroll = QScrollArea()
+        self._carousel_scroll.setFixedHeight(_CAROUSEL_TILE_H + 16)
+        self._carousel_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._carousel_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._carousel_scroll.setWidgetResizable(True)
+        self._carousel_scroll.setStyleSheet(
+            "QScrollArea { border: none; background: transparent; }"
+        )
+        self._carousel_scroll.hide()
+
+        self._carousel_container = QWidget()
+        self._carousel_layout = QHBoxLayout(self._carousel_container)
+        self._carousel_layout.setContentsMargins(0, 0, 0, 0)
+        self._carousel_layout.setSpacing(16)
+        self._carousel_scroll.setWidget(self._carousel_container)
+
+        root.addWidget(self._carousel_scroll)
+
+        self._carousel_tiles: list[object] = []
+        self._carousel_url_to_tile: dict[str, object] = {}
+
         # -- tile grid --------------------------------------------------------
         if TileGrid is not None:
             self._grid = TileGrid()
@@ -231,6 +279,22 @@ class HomePage(QWidget):
 
     # -- public API -----------------------------------------------------------
 
+    def set_search_text(self, text: str) -> None:
+        """Set the search bar text and trigger the search signal."""
+        if self._search is not None:
+            self._search.setText(text)
+            self._search.search_changed.emit(text)
+
+    def focus_search(self) -> None:
+        """Give keyboard focus to the search bar."""
+        if self._search is not None:
+            self._search.setFocus()
+
+    def set_mic_recording(self, active: bool) -> None:
+        """Update the search bar mic icon to show recording state."""
+        if self._search is not None and hasattr(self._search, 'set_mic_recording'):
+            self._search.set_mic_recording(active)
+
     def refresh(self, apps: list[AppEntry] | None = None) -> None:
         """Refresh the tile grid with an updated app list (games only)."""
         if hasattr(self, '_loading') and self._loading.isVisible():
@@ -246,6 +310,14 @@ class HomePage(QWidget):
     def _load_apps(self) -> None:
         if self._registry is not None:
             self._all_apps = [a for a in self._registry.get_all() if a.is_game]
+        # Connect image loader for carousel (one-time)
+        if (
+            self._image_loader is not None
+            and hasattr(self._image_loader, "image_ready")
+            and not getattr(self, "_carousel_loader_connected", False)
+        ):
+            self._image_loader.image_ready.connect(self._on_carousel_image_ready)
+            self._carousel_loader_connected = True
         if self._all_apps:
             self._loading.hide()
             self._apply_sort_and_display()
@@ -264,15 +336,73 @@ class HomePage(QWidget):
         if self._current_sort == "recent":
             return sorted(
                 apps,
-                key=lambda a: a.metadata.get("last_played", 0),
-                reverse=True,
+                key=lambda a: (not a.is_favorite, -a.metadata.get("last_played", 0)),
             )
-        return sorted(apps, key=lambda a: a.name.lower())
+        return sorted(apps, key=lambda a: (not a.is_favorite, a.name.lower()))
 
     def _apply_sort_and_display(self) -> None:
         sorted_apps = self._sorted_apps(self._all_apps)
         if self._grid is not None and hasattr(self._grid, "set_apps"):
             self._grid.set_apps(sorted_apps, image_loader=self._image_loader)
+        self._rebuild_carousel()
+
+    def _rebuild_carousel(self) -> None:
+        """Rebuild the 'Continue Playing' carousel with recently played games."""
+        # Clear existing carousel tiles
+        while self._carousel_layout.count():
+            item = self._carousel_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+                w.deleteLater()
+        self._carousel_tiles.clear()
+        self._carousel_url_to_tile.clear()
+
+        # Get recently played games (last_played > 0), sorted by most recent
+        recent = sorted(
+            [a for a in self._all_apps if a.last_played > 0],
+            key=lambda a: a.last_played,
+            reverse=True,
+        )[:_CAROUSEL_MAX_ITEMS]
+
+        if not recent or GameTile is None:
+            self._carousel_label.hide()
+            self._carousel_scroll.hide()
+            return
+
+        self._carousel_label.show()
+        self._carousel_scroll.show()
+
+        for app in recent:
+            tile = GameTile(
+                app,
+                width=_CAROUSEL_TILE_W,
+                height=_CAROUSEL_TILE_H,
+                parent=self._carousel_container,
+            )
+            tile.activated.connect(self._on_tile_activated)
+            self._carousel_tiles.append(tile)
+            self._carousel_layout.addWidget(tile)
+
+            # Request art for carousel tiles
+            if self._image_loader is not None and app.art_url:
+                self._carousel_url_to_tile[app.art_url] = tile
+                self._image_loader.request(app.art_url)
+            elif app.icon_path and app.icon_path.exists():
+                pixmap = QPixmap(str(app.icon_path))
+                if not pixmap.isNull():
+                    tile.set_image(pixmap)
+
+        self._carousel_layout.addStretch()
+
+    def _on_carousel_image_ready(self, url: str, pixmap: QPixmap) -> None:
+        """Deliver downloaded images to carousel tiles."""
+        tile = self._carousel_url_to_tile.pop(url, None)
+        if tile is not None:
+            try:
+                tile.set_image(pixmap)
+            except RuntimeError:
+                pass
 
     def _on_search(self, query: str) -> None:
         if not query.strip():

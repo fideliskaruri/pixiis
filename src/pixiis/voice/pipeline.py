@@ -5,12 +5,13 @@ from __future__ import annotations
 import queue
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
 from pixiis.core.config import get_config
 from pixiis.core.events import bus
-from pixiis.core.types import ActionType, MacroAction, TranscriptionEvent
+from pixiis.core.types import TranscriptionEvent
 from pixiis.voice.audio_capture import AudioCapture
 from pixiis.voice.text_injection import TextInjector
 from pixiis.voice.transcriber import Transcriber
@@ -137,9 +138,7 @@ class VoicePipeline:
     # ── lifecycle ────────────────────────────────────────────────────
 
     def start(self) -> None:
-        """Subscribe to events and spin up worker threads."""
-        bus.subscribe(MacroAction, self._on_macro_action)
-
+        """Spin up worker threads."""
         workers = [
             ("transcription-worker", self._transcription_worker),
             ("rolling-transcribe", self._rolling_transcribe_loop),
@@ -158,32 +157,23 @@ class VoicePipeline:
         # Unblock rolling loop if waiting on recording_event
         self._capture.recording_event.set()
         self._capture.stop()
-        bus.unsubscribe(MacroAction, self._on_macro_action)
         for t in self._threads:
             t.join(timeout=2.0)
         self._threads.clear()
 
-    # ── event handling ───────────────────────────────────────────────
+    # ── recording control (public API) ───────────────────────────────
 
-    def _on_macro_action(self, action: MacroAction) -> None:
-        if action.action is not ActionType.VOICE_RECORD:
-            return
-
-        if action.target == "start":
-            self._start_recording()
-        elif action.target == "stop":
-            self._stop_recording()
-
-    def _start_recording(self) -> None:
+    def start_recording(self) -> None:
+        """Begin capturing audio from the microphone."""
         self._ensure_models()
         self._capture.clear_buffer()
         self._last_transcribed_index = 0
         with self._live_line_lock:
             self._live_line_count = 0
         self._capture.start()
-        print("  [recording...]")
 
-    def _stop_recording(self) -> None:
+    def stop_recording(self) -> None:
+        """Stop capturing and queue a final transcription."""
         self._capture.recording_event.clear()
         time.sleep(0.05)  # let last chunks arrive
 

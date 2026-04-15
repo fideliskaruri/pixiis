@@ -30,6 +30,7 @@ class TileGrid(QScrollArea):
     """
 
     tile_activated = Signal(object)  # forwards GameTile.activated
+    tile_favorite_toggled = Signal(object, bool)  # forwards GameTile.favorite_toggled
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -103,6 +104,7 @@ class TileGrid(QScrollArea):
         for app in apps:
             tile = GameTile(app, parent=self._container)
             tile.activated.connect(self.tile_activated.emit)
+            tile.favorite_toggled.connect(self.tile_favorite_toggled.emit)
             tile.tile_focused.connect(self._on_tile_focused)
             self._tiles.append(tile)
             self._layout.addWidget(tile)

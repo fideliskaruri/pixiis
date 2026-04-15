@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
@@ -9,6 +10,8 @@ from PySide6.QtWidgets import QApplication
 
 from pixiis.core import get_config
 from pixiis.core.paths import config_file
+
+logger = logging.getLogger(__name__)
 
 
 def _resources_dir() -> Path:
@@ -252,7 +255,7 @@ class ThemeManager(QObject):
                     template = template.replace("{{" + key + "}}", str(value))
                 return template
             except OSError:
-                pass
+                logger.debug("Failed to read QSS template", exc_info=True)
 
         # Fallback: use built-in minimal QSS
         return _FALLBACK_QSS.format(**variables)
@@ -265,6 +268,15 @@ class ThemeManager(QObject):
 
     def _template_variables(self) -> dict[str, str]:
         ar, ag, ab = _hex_to_rgb(self._accent)
+
+        # UI scale factor (1.0 = desktop, 1.5 = couch/TV 10-foot mode)
+        cfg = get_config()
+        scale = float(cfg.get("ui.scale", 1.0))
+
+        def _scaled(px: int) -> str:
+            """Return a pixel size string scaled by the UI scale factor."""
+            return f"{int(px * scale)}px"
+
         return {
             # Core palette
             "background": self._background,
@@ -298,6 +310,15 @@ class ThemeManager(QObject):
             "surface_border": "rgba(255, 255, 255, 0.10)",
             "border_hover": "rgba(255, 255, 255, 0.12)",
             "shadow_color": "rgba(0, 0, 0, 0.40)",
+            # Scaled font sizes (use {{font_size_*}} in QSS templates)
+            "ui_scale": str(scale),
+            "font_size_xs": _scaled(11),
+            "font_size_sm": _scaled(12),
+            "font_size_body": _scaled(14),
+            "font_size_md": _scaled(16),
+            "font_size_lg": _scaled(20),
+            "font_size_xl": _scaled(24),
+            "font_size_h1": _scaled(32),
         }
 
     @staticmethod

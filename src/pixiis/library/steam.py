@@ -60,7 +60,11 @@ class SteamProvider:
             webbrowser.open(cmd)
         else:
             cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            subprocess.Popen(cmd, shell=True, creationflags=cf)
+            if sys.platform == "win32":
+                subprocess.Popen(["cmd", "/c", "start", "", cmd], creationflags=cf)
+            else:
+                import shlex
+                subprocess.Popen(shlex.split(cmd), creationflags=cf)
 
     def get_icon(self, app: AppEntry) -> Path | None:
         return None  # Handled by IconCache via art_url

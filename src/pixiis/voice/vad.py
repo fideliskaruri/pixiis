@@ -31,7 +31,8 @@ class SileroVAD:
         import torch
 
         self._model, utils = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad"
+            repo_or_dir="snakers4/silero-vad", model="silero_vad",
+            trust_repo=True,
         )
         self._torch = torch
 

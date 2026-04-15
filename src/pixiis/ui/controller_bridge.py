@@ -80,6 +80,8 @@ class ControllerBridge(QObject):
     voice_start = Signal()   # RT — start voice recording
     voice_stop = Signal()    # RT release — stop voice recording
     toggle_app = Signal()    # Start button — hide/show app
+    favorite_toggle = Signal()  # Y button — toggle favorite on focused tile
+    keyboard_requested = Signal()  # A on QLineEdit — show virtual keyboard
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -209,11 +211,16 @@ class ControllerBridge(QObject):
         # A = select/activate, B = back
         # A sends Space (activates QPushButton, QCheckBox, QComboBox etc.)
         # AND Return (activates QLineEdit submit, custom keyPressEvent handlers)
+        # When a QLineEdit is focused, A opens the virtual keyboard instead.
         a_now = self._backend.get_button(_BTN_A)
         a_was = self._prev_buttons.get(_BTN_A, False)
         if _BTN_A != _voice_btn and a_now and not a_was:
-            self._post_key(Qt.Key.Key_Space)
-            self._post_key(_KEY_RETURN)
+            focused = QApplication.focusWidget()
+            if isinstance(focused, QLineEdit):
+                self.keyboard_requested.emit()
+            else:
+                self._post_key(Qt.Key.Key_Space)
+                self._post_key(_KEY_RETURN)
         self._prev_buttons[_BTN_A] = a_now
 
         # B = back/escape
@@ -230,6 +237,14 @@ class ControllerBridge(QObject):
             if now and not was:
                 sig.emit()
             self._prev_buttons[btn_idx] = now
+
+        # Y button = toggle favorite on focused tile (only when Y is not voice trigger)
+        if _voice_btn != _BTN_Y:
+            y_now = self._backend.get_button(_BTN_Y)
+            y_was = self._prev_buttons.get(_BTN_Y, False)
+            if y_now and not y_was:
+                self.favorite_toggle.emit()
+            self._prev_buttons[_BTN_Y] = y_now
 
         # Start button = toggle hide/show app
         start_now = self._backend.get_button(_BTN_START)

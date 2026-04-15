@@ -766,6 +766,15 @@ class SettingsPage(QScrollArea):
             else:
                 lines.append(f'{key} = "{val}"')
 
+    def set_scanning(self, scanning: bool) -> None:
+        """Update the Scan Now button to reflect scanning state."""
+        if scanning:
+            self._scan_btn.setText("Scanning...")
+            self._scan_btn.setEnabled(False)
+        else:
+            self._scan_btn.setText("Scan Now")
+            self._scan_btn.setEnabled(True)
+
     def _scan_now(self) -> None:
         """Trigger an immediate library scan."""
         self.scan_requested.emit()

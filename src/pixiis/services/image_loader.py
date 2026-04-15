@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from PySide6.QtCore import QObject, QSize, QUrl, Signal
 from PySide6.QtGui import QPixmap
@@ -99,7 +102,7 @@ class AsyncImageLoader(QObject):
             try:
                 disk_path.write_bytes(data)
             except OSError:
-                pass  # disk cache is best-effort
+                logger.debug("Disk cache write failed for %s", url, exc_info=True)
 
             # Decode
             pixmap = QPixmap()

@@ -39,6 +39,57 @@ class AppEntry:
         return self.name
 
     @property
+    def playtime_minutes(self) -> int:
+        """Total tracked playtime in minutes (stored in metadata)."""
+        return int(self.metadata.get("playtime_minutes", 0))
+
+    @playtime_minutes.setter
+    def playtime_minutes(self, value: int) -> None:
+        self.metadata["playtime_minutes"] = value
+
+    @property
+    def playtime_display(self) -> str:
+        """Human-readable playtime string, e.g. '12.5 hrs' or '45 min'."""
+        mins = self.playtime_minutes
+        if mins <= 0:
+            return ""
+        if mins < 60:
+            return f"{mins} min"
+        hours = mins / 60
+        if hours == int(hours):
+            return f"{int(hours)} hrs"
+        return f"{hours:.1f} hrs"
+
+    @property
+    def last_played(self) -> float:
+        """Epoch timestamp of last play session (stored in metadata)."""
+        return float(self.metadata.get("last_played", 0))
+
+    @last_played.setter
+    def last_played(self, value: float) -> None:
+        self.metadata["last_played"] = value
+
+    @property
+    def is_installed(self) -> bool:
+        """True if the game/app appears to be installed on this machine."""
+        if self.exe_path and self.exe_path.exists():
+            return True
+        # Xbox/UWP games are always "installed" if they show up in scan
+        if self.source == AppSource.XBOX:
+            return True
+        # If we have a launch command, assume installed
+        return bool(self.launch_command)
+
+    @property
+    def is_favorite(self) -> bool:
+        """True if the user has marked this entry as a favorite."""
+        return bool(self.metadata.get("favorite", False))
+
+    @is_favorite.setter
+    def is_favorite(self, value: bool) -> None:
+        self.metadata["favorite"] = value
+
+    @property
     def is_game(self) -> bool:
         """True if this entry is likely a game (not a regular app).
 

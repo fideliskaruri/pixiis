@@ -57,6 +57,24 @@ _BADGE_FONT.setPixelSize(10)
 _BADGE_FONT.setBold(True)
 _BADGE_FONT.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
 
+_PLAYTIME_FONT = QFont()
+_PLAYTIME_FONT.setPixelSize(11)
+_PLAYTIME_FONT.setWeight(QFont.Weight.Medium)
+
+_NOT_INSTALLED_FONT = QFont()
+_NOT_INSTALLED_FONT.setPixelSize(10)
+_NOT_INSTALLED_FONT.setBold(True)
+_NOT_INSTALLED_FONT.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
+
+_HEART_FONT = QFont()
+_HEART_FONT.setPixelSize(18)
+
+# Heart icon constants
+_HEART_FILLED = "\u2665"   # solid heart
+_HEART_OUTLINE = "\u2661"  # outline heart
+_HEART_SIZE = 28            # hit-test area (square)
+_HEART_MARGIN = 8           # inset from top-left corner
+
 # Source badge labels
 _SOURCE_LABELS = {
     "steam": "STEAM",
@@ -80,8 +98,9 @@ class GameTile(QWidget):
     - Focus: strong accent border + glow + scale(1.03)
     """
 
-    activated = Signal(object)    # emits AppEntry on click / Enter
-    tile_focused = Signal(object) # emits AppEntry on focus
+    activated = Signal(object)        # emits AppEntry on click / Enter
+    tile_focused = Signal(object)     # emits AppEntry on focus
+    favorite_toggled = Signal(object, bool)  # emits (AppEntry, is_now_favorite)
 
     def __init__(
         self,
@@ -98,11 +117,13 @@ class GameTile(QWidget):
         self._hover_progress: float = 0.0
         self._focus_progress: float = 0.0
         self._press_progress: float = 0.0
+        self._heart_hovered: bool = False
 
         self.setFixedSize(width, height)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setMouseTracking(True)
         self.setAccessibleName(app.display_name)
 
         # ── Animations ──────────────────────────────────────────────────
@@ -150,8 +171,22 @@ class GameTile(QWidget):
     # ── Public API ──────────────────────────────────────────────────────────
 
     def set_image(self, pixmap: QPixmap) -> None:
-        """Called by image loader when game art arrives."""
-        self._pixmap = pixmap
+        """Pre-scale and center-crop the pixmap so paintEvent is cheap."""
+        if pixmap.isNull():
+            self._pixmap = pixmap
+            self.update()
+            return
+        # Scale to cover the tile area
+        scaled = pixmap.scaled(
+            self.width(),
+            self.height(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # Center-crop to exact tile size
+        x = (scaled.width() - self.width()) // 2
+        y = (scaled.height() - self.height()) // 2
+        self._pixmap = scaled.copy(x, y, self.width(), self.height())
         self.update()
 
     # ── Paint ───────────────────────────────────────────────────────────────
@@ -179,18 +214,9 @@ class GameTile(QWidget):
         clip.addRoundedRect(rect, CORNER_RADIUS, CORNER_RADIUS)
         p.setClipPath(clip)
 
-        # ── Background / Image ──────────────────────────────────────────
+        # ── Background / Image (pre-scaled in set_image) ────────────────
         if self._pixmap and not self._pixmap.isNull():
-            scaled = self._pixmap.scaled(
-                self.width(),
-                self.height(),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            x = (scaled.width() - self.width()) // 2
-            y = (scaled.height() - self.height()) // 2
-            cropped = scaled.copy(x, y, self.width(), self.height())
-            p.drawPixmap(0, 0, cropped)
+            p.drawPixmap(0, 0, self._pixmap)
         else:
             # Placeholder gradient
             grad = QLinearGradient(0, 0, 0, rect.height())
@@ -220,14 +246,21 @@ class GameTile(QWidget):
         grad.setColorAt(1.0, QColor(0, 0, 0, 216))  # ~0.85 opacity
         p.fillRect(grad_rect, grad)
 
+        # ── Desaturation overlay for not-installed games ───────────────
+        if not self.app.is_installed:
+            p.fillRect(rect, QColor(0, 0, 0, 120))  # dim the tile
+
         # ── Game name text (16px SemiBold, max 2 lines) ─────────────────
         p.setFont(_NAME_FONT)
         p.setPen(TEXT_PRIMARY)
 
+        # Shift name up if we have playtime to show below
+        playtime_text = self.app.playtime_display
+        name_bottom_y = rect.height() - (62 if playtime_text else 50)
         text_pad = 12
         text_rect = QRectF(
             text_pad,
-            rect.height() - 50,
+            name_bottom_y,
             rect.width() - text_pad * 2,
             38,
         )
@@ -241,6 +274,22 @@ class GameTile(QWidget):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom | Qt.TextFlag.TextWordWrap,
             elided,
         )
+
+        # ── Playtime text below game name ──────────────────────────────
+        if playtime_text:
+            p.setFont(_PLAYTIME_FONT)
+            p.setPen(TEXT_SECONDARY)
+            pt_rect = QRectF(
+                text_pad,
+                rect.height() - 24,
+                rect.width() - text_pad * 2,
+                18,
+            )
+            p.drawText(
+                pt_rect,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                playtime_text,
+            )
 
         # ── Source badge (top-right, 8px from edges) ────────────────────
         source_key = self.app.source.name.lower() if hasattr(self.app.source, "name") else str(self.app.source).lower()
@@ -259,6 +308,45 @@ class GameTile(QWidget):
         p.fillPath(badge_path, QColor(0, 0, 0, 166))  # ~0.65 opacity
         p.setPen(TEXT_SECONDARY)
         p.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
+
+        # ── "Not Installed" badge (below source badge) ─────────────────
+        if not self.app.is_installed:
+            ni_text = "NOT INSTALLED"
+            p.setFont(_NOT_INSTALLED_FONT)
+            ni_fm = QFontMetrics(_NOT_INSTALLED_FONT)
+            ni_w = ni_fm.horizontalAdvance(ni_text) + 14
+            ni_h = 18
+            ni_x = rect.width() - ni_w - 8
+            ni_y = badge_y + badge_h + 4
+            ni_rect = QRectF(ni_x, ni_y, ni_w, ni_h)
+            ni_path = QPainterPath()
+            ni_path.addRoundedRect(ni_rect, 4, 4)
+            p.fillPath(ni_path, QColor(100, 80, 80, 200))
+            p.setPen(QColor(200, 160, 160))
+            p.drawText(ni_rect, Qt.AlignmentFlag.AlignCenter, ni_text)
+
+        # ── Favorite heart icon (top-left corner) ──────────────────────
+        heart_x = float(_HEART_MARGIN)
+        heart_y = float(_HEART_MARGIN)
+        heart_rect = QRectF(heart_x, heart_y, _HEART_SIZE, _HEART_SIZE)
+
+        is_fav = self.app.is_favorite
+        show_heart = is_fav or self._heart_hovered or hp > 0.0 or fp > 0.0
+
+        if show_heart:
+            # Semi-transparent backdrop
+            heart_bg = QPainterPath()
+            heart_bg.addRoundedRect(heart_rect, 6, 6)
+            p.fillPath(heart_bg, QColor(0, 0, 0, 140))
+
+            p.setFont(_HEART_FONT)
+            if is_fav:
+                p.setPen(ACCENT_COLOR)
+                p.drawText(heart_rect, Qt.AlignmentFlag.AlignCenter, _HEART_FILLED)
+            else:
+                alpha = 180 if self._heart_hovered else 100
+                p.setPen(QColor(255, 255, 255, alpha))
+                p.drawText(heart_rect, Qt.AlignmentFlag.AlignCenter, _HEART_OUTLINE)
 
         # ── Border rendering ────────────────────────────────────────────
         p.setClipping(False)
@@ -341,8 +429,29 @@ class GameTile(QWidget):
 
     def leaveEvent(self, event) -> None:  # noqa: N802
         super().leaveEvent(event)
+        if self._heart_hovered:
+            self._heart_hovered = False
+            self.update()
         if not self.hasFocus():
             self._animate_hover(0.0)
+
+    def _heart_hit_rect(self) -> QRectF:
+        """Return the heart icon hit-test rectangle."""
+        return QRectF(float(_HEART_MARGIN), float(_HEART_MARGIN), _HEART_SIZE, _HEART_SIZE)
+
+    def _toggle_favorite(self) -> None:
+        """Toggle the favorite state and emit the signal."""
+        new_state = not self.app.is_favorite
+        self.app.is_favorite = new_state
+        self.favorite_toggled.emit(self.app, new_state)
+        self.update()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        in_heart = self._heart_hit_rect().contains(event.position())
+        if in_heart != self._heart_hovered:
+            self._heart_hovered = in_heart
+            self.update()
+        super().mouseMoveEvent(event)
 
     def keyPressEvent(self, event) -> None:  # noqa: N802
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -359,11 +468,17 @@ class GameTile(QWidget):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._heart_hit_rect().contains(event.position()):
+                # Heart click — don't animate press on the whole tile
+                return
             self._animate_press(1.0)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._heart_hit_rect().contains(event.position()):
+                self._toggle_favorite()
+                return
             self._animate_press(0.0)
             self.activated.emit(self.app)
         super().mouseReleaseEvent(event)

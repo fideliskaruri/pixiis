@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent
@@ -10,21 +13,25 @@ from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QVBoxLayout,
     QWidget,
 )
 
 from pixiis.core import get_config, bus
-from pixiis.core.types import TranscriptionEvent
+from pixiis.core.types import AppEntry, TranscriptionEvent
+from pixiis.library.playtime import PlaytimeTracker
 from pixiis.library.registry import AppRegistry, LibraryUpdatedEvent
 from pixiis.ui.controller_bridge import ControllerBridge
 from pixiis.ui.page_stack import PageStack
+from pixiis.ui.widgets.quick_resume import QuickResume
 from pixiis.ui.widgets.sidebar import Sidebar
 from pixiis.ui.widgets.toast import Toast
+from pixiis.ui.widgets.virtual_keyboard import VirtualKeyboard
 
 if TYPE_CHECKING:
-    from pixiis.core.types import AppEntry
+    pass
 
 
 # ── Background scanner ─────────────────────────────────────────────────────
@@ -43,6 +50,7 @@ class _ScanWorker(QObject):
         try:
             apps = self._registry.scan_all()
         except Exception:
+            logger.debug("Library scan failed", exc_info=True)
             apps = []
         self.finished.emit(apps)
 
@@ -125,32 +133,33 @@ class MainWindow(QMainWindow):
             from pixiis.services.image_loader import AsyncImageLoader
             self._image_loader = AsyncImageLoader(self)
         except Exception:
-            pass
+            logger.debug("AsyncImageLoader unavailable", exc_info=True)
         try:
             from pixiis.services.rawg import RawgClient
             self._rawg_client = RawgClient(self)
         except Exception:
-            pass
+            logger.debug("RawgClient unavailable", exc_info=True)
         try:
             from pixiis.services.youtube import YouTubeClient
             self._youtube_client = YouTubeClient(self)
         except Exception:
-            pass
+            logger.debug("YouTubeClient unavailable", exc_info=True)
         try:
             from pixiis.services.twitch import TwitchClient
             self._twitch_client = TwitchClient(self)
         except Exception:
-            pass
+            logger.debug("TwitchClient unavailable", exc_info=True)
         try:
             from pixiis.services.vibration import VibrationService
             self._vibration = VibrationService(parent=self)
         except Exception:
-            pass
+            logger.debug("VibrationService unavailable", exc_info=True)
 
         try:
             from pixiis.ui.widgets.voice_overlay import VoiceOverlay
             self._voice_overlay = VoiceOverlay(self)
         except Exception:
+            logger.debug("VoiceOverlay unavailable", exc_info=True)
             self._voice_overlay = None
 
         # Voice recording pipeline (faster-whisper)
@@ -164,23 +173,60 @@ class MainWindow(QMainWindow):
             import threading
             def _load_voice_model():
                 try:
-                    print("[Pixiis] Loading Whisper model in background...")
+                    logger.info("Loading Whisper model in background...")
                     self._voice_pipeline._ensure_models()
                     self._voice_ready = True
-                    print("[Pixiis] Whisper model loaded — voice search ready")
-                except Exception as e:
-                    print(f"[Pixiis] Whisper model load failed: {e}")
+                    logger.info("Whisper model loaded — voice search ready")
+                except Exception:
+                    logger.warning("Whisper model load failed", exc_info=True)
             threading.Thread(target=_load_voice_model, daemon=True).start()
-        except Exception as e:
-            print(f"[Pixiis] Voice pipeline unavailable: {e}")
+        except Exception:
+            logger.debug("Voice pipeline unavailable", exc_info=True)
             self._voice_pipeline = None
+
+        # -- playtime tracking -----------------------------------------------
+        self._playtime_tracker = PlaytimeTracker()
+        self._launched_apps: dict[str, AppEntry] = {}  # app.id -> AppEntry
+        self._launched_pids: dict[str, int | None] = {}  # app.id -> PID (if known)
+
+        # Timer: every 30 seconds, check if launched games are still running
+        self._playtime_timer = QTimer(self)
+        self._playtime_timer.setInterval(30_000)
+        self._playtime_timer.timeout.connect(self._check_running_games)
 
         # -- register pages --------------------------------------------------
         self._register_pages()
 
+        # -- Quick Resume overlay (on central widget, above page stack) ------
+        self._quick_resume = QuickResume(self.centralWidget())
+        self._quick_resume.launch_requested.connect(self._on_launch_requested)
+
+        # -- Virtual Keyboard overlay (on central widget) --------------------
+        self._virtual_keyboard = VirtualKeyboard(parent=self.centralWidget())
+        self._virtual_keyboard.dismissed.connect(self._on_keyboard_dismissed)
+        self._virtual_keyboard.text_submitted.connect(self._on_keyboard_submitted)
+
+        # -- First-run onboarding --------------------------------------------
+        try:
+            from pixiis.core.paths import cache_dir
+            self._onboarded = (cache_dir() / ".onboarded").exists()
+        except Exception:
+            self._onboarded = False
+        if not self._has_cache and not self._onboarded:
+            # Stay on onboarding (it's the first registered page, already current)
+            self._nav_stack = ["onboarding"]
+            self._sidebar.set_active("")
+        else:
+            # Skip onboarding — jump to home (no animation at startup)
+            home_widget = self._page_stack._pages.get("home")
+            if home_widget is not None:
+                self._page_stack.setCurrentWidget(home_widget)
+                self._page_stack._current_name = "home"
+            self._nav_stack = ["home"]
+            self._sidebar.set_active("home")
+
         # -- navigation state ------------------------------------------------
-        self._nav_stack: list[str] = ["home"]
-        self._sidebar.set_active("home")
+        # (nav_stack already set above based on onboarding check)
 
         # -- signals ---------------------------------------------------------
         self._sidebar.page_requested.connect(self.navigate_to)
@@ -194,6 +240,8 @@ class MainWindow(QMainWindow):
         self._controller_bridge.voice_start.connect(self._on_voice_start)
         self._controller_bridge.voice_stop.connect(self._on_voice_stop)
         self._controller_bridge.toggle_app.connect(self._toggle_visibility)
+        self._controller_bridge.keyboard_requested.connect(self._show_virtual_keyboard)
+        self._controller_bridge.favorite_toggle.connect(self._on_controller_favorite_toggle)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
         bus.subscribe(TranscriptionEvent, self._on_transcription)
 
@@ -206,6 +254,7 @@ class MainWindow(QMainWindow):
         modules aren't available yet we insert simple placeholders.
         """
         page_defs: list[tuple[str, str]] = [
+            ("onboarding", "Onboarding"),
             ("home", "Home"),
             ("library", "Library"),
             ("settings", "Settings"),
@@ -220,10 +269,17 @@ class MainWindow(QMainWindow):
     def _try_load_page(self, name: str, label: str) -> QWidget:
         """Attempt to import a real page; fall back to a placeholder."""
         try:
+            if name == "onboarding":
+                from pixiis.ui.pages.onboarding_page import OnboardingPage
+                page = OnboardingPage()
+                page.lets_go.connect(self._on_onboarding_done)
+                return page
             if name == "home":
                 from pixiis.ui.pages.home_page import HomePage
                 page = HomePage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
+                if hasattr(page, '_grid') and page._grid and hasattr(page._grid, 'tile_favorite_toggled'):
+                    page._grid.tile_favorite_toggled.connect(self._on_favorite_toggled)
                 if hasattr(page, '_search') and page._search:
                     if hasattr(page._search, 'mic_clicked'):
                         page._search.mic_clicked.connect(self._on_voice_start)
@@ -234,6 +290,8 @@ class MainWindow(QMainWindow):
                 from pixiis.ui.pages.library_page import LibraryPage
                 page = LibraryPage(self._registry, image_loader=self._image_loader)
                 page.game_selected.connect(self._on_game_selected)
+                if hasattr(page, '_grid') and page._grid and hasattr(page._grid, 'tile_favorite_toggled'):
+                    page._grid.tile_favorite_toggled.connect(self._on_favorite_toggled)
                 if hasattr(page, '_search') and page._search:
                     if hasattr(page._search, 'mic_clicked'):
                         page._search.mic_clicked.connect(self._on_voice_start)
@@ -258,8 +316,8 @@ class MainWindow(QMainWindow):
                 panel.back_requested.connect(self.go_back)
                 panel.launch_requested.connect(self._on_launch_requested)
                 return panel
-        except Exception as e:
-            print(f"[Pixiis] Failed to load page '{name}': {e}")
+        except Exception:
+            logger.debug("Failed to load page '%s'", name, exc_info=True)
 
         return self._make_placeholder(label)
 
@@ -311,21 +369,32 @@ class MainWindow(QMainWindow):
             try:
                 self._vibration.pulse(left=10000, right=10000, duration_ms=40)
             except Exception:
-                pass
+                logger.debug("Vibration pulse failed", exc_info=True)
         current = self._page_stack.current_page_name()
         if current in self._PAGE_ORDER:
             idx = (self._PAGE_ORDER.index(current) + 1) % len(self._PAGE_ORDER)
             self.navigate_to(self._PAGE_ORDER[idx])
 
     def _toggle_visibility(self) -> None:
-        """Start button — hide to background or show from background."""
-        if self.isVisible():
-            self.hide()
-            self.show_toast("Pixiis running in background — press Start to reopen", icon="info")
-        else:
+        """Start button — show Quick Resume overlay or dismiss it."""
+        if not self.isVisible():
             self.showFullScreen() if self._config.get("ui.fullscreen", True) else self.showNormal()
             self.activateWindow()
             self.raise_()
+            return
+
+        # If Quick Resume is already showing, dismiss it
+        if self._quick_resume.is_showing():
+            self._quick_resume.dismiss()
+            return
+
+        # Show Quick Resume with 5 most recent games
+        recent = sorted(
+            [a for a in self._registry.get_all() if a.metadata.get("last_played", 0) > 0],
+            key=lambda a: a.metadata.get("last_played", 0),
+            reverse=True,
+        )[:5]
+        self._quick_resume.show_overlay(recent)
 
     def _nav_prev_page(self) -> None:
         """LB — cycle to previous page."""
@@ -333,7 +402,7 @@ class MainWindow(QMainWindow):
             try:
                 self._vibration.pulse(left=10000, right=10000, duration_ms=40)
             except Exception:
-                pass
+                logger.debug("Vibration pulse failed", exc_info=True)
         current = self._page_stack.current_page_name()
         if current in self._PAGE_ORDER:
             idx = (self._PAGE_ORDER.index(current) - 1) % len(self._PAGE_ORDER)
@@ -403,9 +472,8 @@ class MainWindow(QMainWindow):
 
         # Disable Scan Now button in settings if available
         settings = self._page_stack._pages.get("settings")
-        if settings and hasattr(settings, '_scan_btn'):
-            settings._scan_btn.setText("Scanning...")
-            settings._scan_btn.setEnabled(False)
+        if settings and hasattr(settings, 'set_scanning'):
+            settings.set_scanning(True)
 
         thread = QThread(self)
         worker = _ScanWorker(self._registry)
@@ -428,10 +496,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_pages(self, apps: list) -> None:
         """Refresh pages on the main thread (safe for UI updates)."""
+        self._apply_favorites_from_config()
         for name in ("home", "library"):
             page = self._page_stack._pages.get(name)
             if page is not None and hasattr(page, "refresh"):
                 page.refresh(apps)
+
+        # Update onboarding page if it's showing
+        onboarding = self._page_stack._pages.get("onboarding")
+        if onboarding is not None and hasattr(onboarding, "update_stores"):
+            onboarding.update_stores(apps)
 
         # Scan-complete feedback
         n_games = sum(1 for a in apps if a.is_game)
@@ -443,9 +517,8 @@ class MainWindow(QMainWindow):
 
         # Restore Scan Now button in settings
         settings = self._page_stack._pages.get("settings")
-        if settings and hasattr(settings, '_scan_btn'):
-            settings._scan_btn.setText("Scan Now")
-            settings._scan_btn.setEnabled(True)
+        if settings and hasattr(settings, 'set_scanning'):
+            settings.set_scanning(False)
 
     def _on_game_selected(self, app) -> None:
         """Navigate to game detail when a tile is activated."""
@@ -460,78 +533,70 @@ class MainWindow(QMainWindow):
             )
         self.navigate_to("game_detail")
         # Focus the launch button for immediate A-press
-        if detail and hasattr(detail, '_hero') and hasattr(detail._hero, '_launch_btn'):
-            detail._hero._launch_btn.setFocus()
+        if detail and hasattr(detail, 'focus_launch_button'):
+            detail.focus_launch_button()
 
     def _on_voice_start(self) -> None:
-        print("[Pixiis Voice] === VOICE START ===")
+        logger.debug("Voice start")
 
         # Vibration feedback
         if self._vibration:
             try:
                 self._vibration.pulse(left=12000, right=12000, duration_ms=50)
-                print("[Pixiis Voice] Vibration pulse sent")
-            except Exception as e:
-                print(f"[Pixiis Voice] Vibration failed: {e}")
+            except Exception:
+                logger.debug("Voice vibration pulse failed", exc_info=True)
 
         # Show overlay
         if self._voice_overlay:
             self._voice_overlay.show_text("Listening...", is_final=False)
-            print("[Pixiis Voice] Overlay shown: Listening...")
 
         # Focus search bar and show mic recording state
         current = self._page_stack.current_page_name()
         if current in ("home", "library"):
             page = self._page_stack._pages.get(current)
-            if page and hasattr(page, '_search') and page._search:
-                page._search.setFocus()
-                if hasattr(page._search, 'set_mic_recording'):
-                    page._search.set_mic_recording(True)
-                print("[Pixiis Voice] Search bar focused + mic icon active")
+            if page and hasattr(page, 'focus_search'):
+                page.focus_search()
+            if page and hasattr(page, 'set_mic_recording'):
+                page.set_mic_recording(True)
 
         # Start actual voice recording
         if self._voice_pipeline is not None and self._voice_ready:
-            print("[Pixiis Voice] Starting recording...")
             try:
-                self._voice_pipeline._start_recording()
-                print("[Pixiis Voice] Recording from mic — speak now")
-            except Exception as e:
-                print(f"[Pixiis Voice] Recording start FAILED: {e}")
+                self._voice_pipeline.start_recording()
+                logger.debug("Voice recording started")
+            except Exception:
+                logger.warning("Voice recording start failed", exc_info=True)
         elif self._voice_pipeline is not None:
-            print("[Pixiis Voice] Model still loading, try again in a moment")
+            logger.debug("Voice model still loading, try again in a moment")
         else:
-            print("[Pixiis Voice] No voice pipeline available")
+            logger.debug("No voice pipeline available")
 
     def _on_voice_stop(self) -> None:
-        print("[Pixiis Voice] === VOICE STOP ===")
+        logger.debug("Voice stop")
 
         # Stop recording — triggers final transcription
         if self._voice_pipeline is not None:
-            print("[Pixiis Voice] Stopping recording...")
             try:
-                self._voice_pipeline._stop_recording()
-                print("[Pixiis Voice] Final transcription queued — waiting for result...")
-            except Exception as e:
-                print(f"[Pixiis Voice] Recording stop FAILED: {e}")
-                import traceback
-                traceback.print_exc()
+                self._voice_pipeline.stop_recording()
+                logger.debug("Voice recording stopped, transcription queued")
+            except Exception:
+                logger.warning("Voice recording stop failed", exc_info=True)
         else:
-            print("[Pixiis Voice] WARNING: No voice pipeline to stop")
+            logger.debug("No voice pipeline to stop")
 
         # Reset search bar mic state
         current = self._page_stack.current_page_name()
         if current in ("home", "library"):
             page = self._page_stack._pages.get(current)
-            if page and hasattr(page, '_search') and page._search:
-                if hasattr(page._search, 'set_mic_recording'):
-                    page._search.set_mic_recording(False)
+            if page and hasattr(page, 'set_mic_recording'):
+                page.set_mic_recording(False)
 
         if self._voice_overlay:
             self._voice_overlay.show_text("Processing...", is_final=False)
 
     def _on_transcription(self, event: TranscriptionEvent) -> None:
         """Called from transcription worker thread — marshal to main thread via signal."""
-        print(f"[Pixiis Voice] TranscriptionEvent: is_final={event.is_final} text='{event.text}'")
+        logger.debug("TranscriptionEvent: is_final=%s text='%s'", event.is_final, event.text)
         if not event.is_final:
             return
         # Signal is thread-safe — guaranteed to deliver on the main thread
@@ -540,17 +605,15 @@ class MainWindow(QMainWindow):
     def _apply_transcription(self, text: str) -> None:
         """Main-thread handler: write transcribed text to the search bar."""
         current = self._page_stack.current_page_name()
-        print(f"[Pixiis Voice] Writing to search bar on page '{current}': '{text}'")
+        logger.debug("Writing transcription to search bar on page '%s': '%s'", current, text)
         if current in ("home", "library"):
             page = self._page_stack._pages.get(current)
-            if page and hasattr(page, "_search") and page._search:
-                page._search.setText(text)
-                page._search.search_changed.emit(text)
-                print(f"[Pixiis Voice] Text written to search bar OK")
+            if page and hasattr(page, 'set_search_text'):
+                page.set_search_text(text)
             else:
-                print(f"[Pixiis Voice] No search bar found on page")
+                logger.debug("No search bar found on page '%s'", current)
         else:
-            print(f"[Pixiis Voice] Not on a searchable page")
+            logger.debug("Not on a searchable page")
         if self._voice_overlay:
             self._voice_overlay.dismiss()
 
@@ -558,35 +621,240 @@ class MainWindow(QMainWindow):
         """Show a floating toast notification."""
         self._toast.show_message(msg, icon=icon)
 
+    # -- onboarding ----------------------------------------------------------
+
+    def _on_onboarding_done(self) -> None:
+        """User clicked 'Let's go!' on the onboarding page."""
+        self._onboarded = True
+        # Persist the onboarded flag so we never show onboarding again.
+        # Config is TOML-based (read-only). Use a simple marker file instead.
+        try:
+            from pixiis.core.paths import cache_dir
+            marker = cache_dir() / ".onboarded"
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("1", encoding="utf-8")
+        except Exception:
+            logger.debug("Failed to write onboarding marker", exc_info=True)
+        self.navigate_to("home")
+
+    # -- virtual keyboard ----------------------------------------------------
+
+    def _show_virtual_keyboard(self) -> None:
+        """Show the on-screen keyboard when a search bar is focused via controller."""
+        focus = QApplication.focusWidget()
+        if not isinstance(focus, QLineEdit):
+            return
+        # Don't show if already visible
+        if self._virtual_keyboard.isVisible():
+            return
+        self._virtual_keyboard.set_target(focus)
+        # Position below the focused widget
+        central = self.centralWidget()
+        if central is None:
+            return
+        pos = focus.mapTo(central, focus.rect().bottomLeft())
+        # Ensure keyboard stays within the window
+        x = max(0, min(pos.x(), central.width() - self._virtual_keyboard.width()))
+        y = pos.y() + 4
+        if y + self._virtual_keyboard.height() > central.height():
+            # Show above the widget instead
+            y = focus.mapTo(central, focus.rect().topLeft()).y() - self._virtual_keyboard.height() - 4
+        self._virtual_keyboard.show_at(x, y)
+
+    def _on_keyboard_dismissed(self) -> None:
+        """Virtual keyboard was dismissed."""
+        pass  # focus is restored by the keyboard itself
+
+    def _on_keyboard_submitted(self, text: str) -> None:
+        """Virtual keyboard submitted text."""
+        pass  # text is already synced to the target QLineEdit
+
+    # -- favorites -----------------------------------------------------------
+
+    def _on_controller_favorite_toggle(self) -> None:
+        """Y button pressed -- toggle favorite on the currently focused tile."""
+        from pixiis.ui.widgets.game_tile import GameTile
+
+        widget = QApplication.focusWidget()
+        if isinstance(widget, GameTile):
+            widget._toggle_favorite()
+
+    def _on_favorite_toggled(self, app: AppEntry, is_favorite: bool) -> None:
+        """Handle favorite toggle from any tile (mouse click or controller Y)."""
+        # Update the favorites list in config
+        favorites: list[str] = list(self._config.get("library.favorites", []))
+        if is_favorite and app.id not in favorites:
+            favorites.append(app.id)
+        elif not is_favorite and app.id in favorites:
+            favorites.remove(app.id)
+
+        # Persist to user config
+        self._save_favorites(favorites)
+
+        # Save updated metadata to cache
+        self._registry._cache.save(self._registry.get_all())
+
+        # Show feedback
+        name = getattr(app, "display_name", "game")
+        if is_favorite:
+            self.show_toast(f"Added {name} to favorites")
+        else:
+            self.show_toast(f"Removed {name} from favorites")
+
+        # Refresh pages so sort order updates
+        self._refresh_pages(self._registry.get_all())
+
+    def _save_favorites(self, favorites: list[str]) -> None:
+        """Write the favorites list to the user config TOML file."""
+        try:
+            import tomli_w
+        except ImportError:
+            # tomli_w not installed -- fall back silently
+            return
+        user_path = self._config.ensure_user_config()
+        try:
+            with open(user_path, "rb") as f:
+                import tomllib
+                data = tomllib.load(f)
+        except Exception:
+            data = {}
+        data.setdefault("library", {})["favorites"] = favorites
+        try:
+            with open(user_path, "wb") as f:
+                tomli_w.dump(data, f)
+        except Exception:
+            pass
+        # Update in-memory config
+        self._config._data.setdefault("library", {})["favorites"] = favorites
+
+    def _apply_favorites_from_config(self) -> None:
+        """Sync the favorites list from config into app metadata."""
+        favorites = set(self._config.get("library.favorites", []))
+        for app in self._registry.get_all():
+            app.metadata["favorite"] = app.id in favorites
+
     def _on_launch_requested(self, app) -> None:
         """Launch the selected game."""
         if self._vibration:
             try:
                 self._vibration.rumble_launch()
             except Exception:
-                pass
+                logger.debug("Launch vibration failed", exc_info=True)
         name = getattr(app, "display_name", "game")
         self.show_toast(f"Launching {name}...", icon="info")
 
         # Update launch button text and disable to prevent double-press
         detail = self._page_stack._pages.get("game_detail")
-        btn = None
-        if detail and hasattr(detail, '_hero') and hasattr(detail._hero, '_launch_btn'):
-            btn = detail._hero._launch_btn
-            btn.setEnabled(False)
-            btn.setText("Launching...")
+        if detail and hasattr(detail, 'set_launch_button_enabled'):
+            detail.set_launch_button_enabled(False)
+            detail.set_launch_button_text("Launching...")
 
         def _restore_btn() -> None:
             if btn is not None:
-                btn.setText("\u25b6  LAUNCH")
+                btn.setText("\u25b6  PLAY")
                 btn.setEnabled(True)
 
         try:
             self._registry.launch(app)
             QTimer.singleShot(2000, _restore_btn)
+
+            # Start playtime tracking
+            import time
+            self._playtime_tracker.start(app.id)
+            self._launched_apps[app.id] = app
+            app.last_played = time.time()
+            # Try to find the PID of the launched process
+            self._launched_pids[app.id] = self._find_game_pid(app)
+            # Start the monitoring timer if not already running
+            if not self._playtime_timer.isActive():
+                self._playtime_timer.start()
+
         except Exception as e:
             self.show_toast(f"Launch failed: {e}", icon="error")
             _restore_btn()  # re-enable immediately on error
+
+    # -- playtime monitoring -------------------------------------------------
+
+    @staticmethod
+    def _find_game_pid(app: AppEntry) -> int | None:
+        """Try to find a running PID for *app*'s executable."""
+        try:
+            import psutil
+            if app.exe_path:
+                exe_name = app.exe_path.name.lower()
+                for proc in psutil.process_iter(["name"]):
+                    try:
+                        if proc.info["name"] and proc.info["name"].lower() == exe_name:
+                            return proc.pid
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+        except ImportError:
+            pass
+        return None
+
+    def _check_running_games(self) -> None:
+        """Periodic check: is each launched game still running?"""
+        finished: list[str] = []
+
+        for app_id, app in list(self._launched_apps.items()):
+            pid = self._launched_pids.get(app_id)
+            still_running = False
+
+            # First try: check by PID if we have one
+            if pid is not None:
+                try:
+                    import psutil
+                    still_running = psutil.pid_exists(pid)
+                except ImportError:
+                    still_running = True  # can't check, assume running
+
+            # Second try: find by exe name if no PID or PID gone
+            if not still_running and pid is not None:
+                new_pid = self._find_game_pid(app)
+                if new_pid is not None:
+                    self._launched_pids[app_id] = new_pid
+                    still_running = True
+
+            # If we never got a PID (no psutil), give up after 2 minutes
+            if pid is None:
+                import time
+                start = self._playtime_tracker._active.get(app_id, 0)
+                if start and (time.time() - start) > 120:
+                    # Try one more time to find it
+                    new_pid = self._find_game_pid(app)
+                    if new_pid is not None:
+                        self._launched_pids[app_id] = new_pid
+                        still_running = True
+                    else:
+                        # Assume the game closed if we can't find it after 2 min
+                        finished.append(app_id)
+                        continue
+                else:
+                    still_running = True  # too early to tell
+
+            if not still_running:
+                finished.append(app_id)
+
+        for app_id in finished:
+            self._on_game_closed(app_id)
+
+        # Stop the timer if nothing is being tracked
+        if not self._launched_apps:
+            self._playtime_timer.stop()
+
+    def _on_game_closed(self, app_id: str) -> None:
+        """Handle a game session ending: record playtime and save cache."""
+        minutes = self._playtime_tracker.stop(app_id)
+        app = self._launched_apps.pop(app_id, None)
+        self._launched_pids.pop(app_id, None)
+
+        if app is not None and minutes > 0:
+            app.playtime_minutes = app.playtime_minutes + minutes
+            # Save the updated metadata to cache
+            self._registry._cache.save(self._registry.get_all())
+            self.show_toast(
+                f"Played {app.display_name} for {minutes} min", icon="info"
+            )
 
     # -- cleanup -------------------------------------------------------------
 
@@ -599,6 +867,15 @@ class MainWindow(QMainWindow):
         if self._cleaned_up:
             return
         self._cleaned_up = True
+        # Stop playtime tracking and save final stats
+        self._playtime_timer.stop()
+        remaining = self._playtime_tracker.stop_all()
+        for app_id, minutes in remaining.items():
+            app = self._launched_apps.pop(app_id, None)
+            if app is not None and minutes > 0:
+                app.playtime_minutes = app.playtime_minutes + minutes
+        if remaining:
+            self._registry._cache.save(self._registry.get_all())
         # Stop background scan thread if still running
         if self._scan_thread is not None and self._scan_thread.isRunning():
             self._scan_thread.quit()
@@ -612,7 +889,7 @@ class MainWindow(QMainWindow):
             try:
                 self._voice_pipeline.stop()
             except Exception:
-                pass
+                logger.debug("Voice pipeline stop failed", exc_info=True)
         bus.unsubscribe(LibraryUpdatedEvent, self._on_library_updated)
         bus.unsubscribe(TranscriptionEvent, self._on_transcription)
 

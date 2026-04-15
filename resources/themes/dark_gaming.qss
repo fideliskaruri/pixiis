@@ -18,7 +18,7 @@ QMainWindow {
 
 QWidget {
     font-family: "{{font_family}}", "Segoe UI", "Inter", "SF Pro Display", system-ui, sans-serif;
-    font-size: 14px;
+    font-size: {{font_size_body}};
     color: {{text_color}};
     outline: none;
 }
@@ -60,7 +60,7 @@ QPushButton {
     border: 2px solid transparent;
     border-radius: 8px;
     padding: 10px 20px;
-    font-size: 14px;
+    font-size: {{font_size_body}};
     font-weight: 500;
 }
 
@@ -694,7 +694,7 @@ QGroupBox {
     border-radius: 12px;
     margin-top: 16px;
     padding: 24px 16px 16px 16px;
-    font-size: 16px;
+    font-size: {{font_size_md}};
     font-weight: 600;
 }
 
@@ -708,7 +708,7 @@ QGroupBox::title {
     left: 20px;
     padding: 2px 12px;
     color: {{text_color}};
-    font-size: 16px;
+    font-size: {{font_size_md}};
     font-weight: 600;
 }
 

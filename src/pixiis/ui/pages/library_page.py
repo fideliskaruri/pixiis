@@ -240,6 +240,22 @@ class LibraryPage(QWidget):
 
     # -- public API -----------------------------------------------------------
 
+    def set_search_text(self, text: str) -> None:
+        """Set the search bar text and trigger the search signal."""
+        if self._search is not None:
+            self._search.setText(text)
+            self._search.search_changed.emit(text)
+
+    def focus_search(self) -> None:
+        """Give keyboard focus to the search bar."""
+        if self._search is not None:
+            self._search.setFocus()
+
+    def set_mic_recording(self, active: bool) -> None:
+        """Update the search bar mic icon to show recording state."""
+        if self._search is not None and hasattr(self._search, 'set_mic_recording'):
+            self._search.set_mic_recording(active)
+
     def refresh(self, apps: list[AppEntry] | None = None) -> None:
         """Re-apply current filter against latest data."""
         if hasattr(self, '_loading') and self._loading.isVisible():
@@ -278,8 +294,8 @@ class LibraryPage(QWidget):
             q = self._search_query.lower()
             apps = [a for a in apps if q in a.name.lower()]
 
-        # Always A-Z
-        return sorted(apps, key=lambda a: a.name.lower())
+        # Favorites first, then A-Z within each group
+        return sorted(apps, key=lambda a: (not a.is_favorite, a.name.lower()))
 
     def _apply_filter_and_display(self) -> None:
         apps = self._filtered_apps()

@@ -36,13 +36,14 @@ voice_trigger = "rt"            # "rt", "lt", "hold_y", "hold_x"
 "button:1" = { action = "navigate_ui", mode = "press", target = "back" }
 # Xbox X button = search
 "button:2" = { action = "navigate_ui", mode = "press", target = "search" }
-# Xbox Y button = launch selected
-"button:3" = { action = "launch_selected", mode = "press" }
+# Xbox Y button = toggle favorite
+"button:3" = { action = "favorite_toggle", mode = "press" }
 # LB+RB = open file manager
 "combo:4+5" = { action = "navigate_ui", mode = "combo", target = "file_manager" }
 
 [library]
 providers = ["steam", "xbox", "epic", "gog", "ea", "startmenu", "folders", "manual"]
+favorites = []  # list of app IDs marked as favorite
 scan_interval_minutes = 60
 
 [library.steam]
@@ -64,6 +65,7 @@ extra_paths = []
 tile_size = "large"             # "small", "medium", "large"
 animations = true
 fullscreen = true
+scale = 1.0                     # UI scale factor (1.0 = desktop, 1.5 = couch/TV)
 
 [ui.colors]
 primary = "#1a1a2e"

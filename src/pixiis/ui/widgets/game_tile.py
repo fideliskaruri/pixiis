@@ -38,10 +38,24 @@ BG_SURFACE = QColor("#13121a")
 BG_ELEVATED = QColor("#1c1a24")
 TEXT_PRIMARY = QColor("#f0eef5")
 TEXT_SECONDARY = QColor("#8a8698")
-TEXT_MUTED = QColor("#5c586a")
+TEXT_MUTED = QColor("#7a7690")
 
 # Animation
 ANIM_DURATION_MS = 180
+
+# ── Pre-built fonts (avoid re-creating in paintEvent) ─────────────────────
+
+_ICON_FONT = QFont()
+_ICON_FONT.setPixelSize(48)
+
+_NAME_FONT = QFont()
+_NAME_FONT.setPixelSize(16)
+_NAME_FONT.setWeight(QFont.Weight.DemiBold)
+
+_BADGE_FONT = QFont()
+_BADGE_FONT.setPixelSize(10)
+_BADGE_FONT.setBold(True)
+_BADGE_FONT.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
 
 # Source badge labels
 _SOURCE_LABELS = {
@@ -89,6 +103,7 @@ class GameTile(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.setAccessibleName(app.display_name)
 
         # ── Animations ──────────────────────────────────────────────────
         self._hover_anim = QPropertyAnimation(self, b"hoverProgress", self)
@@ -184,16 +199,11 @@ class GameTile(QWidget):
             p.fillRect(rect, grad)
             # Controller icon placeholder
             p.setPen(TEXT_MUTED)
-            icon_font = QFont()
-            icon_font.setPixelSize(48)
-            p.setFont(icon_font)
+            p.setFont(_ICON_FONT)
             p.drawText(rect.adjusted(0, -20, 0, 0), Qt.AlignmentFlag.AlignCenter, "\U0001f3ae")
             # Centered game name
             p.setPen(TEXT_SECONDARY)
-            name_font = QFont()
-            name_font.setPixelSize(13)
-            name_font.setWeight(QFont.Weight.DemiBold)
-            p.setFont(name_font)
+            p.setFont(_NAME_FONT)
             name_rect = rect.adjusted(12, rect.height() * 0.55, -12, 0)
             p.drawText(name_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, self.app.display_name)
 
@@ -210,11 +220,8 @@ class GameTile(QWidget):
         grad.setColorAt(1.0, QColor(0, 0, 0, 216))  # ~0.85 opacity
         p.fillRect(grad_rect, grad)
 
-        # ── Game name text (13px SemiBold, max 2 lines) ─────────────────
-        name_font = QFont()
-        name_font.setPixelSize(16)
-        name_font.setWeight(QFont.Weight.DemiBold)
-        p.setFont(name_font)
+        # ── Game name text (16px SemiBold, max 2 lines) ─────────────────
+        p.setFont(_NAME_FONT)
         p.setPen(TEXT_PRIMARY)
 
         text_pad = 12
@@ -224,7 +231,7 @@ class GameTile(QWidget):
             rect.width() - text_pad * 2,
             38,
         )
-        fm = QFontMetrics(name_font)
+        fm = QFontMetrics(_NAME_FONT)
         elided = fm.elidedText(
             self.app.display_name, Qt.TextElideMode.ElideRight,
             int(text_rect.width()) * 2  # allow ~2 lines
@@ -239,12 +246,8 @@ class GameTile(QWidget):
         source_key = self.app.source.name.lower() if hasattr(self.app.source, "name") else str(self.app.source).lower()
         badge_text = _SOURCE_LABELS.get(source_key, source_key.upper())
 
-        badge_font = QFont()
-        badge_font.setPixelSize(10)
-        badge_font.setBold(True)
-        badge_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
-        p.setFont(badge_font)
-        bfm = QFontMetrics(badge_font)
+        p.setFont(_BADGE_FONT)
+        bfm = QFontMetrics(_BADGE_FONT)
         badge_w = bfm.horizontalAdvance(badge_text) + 12
         badge_h = 18
         badge_x = rect.width() - badge_w - 8
@@ -263,7 +266,7 @@ class GameTile(QWidget):
         if fp > 0.0:
             # Focus state: strong accent border + outer glow
             for i in range(4, 0, -1):
-                glow_alpha = int(40 * fp * (5 - i) / 4)
+                glow_alpha = int(60 * fp * (5 - i) / 4)
                 pen = QPen(QColor(ACCENT_COLOR.red(), ACCENT_COLOR.green(), ACCENT_COLOR.blue(), glow_alpha))
                 pen.setWidthF(float(i) * 1.5)
                 p.setPen(pen)
@@ -282,19 +285,19 @@ class GameTile(QWidget):
             # Hover state: faint accent border (no glow)
             border_alpha = int(64 * hp)  # rgba(233,69,96,0.25)
             pen = QPen(QColor(ACCENT_COLOR.red(), ACCENT_COLOR.green(), ACCENT_COLOR.blue(), border_alpha))
-            pen.setWidthF(1.0)
+            pen.setWidthF(2.0)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
-            border_rect = rect.adjusted(0.5, 0.5, -0.5, -0.5)
+            border_rect = rect.adjusted(1, 1, -1, -1)
             p.drawRoundedRect(border_rect, CORNER_RADIUS, CORNER_RADIUS)
 
         else:
-            # Default: subtle white border
+            # Default: subtle white border — always 2px (no layout shift)
             pen = QPen(QColor(255, 255, 255, 15))  # rgba(255,255,255,0.06)
-            pen.setWidthF(1.0)
+            pen.setWidthF(2.0)
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
-            border_rect = rect.adjusted(0.5, 0.5, -0.5, -0.5)
+            border_rect = rect.adjusted(1, 1, -1, -1)
             p.drawRoundedRect(border_rect, CORNER_RADIUS, CORNER_RADIUS)
 
         p.end()

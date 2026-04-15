@@ -1,4 +1,9 @@
-"""Settings page — clean, scrollable settings organized in framed sections."""
+"""Settings page — clean, scrollable settings organized in card sections.
+
+All colors come from QSS theme via objectName selectors.
+No inline setStyleSheet calls except for dynamic status label updates
+which use objectName swaps instead.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +11,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
@@ -38,20 +44,13 @@ except ImportError:
     __version__ = "0.1.0"
 
 
-# ── Design tokens (matches DESIGN_SPEC.md) ────────────────────────────────
-
-_TEXT_SECONDARY = "#8a8698"
-_TEXT_MUTED = "#5c586a"
-_SUCCESS = "#4ade80"
-_ERROR = "#f87171"
-
-
-# ── Widget factories ──────────────────────────────────────────────────────
+# ── Widget factories (no inline styles — use objectName for QSS) ────────
 
 
 def _section_title(text: str) -> QLabel:
-    """H3-level section title: 16px SemiBold, inherits text_primary from QSS."""
+    """H2-level section title: 20px SemiBold, color from QSS #sectionTitle."""
     lbl = QLabel(text)
+    lbl.setObjectName("sectionTitle")
     font = QFont()
     font.setPixelSize(20)
     font.setWeight(QFont.Weight.DemiBold)
@@ -60,15 +59,16 @@ def _section_title(text: str) -> QLabel:
 
 
 def _form_label(text: str) -> QLabel:
-    """Secondary-color form label."""
+    """Secondary-color form label, styled by QSS #formLabel."""
     lbl = QLabel(text)
-    lbl.setStyleSheet(f"color: {_TEXT_SECONDARY};")
+    lbl.setObjectName("formLabel")
     return lbl
 
 
 def _value_label(text: str) -> QLabel:
-    """Prominent slider value readout."""
+    """Slider value readout, styled by QSS #valueLabel."""
     lbl = QLabel(text)
+    lbl.setObjectName("valueLabel")
     font = QFont()
     font.setPixelSize(14)
     font.setWeight(QFont.Weight.DemiBold)
@@ -77,21 +77,42 @@ def _value_label(text: str) -> QLabel:
     return lbl
 
 
-def _slider(min_val: int, max_val: int, value: int) -> QSlider:
+def _slider(
+    min_val: int, max_val: int, value: int, step: int = 1,
+) -> QSlider:
     """Horizontal slider with StrongFocus and sensible minimum width."""
     s = QSlider(Qt.Orientation.Horizontal)
     s.setRange(min_val, max_val)
     s.setValue(value)
+    s.setSingleStep(step)
     s.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     s.setMinimumWidth(160)
     return s
 
 
-# ── SettingsPage ──────────────────────────────────────────────────────────
+def _settings_card() -> QFrame:
+    """A section card: surface bg, 12px radius, 20px padding. Styled by QSS."""
+    frame = QFrame()
+    frame.setObjectName("settingsCard")
+    frame.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    return frame
+
+
+def _link_button(text: str, url: str) -> QPushButton:
+    """A text-style link button that opens a URL."""
+    btn = QPushButton(text)
+    btn.setObjectName("linkButton")
+    btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(url)))
+    return btn
+
+
+# ── SettingsPage ────────────────────────────────────────────────────────
 
 
 class SettingsPage(QScrollArea):
-    """Scrollable settings page with framed sections.
+    """Scrollable settings page with framed card sections.
 
     Parameters
     ----------
@@ -117,18 +138,24 @@ class SettingsPage(QScrollArea):
         self.setObjectName("SettingsPage")
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        # Install event filter to auto-scroll when a child gets focus
+        self.installEventFilter(self)
 
         container = QWidget()
         container.setObjectName("SettingsContainer")
         self._layout = QVBoxLayout(container)
-        self._layout.setContentsMargins(32, 24, 32, 16)
+        self._layout.setContentsMargins(32, 24, 32, 32)
         self._layout.setSpacing(24)
 
-        # Page title (H1: 24px Bold)
+        # Page title (H1: 24px Bold, -0.02em letter-spacing)
         title = QLabel("Settings")
+        title.setObjectName("sectionTitle")
         title_font = QFont()
         title_font.setPixelSize(24)
         title_font.setWeight(QFont.Weight.Bold)
+        title_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 98)
         title.setFont(title_font)
         self._layout.addWidget(title)
 
@@ -155,13 +182,31 @@ class SettingsPage(QScrollArea):
         self._layout.addStretch()
         self.setWidget(container)
 
-    # ── Section helper ───────────────────────────────────────────────────
+    # ── Event filter — scroll follows focus ─────────────────────────────
+
+    def eventFilter(self, obj: object, event: QEvent) -> bool:  # noqa: N802
+        """Scroll to ensure the focused widget is visible (D-pad support)."""
+        if event.type() == QEvent.Type.ChildAdded:
+            # Watch new children for focus events
+            child = event.child()  # type: ignore[union-attr]
+            if hasattr(child, "installEventFilter"):
+                child.installEventFilter(self)
+        elif event.type() == QEvent.Type.FocusIn:
+            focused = QApplication.focusWidget()
+            if focused and focused is not self:
+                self.ensureWidgetVisible(focused, 50, 50)
+        return super().eventFilter(obj, event)
+
+    # ── Section helper ──────────────────────────────────────────────────
 
     def _add_section(self, title: str) -> QVBoxLayout:
-        """Add a titled QFrame section and return its inner layout.
+        """Add a titled card section and return its inner layout.
 
-        A wrapper QWidget keeps the title label and frame together with tight
-        8px spacing, while the main layout's 24px gap separates sections.
+        Structure:
+          wrapper (QWidget, transparent)
+            section title label (ABOVE the card)
+            card frame (QFrame#settingsCard, surface bg, 12px radius)
+              inner layout (20px padding, 16px spacing)
         """
         wrapper = QWidget()
         wrapper_layout = QVBoxLayout(wrapper)
@@ -170,51 +215,48 @@ class SettingsPage(QScrollArea):
 
         wrapper_layout.addWidget(_section_title(title))
 
-        frame = QFrame()
-        frame.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        frame = _settings_card()
         inner = QVBoxLayout(frame)
-        inner.setContentsMargins(16, 16, 16, 16)
+        inner.setContentsMargins(20, 20, 20, 20)
         inner.setSpacing(16)
         wrapper_layout.addWidget(frame)
 
         self._layout.addWidget(wrapper)
         return inner
 
-    # ── Theme ────────────────────────────────────────────────────────────
+    # ── Theme ───────────────────────────────────────────────────────────
 
     def _build_theme_section(self) -> None:
         inner = self._add_section("Theme")
         self._theme_editor = ThemeEditor(theme_manager=self._theme)
-        self._theme_editor.setStyleSheet(
-            "#ThemeEditor { background: transparent; border: none; }"
-        )
+        self._theme_editor.setObjectName("ThemeEditor")
         inner.addWidget(self._theme_editor)
 
-    # ── Controller ───────────────────────────────────────────────────────
+    # ── Controller ──────────────────────────────────────────────────────
 
     def _build_controller_section(self, cfg: object) -> None:
         inner = self._add_section("Controller")
 
         grid = QGridLayout()
         grid.setSpacing(16)
-        grid.setColumnMinimumWidth(0, 100)
-        grid.setColumnMinimumWidth(2, 100)
+        grid.setColumnMinimumWidth(0, 110)
+        grid.setColumnMinimumWidth(2, 110)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
 
-        # Row 0: Vibration | Voice Trigger
+        # Row 0: Vibration checkbox | Voice Trigger combo
         grid.addWidget(
-            _form_label("Vibration"), 0, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Vibration"), 0, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._vibration_cb = QCheckBox("Enabled")
         self._vibration_cb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._vibration_cb.setChecked(
-            bool(cfg.get("controller.vibration_enabled", True))
+            bool(cfg.get("controller.vibration_enabled", True)),
         )
         grid.addWidget(self._vibration_cb, 0, 1)
 
         grid.addWidget(
-            _form_label("Voice Trigger"), 0, 2, Qt.AlignmentFlag.AlignRight
+            _form_label("Voice Trigger"), 0, 2, Qt.AlignmentFlag.AlignRight,
         )
         self._voice_trigger = QComboBox()
         self._voice_trigger.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -226,22 +268,21 @@ class SettingsPage(QScrollArea):
         ]:
             self._voice_trigger.addItem(label, value)
         idx = self._voice_trigger.findData(
-            str(cfg.get("controller.voice_trigger", "rt"))
+            str(cfg.get("controller.voice_trigger", "rt")),
         )
         if idx >= 0:
             self._voice_trigger.setCurrentIndex(idx)
         grid.addWidget(self._voice_trigger, 0, 3)
 
-        # Row 1: Deadzone slider | Hold slider
+        # Row 1: Deadzone slider (step=5) | Hold slider (step=10)
         grid.addWidget(
-            _form_label("Deadzone"), 1, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Deadzone"), 1, 0, Qt.AlignmentFlag.AlignRight,
         )
         dz_val = int(float(cfg.get("controller.deadzone", 0.15)) * 100)
-        self._deadzone_slider = _slider(0, 50, dz_val)
-        self._deadzone_slider.setSingleStep(5)
+        self._deadzone_slider = _slider(0, 50, dz_val, step=5)
         self._dz_label = _value_label(f"{dz_val / 100:.2f}")
         self._deadzone_slider.valueChanged.connect(
-            lambda v: self._dz_label.setText(f"{v / 100:.2f}")
+            lambda v: self._dz_label.setText(f"{v / 100:.2f}"),
         )
         dz_row = QHBoxLayout()
         dz_row.addWidget(self._deadzone_slider)
@@ -249,14 +290,13 @@ class SettingsPage(QScrollArea):
         grid.addLayout(dz_row, 1, 1)
 
         grid.addWidget(
-            _form_label("Hold"), 1, 2, Qt.AlignmentFlag.AlignRight
+            _form_label("Hold"), 1, 2, Qt.AlignmentFlag.AlignRight,
         )
         hold_val = int(cfg.get("controller.hold_threshold_ms", 200))
-        self._hold_slider = _slider(100, 500, hold_val)
-        self._hold_slider.setSingleStep(10)
+        self._hold_slider = _slider(100, 500, hold_val, step=10)
         self._hold_label = _value_label(f"{hold_val}ms")
         self._hold_slider.valueChanged.connect(
-            lambda v: self._hold_label.setText(f"{v}ms")
+            lambda v: self._hold_label.setText(f"{v}ms"),
         )
         hold_row = QHBoxLayout()
         hold_row.addWidget(self._hold_slider)
@@ -265,15 +305,15 @@ class SettingsPage(QScrollArea):
 
         inner.addLayout(grid)
 
-    # ── Voice ────────────────────────────────────────────────────────────
+    # ── Voice ───────────────────────────────────────────────────────────
 
     def _build_voice_section(self, cfg: object) -> None:
         inner = self._add_section("Voice")
 
         grid = QGridLayout()
         grid.setSpacing(16)
-        grid.setColumnMinimumWidth(0, 100)
-        grid.setColumnMinimumWidth(2, 100)
+        grid.setColumnMinimumWidth(0, 110)
+        grid.setColumnMinimumWidth(2, 110)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
 
@@ -283,48 +323,47 @@ class SettingsPage(QScrollArea):
 
         # Row 0: Live Model | Final Model
         grid.addWidget(
-            _form_label("Live Model"), 0, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Live Model"), 0, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._live_model = QComboBox()
         self._live_model.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._live_model.addItems(whisper_models)
         self._live_model.setCurrentText(
-            str(cfg.get("voice.live_model", "large-v3"))
+            str(cfg.get("voice.live_model", "large-v3")),
         )
         grid.addWidget(self._live_model, 0, 1)
 
         grid.addWidget(
-            _form_label("Final"), 0, 2, Qt.AlignmentFlag.AlignRight
+            _form_label("Final Model"), 0, 2, Qt.AlignmentFlag.AlignRight,
         )
         self._final_model = QComboBox()
         self._final_model.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._final_model.addItems(whisper_models)
         self._final_model.setCurrentText(
-            str(cfg.get("voice.final_model", "large-v3"))
+            str(cfg.get("voice.final_model", "large-v3")),
         )
         grid.addWidget(self._final_model, 0, 3)
 
-        # Row 1: Device | Energy slider
+        # Row 1: Device | Energy slider (step=10)
         grid.addWidget(
-            _form_label("Device"), 1, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Device"), 1, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._device_combo = QComboBox()
         self._device_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._device_combo.addItems(["cuda", "cpu"])
         self._device_combo.setCurrentText(
-            str(cfg.get("voice.device", "cuda"))
+            str(cfg.get("voice.device", "cuda")),
         )
         grid.addWidget(self._device_combo, 1, 1)
 
         grid.addWidget(
-            _form_label("Energy"), 1, 2, Qt.AlignmentFlag.AlignRight
+            _form_label("Energy"), 1, 2, Qt.AlignmentFlag.AlignRight,
         )
         energy_val = int(float(cfg.get("voice.energy_threshold", 300)))
-        self._energy_slider = _slider(50, 1000, energy_val)
-        self._energy_slider.setSingleStep(10)
+        self._energy_slider = _slider(50, 1000, energy_val, step=10)
         self._energy_label = _value_label(str(energy_val))
         self._energy_slider.valueChanged.connect(
-            lambda v: self._energy_label.setText(str(v))
+            lambda v: self._energy_label.setText(str(v)),
         )
         energy_row = QHBoxLayout()
         energy_row.addWidget(self._energy_slider)
@@ -333,17 +372,23 @@ class SettingsPage(QScrollArea):
 
         inner.addLayout(grid)
 
-    # ── Library ──────────────────────────────────────────────────────────
+    # ── Library ─────────────────────────────────────────────────────────
 
     def _build_library_section(self, cfg: object) -> None:
         inner = self._add_section("Library")
 
         enabled_providers: list[str] = cfg.get("library.providers", [])
 
-        # Providers row
+        # Providers — grid layout: label in col 0, checkboxes in col 1
+        prov_grid = QGridLayout()
+        prov_grid.setSpacing(16)
+        prov_grid.setColumnMinimumWidth(0, 110)
+        prov_grid.setColumnStretch(1, 1)
+
+        prov_grid.addWidget(
+            _form_label("Providers"), 0, 0, Qt.AlignmentFlag.AlignRight,
+        )
         prov_row = QHBoxLayout()
-        prov_row.addWidget(_form_label("Providers"))
-        prov_row.addSpacing(8)
         self._provider_cbs: dict[str, QCheckBox] = {}
         for name in ("steam", "xbox", "epic", "gog", "ea"):
             cb = QCheckBox(name.capitalize())
@@ -352,18 +397,19 @@ class SettingsPage(QScrollArea):
             self._provider_cbs[name] = cb
             prov_row.addWidget(cb)
         prov_row.addStretch()
-        inner.addLayout(prov_row)
+        prov_grid.addLayout(prov_row, 0, 1)
 
         # Scan interval + Scan Now
+        prov_grid.addWidget(
+            _form_label("Scan Interval"), 1, 0, Qt.AlignmentFlag.AlignRight,
+        )
         scan_row = QHBoxLayout()
-        scan_row.addWidget(_form_label("Scan interval"))
-        scan_row.addSpacing(8)
         self._scan_interval = QSpinBox()
         self._scan_interval.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._scan_interval.setRange(1, 1440)
         self._scan_interval.setSuffix(" min")
         self._scan_interval.setValue(
-            int(cfg.get("library.scan_interval_minutes", 60))
+            int(cfg.get("library.scan_interval_minutes", 60)),
         )
         scan_row.addWidget(self._scan_interval)
         scan_row.addSpacing(16)
@@ -372,78 +418,74 @@ class SettingsPage(QScrollArea):
         self._scan_btn.clicked.connect(self._scan_now)
         scan_row.addWidget(self._scan_btn)
         scan_row.addStretch()
-        inner.addLayout(scan_row)
+        prov_grid.addLayout(scan_row, 1, 1)
 
-    # ── Services ─────────────────────────────────────────────────────────
+        inner.addLayout(prov_grid)
+
+    # ── Services ────────────────────────────────────────────────────────
 
     def _build_services_section(self, cfg: object) -> None:
         inner = self._add_section("Services")
 
         grid = QGridLayout()
         grid.setSpacing(12)
-        grid.setColumnMinimumWidth(0, 100)
+        grid.setColumnMinimumWidth(0, 110)
         grid.setColumnStretch(1, 1)
 
         row = 0
 
         # RAWG
         grid.addWidget(
-            _form_label("RAWG"), row, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("RAWG"), row, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._rawg_key = QLineEdit(str(cfg.get("services.rawg.api_key", "")))
         self._rawg_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rawg_key.setPlaceholderText("RAWG API key")
         self._rawg_key.setEchoMode(QLineEdit.EchoMode.Password)
         grid.addWidget(self._rawg_key, row, 1)
-        rawg_link = QPushButton("Get Key")
-        rawg_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        rawg_link.setCursor(Qt.CursorShape.PointingHandCursor)
-        rawg_link.clicked.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://rawg.io/apidocs"))
+        grid.addWidget(
+            _link_button("Get Key", "https://rawg.io/apidocs"), row, 2,
         )
-        grid.addWidget(rawg_link, row, 2)
         row += 1
 
         # YouTube
         grid.addWidget(
-            _form_label("YouTube"), row, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("YouTube"), row, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._youtube_key = QLineEdit(
-            str(cfg.get("services.youtube.api_key", ""))
+            str(cfg.get("services.youtube.api_key", "")),
         )
         self._youtube_key.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._youtube_key.setPlaceholderText("YouTube API key")
         self._youtube_key.setEchoMode(QLineEdit.EchoMode.Password)
         grid.addWidget(self._youtube_key, row, 1)
-        yt_link = QPushButton("Get Key")
-        yt_link.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        yt_link.setCursor(Qt.CursorShape.PointingHandCursor)
-        yt_link.clicked.connect(
-            lambda: QDesktopServices.openUrl(
-                QUrl("https://console.cloud.google.com/apis/credentials")
-            )
+        grid.addWidget(
+            _link_button(
+                "Get Key",
+                "https://console.cloud.google.com/apis/credentials",
+            ),
+            row, 2,
         )
-        grid.addWidget(yt_link, row, 2)
         row += 1
 
         # Twitch Client ID
         grid.addWidget(
-            _form_label("Twitch ID"), row, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Twitch ID"), row, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._twitch_id = QLineEdit(
-            str(cfg.get("services.twitch.client_id", ""))
+            str(cfg.get("services.twitch.client_id", "")),
         )
         self._twitch_id.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._twitch_id.setPlaceholderText("Twitch Client ID")
         grid.addWidget(self._twitch_id, row, 1)
         row += 1
 
-        # Twitch Client Secret + Connect
+        # Twitch Client Secret + Connect button
         grid.addWidget(
-            _form_label("Twitch Secret"), row, 0, Qt.AlignmentFlag.AlignRight
+            _form_label("Twitch Secret"), row, 0, Qt.AlignmentFlag.AlignRight,
         )
         self._twitch_secret = QLineEdit(
-            str(cfg.get("services.twitch.client_secret", ""))
+            str(cfg.get("services.twitch.client_secret", "")),
         )
         self._twitch_secret.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._twitch_secret.setPlaceholderText("Twitch Client Secret")
@@ -451,7 +493,7 @@ class SettingsPage(QScrollArea):
         grid.addWidget(self._twitch_secret, row, 1)
 
         connect_col = QHBoxLayout()
-        self._twitch_connect_btn = QPushButton("Connect")
+        self._twitch_connect_btn = QPushButton("Connect with Twitch")
         self._twitch_connect_btn.setObjectName("accentButton")
         self._twitch_connect_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._twitch_connect_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -460,10 +502,10 @@ class SettingsPage(QScrollArea):
 
         has_token = bool(cfg.get("services.twitch.access_token", ""))
         self._twitch_status = QLabel(
-            "Connected" if has_token else "Not connected"
+            "Connected" if has_token else "Not connected",
         )
-        self._twitch_status.setStyleSheet(
-            f"color: {_SUCCESS if has_token else _TEXT_SECONDARY};"
+        self._twitch_status.setObjectName(
+            "statusConnected" if has_token else "statusDisconnected",
         )
         connect_col.addWidget(self._twitch_status)
         connect_col.addStretch()
@@ -476,15 +518,21 @@ class SettingsPage(QScrollArea):
 
         inner.addLayout(grid)
 
-    # ── System ───────────────────────────────────────────────────────────
+    # ── System ──────────────────────────────────────────────────────────
 
     def _build_system_section(self, cfg: object) -> None:
         inner = self._add_section("System")
 
-        row = QHBoxLayout()
-        row.addWidget(_form_label("Start with Windows"))
-        row.addSpacing(8)
-        self._autostart_cb = QCheckBox()
+        grid = QGridLayout()
+        grid.setSpacing(16)
+        grid.setColumnMinimumWidth(0, 110)
+        grid.setColumnStretch(1, 1)
+
+        grid.addWidget(
+            _form_label("Start with Windows"), 0, 0,
+            Qt.AlignmentFlag.AlignRight,
+        )
+        self._autostart_cb = QCheckBox("Enabled")
         self._autostart_cb.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         try:
             from pixiis.daemon.autostart import is_autostart_enabled
@@ -492,20 +540,23 @@ class SettingsPage(QScrollArea):
             self._autostart_cb.setChecked(is_autostart_enabled())
         except Exception:
             self._autostart_cb.setChecked(
-                bool(cfg.get("daemon.autostart", False))
+                bool(cfg.get("daemon.autostart", False)),
             )
-        row.addWidget(self._autostart_cb)
-        row.addStretch()
-        inner.addLayout(row)
+        grid.addWidget(self._autostart_cb, 0, 1)
 
-    # ── Twitch OAuth ─────────────────────────────────────────────────────
+        inner.addLayout(grid)
+
+    # ── Twitch OAuth ────────────────────────────────────────────────────
 
     def _connect_twitch(self) -> None:
         """Start the Twitch OAuth implicit-grant flow in the browser."""
         client_id = self._twitch_id.text().strip()
         if not client_id:
             self._twitch_status.setText("Enter Client ID first")
-            self._twitch_status.setStyleSheet(f"color: {_ERROR};")
+            self._twitch_status.setObjectName("statusError")
+            # Force QSS re-evaluation after objectName change
+            self._twitch_status.style().unpolish(self._twitch_status)
+            self._twitch_status.style().polish(self._twitch_status)
             return
 
         from pixiis.services.oauth import OAuthFlow
@@ -514,7 +565,9 @@ class SettingsPage(QScrollArea):
         self._twitch_connect_btn.setEnabled(False)
         self._twitch_connect_btn.setText("Waiting\u2026")
         self._twitch_status.setText("Check your browser")
-        self._twitch_status.setStyleSheet(f"color: {_TEXT_SECONDARY};")
+        self._twitch_status.setObjectName("statusDisconnected")
+        self._twitch_status.style().unpolish(self._twitch_status)
+        self._twitch_status.style().polish(self._twitch_status)
 
         flow = OAuthFlow()
         redirect_uri = f"http://localhost:{flow.port}/callback"
@@ -542,16 +595,20 @@ class SettingsPage(QScrollArea):
             if token:
                 self._twitch_access_token = token
                 self._twitch_status.setText("Connected")
-                self._twitch_status.setStyleSheet(f"color: {_SUCCESS};")
+                self._twitch_status.setObjectName("statusConnected")
             else:
                 self._twitch_status.setText("Failed \u2014 no token")
-                self._twitch_status.setStyleSheet(f"color: {_ERROR};")
+                self._twitch_status.setObjectName("statusError")
+
+            # Force QSS re-evaluation after objectName change
+            self._twitch_status.style().unpolish(self._twitch_status)
+            self._twitch_status.style().polish(self._twitch_status)
 
             self._twitch_connect_btn.setEnabled(True)
-            self._twitch_connect_btn.setText("Connect")
+            self._twitch_connect_btn.setText("Connect with Twitch")
             self._oauth_flow = None
 
-    # ── Apply settings ───────────────────────────────────────────────────
+    # ── Apply settings ──────────────────────────────────────────────────
 
     def _apply_settings(self) -> None:
         """Write current control values back to the user config file."""
@@ -619,7 +676,7 @@ class SettingsPage(QScrollArea):
         """Restore the Apply button text after save feedback."""
         self._apply_btn.setText("Apply")
 
-    # ── Config persistence ───────────────────────────────────────────────
+    # ── Config persistence ──────────────────────────────────────────────
 
     @staticmethod
     def _write_config(path: Path, updates: dict[str, Any]) -> None:
@@ -673,7 +730,7 @@ class SettingsPage(QScrollArea):
 
     @staticmethod
     def _dict_to_toml(
-        d: dict[str, Any], lines: list[str], prefix: list[str]
+        d: dict[str, Any], lines: list[str], prefix: list[str],
     ) -> None:
         """Minimal recursive TOML serializer (flat tables only)."""
         for key, val in d.items():

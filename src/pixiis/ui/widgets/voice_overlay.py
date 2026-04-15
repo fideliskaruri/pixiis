@@ -46,7 +46,7 @@ class VoiceOverlay(QWidget):
 
         # ── layout ──────────────────────────────────────────────────
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 14, 24, 14)
+        layout.setContentsMargins(24, 12, 24, 12)
 
         self._label = QLabel()
         self._label.setWordWrap(True)
@@ -55,7 +55,7 @@ class VoiceOverlay(QWidget):
         self._label.setStyleSheet(
             "QLabel {"
             "  color: #f0eef5;"
-            "  font-size: 20pt;"
+            "  font-size: 20px;"
             "  background: transparent;"
             "}"
         )
@@ -102,7 +102,7 @@ class VoiceOverlay(QWidget):
             self._label.setStyleSheet(
                 "QLabel {"
                 "  color: #f0eef5;"
-                "  font-size: 20pt;"
+                "  font-size: 20px;"
                 "  background: transparent;"
                 "}"
             )
@@ -110,7 +110,7 @@ class VoiceOverlay(QWidget):
             self._label.setStyleSheet(
                 "QLabel {"
                 "  color: rgba(240, 238, 245, 178);"  # #f0eef5 @ 70%
-                "  font-size: 20pt;"
+                "  font-size: 20px;"
                 "  background: transparent;"
                 "}"
             )

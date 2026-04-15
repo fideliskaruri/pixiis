@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -30,7 +31,13 @@ except ImportError:
 _SURFACE = "#13121a"
 _ACCENT = "#e94560"
 _TEXT_SECONDARY = "#8a8698"
-_TEXT_MUTED = "#5c586a"
+_TEXT_MUTED = "#7a7690"
+
+# ── Pre-built fonts (avoid re-creating in paintEvent) ─────────────────────
+
+_PILL_FONT = QFont()
+_PILL_FONT.setPixelSize(12)
+_PILL_FONT.setWeight(QFont.Weight.Medium)
 
 
 # ── Sort pill button ───────────────────────────────────────────────────────
@@ -90,36 +97,43 @@ class _SortPill(QWidget):
         w, h = self.width(), self.height()
         focused = self.hasFocus()
 
+        # Always reserve 2px border — use inset rect so border doesn't shift
         path = QPainterPath()
-        path.addRoundedRect(0.5, 0.5, float(w) - 1.0, float(h) - 1.0, 16.0, 16.0)
+        path.addRoundedRect(1.0, 1.0, float(w) - 2.0, float(h) - 2.0, 15.0, 15.0)
 
+        # Step 1: Background fill
         if self._checked:
-            # Active pill: accent-tinted bg
             p.fillPath(path, QColor(233, 69, 96, 38))  # rgba(accent, 0.15)
-            p.setPen(QPen(QColor(233, 69, 96, 77), 1.0))  # accent 0.30 border
-            p.drawPath(path)
-            p.setPen(QColor(_ACCENT))
         elif focused:
-            # Focus: accent border ring
             p.fillPath(path, QColor(233, 69, 96, 20))
-            p.setPen(QPen(QColor(233, 69, 96, 77), 1.0))
-            p.drawPath(path)
-            p.setPen(QColor(_ACCENT))
         elif self._hovered:
             p.fillPath(path, QColor(37, 35, 48))  # surface_hover
-            p.setPen(QPen(QColor(255, 255, 255, 15), 1.0))
-            p.drawPath(path)
-            p.setPen(QColor("#f0eef5"))
         else:
             p.fillPath(path, QColor(_SURFACE))
-            p.setPen(QPen(QColor(255, 255, 255, 15), 1.0))  # border
-            p.drawPath(path)
+
+        # Step 2: Border — always 2px, only color changes
+        if focused:
+            # Focused (whether checked or not): solid accent border
+            p.setPen(QPen(QColor(_ACCENT), 2.0))
+        elif self._checked:
+            # Checked but not focused: subtle accent border
+            p.setPen(QPen(QColor(233, 69, 96, 77), 2.0))
+        elif self._hovered:
+            p.setPen(QPen(QColor(255, 255, 255, 15), 2.0))
+        else:
+            p.setPen(QPen(QColor(255, 255, 255, 15), 2.0))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawPath(path)
+
+        # Step 3: Text color
+        if self._checked or focused:
+            p.setPen(QColor(_ACCENT))
+        elif self._hovered:
+            p.setPen(QColor("#f0eef5"))
+        else:
             p.setPen(QColor(_TEXT_SECONDARY))
 
-        font = QFont()
-        font.setPixelSize(12)
-        font.setWeight(QFont.Weight.Medium)
-        p.setFont(font)
+        p.setFont(_PILL_FONT)
         p.drawText(0, 0, w, h, Qt.AlignmentFlag.AlignCenter, self._text)
         p.end()
 
@@ -205,7 +219,11 @@ class HomePage(QWidget):
         # -- loading indicator ---------------------------------------------------
         self._loading = QLabel("Scanning your library...")
         self._loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._loading.setStyleSheet("color: #5c586a; font-size: 16px; padding: 40px; background: transparent;")
+        self._loading.setStyleSheet("color: #7a7690; font-size: 14px; padding: 40px; background: transparent;")
+        self._loading.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+        )
+        self._loading.setFixedHeight(60)
         root.addWidget(self._loading)
 
         # -- initial load -----------------------------------------------------
@@ -270,7 +288,11 @@ class HomePage(QWidget):
             results = [a for a in self._all_apps if q in a.name.lower()]
         sorted_apps = self._sorted_apps(results)
         if self._grid is not None and hasattr(self._grid, "set_apps"):
-            self._grid.set_apps(sorted_apps, image_loader=self._image_loader)
+            self._grid.set_apps(
+                sorted_apps,
+                image_loader=self._image_loader,
+                empty_message="No matching games",
+            )
 
     def _on_tile_activated(self, app: object) -> None:
         self.game_selected.emit(app)

@@ -44,14 +44,20 @@ class Config:
         """Load default config, then overlay user config."""
         defaults_path = default_config_file()
         if defaults_path.exists():
-            with open(defaults_path, "rb") as f:
-                self._data = tomllib.load(f)
+            try:
+                with open(defaults_path, "rb") as f:
+                    self._data = tomllib.load(f)
+            except Exception:
+                self._data = {}
 
         user_path = config_file()
         if user_path.exists():
-            with open(user_path, "rb") as f:
-                user_data = tomllib.load(f)
-            self._data = _deep_merge(self._data, user_data)
+            try:
+                with open(user_path, "rb") as f:
+                    user_data = tomllib.load(f)
+                self._data = _deep_merge(self._data, user_data)
+            except Exception:
+                pass  # keep defaults if user config is corrupted
 
     def get(self, dotted_key: str, default: Any = None) -> Any:
         """Get a config value by dotted key path.

@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(page)
         lbl = QLabel(label)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("font-size: 24px; color: #5c586a;")
+        lbl.setStyleSheet("font-size: 24px; color: #7a7690;")
         layout.addWidget(lbl)
         return page
 
@@ -393,6 +393,7 @@ class MainWindow(QMainWindow):
                 rawg_client=self._rawg_client,
                 youtube_client=self._youtube_client,
                 twitch_client=self._twitch_client,
+                image_loader=self._image_loader,
             )
         self.navigate_to("game_detail")
         # Focus the launch button for immediate A-press
@@ -440,17 +441,25 @@ class MainWindow(QMainWindow):
         name = getattr(app, "display_name", "game")
         self.show_toast(f"Launching {name}...", icon="info")
 
-        # Update launch button text temporarily
+        # Update launch button text and disable to prevent double-press
         detail = self._page_stack._pages.get("game_detail")
+        btn = None
         if detail and hasattr(detail, '_hero') and hasattr(detail._hero, '_launch_btn'):
             btn = detail._hero._launch_btn
+            btn.setEnabled(False)
             btn.setText("Launching...")
-            QTimer.singleShot(2000, lambda: btn.setText("\u25b6  LAUNCH"))
+
+        def _restore_btn() -> None:
+            if btn is not None:
+                btn.setText("\u25b6  LAUNCH")
+                btn.setEnabled(True)
 
         try:
             self._registry.launch(app)
+            QTimer.singleShot(2000, _restore_btn)
         except Exception as e:
             self.show_toast(f"Launch failed: {e}", icon="error")
+            _restore_btn()  # re-enable immediately on error
 
     # -- cleanup -------------------------------------------------------------
 
@@ -463,6 +472,10 @@ class MainWindow(QMainWindow):
         if self._cleaned_up:
             return
         self._cleaned_up = True
+        # Stop background scan thread if still running
+        if self._scan_thread is not None and self._scan_thread.isRunning():
+            self._scan_thread.quit()
+            self._scan_thread.wait(3000)
         if self._owns_controller:
             self._controller_bridge.shutdown()
         if hasattr(self, '_voice_overlay') and self._voice_overlay:

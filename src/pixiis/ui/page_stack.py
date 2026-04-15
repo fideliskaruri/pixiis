@@ -25,6 +25,8 @@ class PageStack(QStackedWidget):
         self._pages: dict[str, QWidget] = {}
         self._current_name: str = ""
         self._animating = False
+        self._animation_group: QParallelAnimationGroup | None = None
+        self._pending_finish: callable | None = None  # type: ignore[assignment]
         self._focus_memory: dict[str, QWidget] = {}  # page name -> last focused widget
 
     # -- public API ----------------------------------------------------------
@@ -46,7 +48,11 @@ class PageStack(QStackedWidget):
         if name == self._current_name or name not in self._pages:
             return
         if self._animating:
-            return
+            # Complete current animation immediately so we can start the new one
+            if self._animation_group is not None:
+                self._animation_group.stop()
+            if self._pending_finish is not None:
+                self._pending_finish()
 
         outgoing = self._pages.get(self._current_name)
         incoming = self._pages[name]
@@ -105,6 +111,8 @@ class PageStack(QStackedWidget):
         group.addAnimation(in_anim)
 
         def _on_finished() -> None:
+            self._animation_group = None
+            self._pending_finish = None
             self.setCurrentWidget(incoming)
             outgoing.move(0, 0)
             outgoing.setGraphicsEffect(None)
@@ -120,6 +128,8 @@ class PageStack(QStackedWidget):
                         child.setFocus()
                         break
 
+        self._animation_group = group
+        self._pending_finish = _on_finished
         group.finished.connect(_on_finished)
         group.start()
 

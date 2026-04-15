@@ -279,7 +279,7 @@ class ThemeManager(QObject):
             "surface": self._primary,
             "surface_elevated": self._secondary,
             "text_primary": self._text_color,
-            "text_muted": "#5c586a",
+            "text_muted": "#7a7690",
             # Computed variants
             "primary_hover": lighter(self._primary, 20),
             "primary_pressed": darker(self._primary, 15),

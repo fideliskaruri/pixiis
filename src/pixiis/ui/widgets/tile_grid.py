@@ -37,7 +37,7 @@ class TileGrid(QScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self.setObjectName("TileGrid")
 
         self._container = QWidget()
         self._layout = FlowLayout(self._container, h_spacing=H_SPACING, v_spacing=V_SPACING)
@@ -61,16 +61,24 @@ class TileGrid(QScrollArea):
 
     # ── Public API ──────────────────────────────────────────────────────────
 
+    # Default empty-state message shown when no games exist at all
+    DEFAULT_EMPTY_MESSAGE = (
+        "No games found\n\nGo to Settings \u2192 Library to add your game sources."
+    )
+
     def set_apps(
         self,
         apps: list[AppEntry],
         image_loader=None,
+        empty_message: str | None = None,
     ) -> None:
         """Populate the grid with tiles for each *app*.
 
         If *image_loader* is provided it must be a QObject with:
           - ``request(url: str)`` method
           - ``image_ready(str, QPixmap)`` signal
+
+        *empty_message* overrides the placeholder text when *apps* is empty.
         """
         prev_focus = QApplication.focusWidget()
         self.clear()
@@ -82,12 +90,11 @@ class TileGrid(QScrollArea):
             self._loader_connected = True
 
         if not apps:
-            empty = QLabel(
-                "No games found\n\nGo to Settings \u2192 Library to add your game sources."
-            )
+            msg = empty_message if empty_message is not None else self.DEFAULT_EMPTY_MESSAGE
+            empty = QLabel(msg)
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             empty.setStyleSheet(
-                "color: #8a8698; font-size: 15px; padding: 60px; background: transparent;"
+                "color: #8a8698; font-size: 14px; padding: 60px; background: transparent;"
             )
             empty.setWordWrap(True)
             self._layout.addWidget(empty)

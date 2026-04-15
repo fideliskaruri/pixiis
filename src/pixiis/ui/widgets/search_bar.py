@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QRectF, QTimer, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
@@ -15,7 +15,7 @@ BG_FOCUS = QColor("#13121a")        # same bg, border changes
 BORDER_NORMAL = QColor(255, 255, 255, 15)   # rgba(255,255,255,0.06)
 BORDER_HOVER = QColor(255, 255, 255, 31)    # rgba(255,255,255,0.12)
 TEXT_COLOR = QColor("#f0eef5")       # text_primary
-PLACEHOLDER_COLOR = QColor("#5c586a") # text_muted
+PLACEHOLDER_COLOR = QColor("#7a7690") # text_muted
 
 BAR_HEIGHT = 44
 RADIUS = 22.0
@@ -33,6 +33,7 @@ class SearchBar(QLineEdit):
         self.setMinimumWidth(200)
         self.setPlaceholderText("Search games...")
         self.setClearButtonEnabled(True)
+        self.setAccessibleName("Search games")
 
         # Transparent base — we paint everything ourselves
         self.setStyleSheet(
@@ -68,11 +69,11 @@ class SearchBar(QLineEdit):
         pill.addRoundedRect(rect, RADIUS, RADIUS)
         p.fillPath(pill, bg)
 
-        # ── Border ──────────────────────────────────────────────────────
+        # ── Border — always 2px, only color changes (no layout shift) ──
         if focused:
             pen = QPen(ACCENT, 2.0)
         else:
-            pen = QPen(BORDER_NORMAL, 1.0)
+            pen = QPen(BORDER_NORMAL, 2.0)
         p.setPen(pen)
         p.drawRoundedRect(rect, RADIUS, RADIUS)
 
@@ -91,8 +92,8 @@ class SearchBar(QLineEdit):
         handle_start_y = cy + r * math.sin(math.radians(45))
         handle_len = 5.0
         p.drawLine(
-            int(handle_start_x), int(handle_start_y),
-            int(handle_start_x + handle_len), int(handle_start_y + handle_len),
+            QPointF(handle_start_x, handle_start_y),
+            QPointF(handle_start_x + handle_len, handle_start_y + handle_len),
         )
 
         p.end()

@@ -16,6 +16,16 @@ _ICON_COLORS = {
     "info": QColor("#60a5fa"),
 }
 
+# ── Pre-built fonts (avoid re-creating in paintEvent) ─────────────────────
+
+_TOAST_ICON_FONT = QFont()
+_TOAST_ICON_FONT.setPixelSize(16)
+_TOAST_ICON_FONT.setBold(True)
+
+_TOAST_TEXT_FONT = QFont()
+_TOAST_TEXT_FONT.setPixelSize(13)
+_TOAST_TEXT_FONT.setWeight(QFont.Weight.Normal)
+
 
 class Toast(QWidget):
     """Floating notification that appears at the bottom-center of its parent."""
@@ -33,6 +43,7 @@ class Toast(QWidget):
         self._opacity = 0.0
 
         self._fade_anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._fade_anim.finished.connect(self._on_fade_done)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self._fade_out)
@@ -44,15 +55,17 @@ class Toast(QWidget):
         self._icon = icon
 
         # Size to fit text
-        font = QFont()
-        font.setPixelSize(13)
-        font.setWeight(QFont.Weight.DemiBold)
-        fm = QFontMetrics(font)
+        fm = QFontMetrics(_TOAST_TEXT_FONT)
         text_w = fm.horizontalAdvance(text)
         self.setFixedWidth(text_w + 60)  # icon + padding
 
         self._reposition()
         self.update()  # repaint with new text
+
+        # If called during a fade-out, stop the animation and snap visible
+        if self.isVisible():
+            self._fade_anim.stop()
+            self.setWindowOpacity(1.0)
 
         if self.isVisible() and self.windowOpacity() > 0.1:
             # Already showing — just update text and restart the timer
@@ -88,11 +101,9 @@ class Toast(QWidget):
         self._fade_anim.setStartValue(self.windowOpacity())
         self._fade_anim.setEndValue(0.0)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InCubic)
-        self._fade_anim.finished.connect(self._on_fade_done)
         self._fade_anim.start()
 
     def _on_fade_done(self) -> None:
-        self._fade_anim.finished.disconnect(self._on_fade_done)
         if self.windowOpacity() < 0.1:
             self.hide()
 
@@ -106,18 +117,12 @@ class Toast(QWidget):
         p.fillPath(path, _BG)
 
         # Icon
-        icon_font = QFont()
-        icon_font.setPixelSize(16)
-        icon_font.setBold(True)
-        p.setFont(icon_font)
+        p.setFont(_TOAST_ICON_FONT)
         p.setPen(_ICON_COLORS.get(self._icon, _ACCENT))
         p.drawText(16, 0, 20, self.height(), Qt.AlignmentFlag.AlignCenter, _ICONS.get(self._icon, ""))
 
         # Text
-        text_font = QFont()
-        text_font.setPixelSize(13)
-        text_font.setWeight(QFont.Weight.DemiBold)
-        p.setFont(text_font)
+        p.setFont(_TOAST_TEXT_FONT)
         p.setPen(_TEXT)
         p.drawText(42, 0, self.width() - 54, self.height(), Qt.AlignmentFlag.AlignVCenter, self._message)
 

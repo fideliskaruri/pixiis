@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import QPoint, QRectF, QSize, QUrl, Qt, Signal
 from PySide6.QtGui import (
     QBrush,
@@ -27,6 +29,9 @@ from PySide6.QtWidgets import (
 
 from pixiis.core.types import AppEntry
 
+if TYPE_CHECKING:
+    from pixiis.services.image_loader import AsyncImageLoader
+
 # ── Dark Cinema palette v2 ─────────────────────────────────────────────────
 
 _BASE = "#0b0a10"
@@ -38,8 +43,18 @@ _ACCENT_PRESSED = "#c93a52"
 _AMBER = "#fbbf24"
 _TEXT_PRIMARY = "#f0eef5"
 _TEXT_BODY = "#8a8698"
-_TEXT_MUTED = "#5c586a"
+_TEXT_MUTED = "#7a7690"
 _TEXT_DIM = "#3a3a4a"
+
+# ── Pre-built fonts (avoid re-creating in paintEvent) ─────────────────────
+
+_HERO_TITLE_FONT = QFont()
+_HERO_TITLE_FONT.setPixelSize(32)
+_HERO_TITLE_FONT.setWeight(QFont.Weight.Bold)
+_HERO_TITLE_FONT.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 97.0)
+
+_HERO_RATING_FONT = QFont()
+_HERO_RATING_FONT.setPixelSize(16)
 
 
 # ── Helper factories ───────────────────────────────────────────────────────
@@ -102,6 +117,18 @@ class _ClickableImage(QLabel):
             QDesktopServices.openUrl(QUrl(self.url))
         super().mouseReleaseEvent(event)
 
+    def paintEvent(self, event) -> None:  # noqa: N802
+        super().paintEvent(event)
+        if self.hasFocus():
+            p = QPainter(self)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            pen = QPen(QColor(_ACCENT), 2.0)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            r = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+            p.drawRoundedRect(r, 8.0, 8.0)
+            p.end()
+
 
 # ── Media card ─────────────────────────────────────────────────────────────
 
@@ -122,10 +149,11 @@ class _MediaCard(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
 
         self.thumb = QLabel()
         self.thumb.setFixedSize(thumb_w, thumb_h)
+        self.thumb.setScaledContents(True)
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumb.setStyleSheet(
             f"background: {_BASE}; border-radius: 8px;"
@@ -164,11 +192,17 @@ class _MediaCard(QFrame):
         path.addRoundedRect(QRectF(0, 0, w, h), 12.0, 12.0)
 
         # Background
-        bg = QColor(_SURFACE_ELEVATED) if self._hovered else QColor(_SURFACE)
+        focused = self.hasFocus()
+        bg = QColor(_SURFACE_ELEVATED) if (self._hovered or focused) else QColor(_SURFACE)
         p.fillPath(path, bg)
 
+        # Focus ring — 2px accent border
+        if focused:
+            pen = QPen(QColor(_ACCENT), 2.0)
+            p.setPen(pen)
+            p.drawPath(path)
         # Hover glow border
-        if self._hovered:
+        elif self._hovered:
             pen = QPen(QColor(233, 69, 96, 50), 1.0)
             p.setPen(pen)
             p.drawPath(path)
@@ -211,16 +245,18 @@ class _HeroWidget(QWidget):
         self._launch_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._launch_btn.setObjectName("accentButton")
         self._launch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._launch_btn.setAccessibleName("Launch game")
         self._launch_btn.clicked.connect(self.launch_clicked.emit)
 
         # Real back button (replaces painted version)
-        self._back_btn = QPushButton("\u2190", self)
-        self._back_btn.setFixedSize(40, 40)
+        self._back_btn = QPushButton("\u25c0 Back", self)
+        self._back_btn.setFixedSize(80, 36)
         self._back_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._back_btn.clicked.connect(self.back_clicked.emit)
         self._back_btn.setStyleSheet(
             "QPushButton { background: rgba(11,10,16,180); color: #f0eef5; "
-            "border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; font-size: 18px; }"
+            "border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; "
+            "font-size: 13px; font-weight: bold; padding: 0 12px; }"
             "QPushButton:hover { background: rgba(233,69,96,0.3); }"
             "QPushButton:focus { border: 2px solid #e94560; }"
         )
@@ -274,11 +310,7 @@ class _HeroWidget(QWidget):
         p.fillRect(0, 0, w, h, overlay)
 
         # Title — bottom left (Display: 32px Bold)
-        title_font = QFont()
-        title_font.setPixelSize(32)
-        title_font.setWeight(QFont.Weight.Bold)
-        title_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 97.0)  # -0.03em
-        p.setFont(title_font)
+        p.setFont(_HERO_TITLE_FONT)
         p.setPen(QPen(QColor(240, 238, 245)))
         title_rect = p.boundingRect(0, 0, w - 260, 50, Qt.TextFlag.TextWordWrap, self._title)
         title_y = h - 60 - title_rect.height()
@@ -295,9 +327,7 @@ class _HeroWidget(QWidget):
 
         # Rating — below title
         if self._rating_text:
-            rating_font = QFont()
-            rating_font.setPixelSize(17)
-            p.setFont(rating_font)
+            p.setFont(_HERO_RATING_FONT)
             p.setPen(QPen(QColor(251, 191, 36)))  # warning/amber
             p.drawText(28, h - 52, w - 260, 24,
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -335,12 +365,21 @@ class GameDetailPanel(QScrollArea):
         )
 
         self._app: AppEntry | None = None
+        self._image_loader: AsyncImageLoader | None = None
         self._connected_rawg = None
         self._connected_youtube = None
         self._connected_twitch = None
+        self._connected_image_loader = None
+        self._img_dispatch: dict[str, list[QLabel]] = {}
+        self._hero_art_url: str | None = None
+        self._current_game_name: str = ""
+        self._generation: int = 0  # incremented on each set_game() call
 
-        # Root container
+        # Root container — fill available width via size policy
         self._root = QWidget()
+        self._root.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
         self._root_layout = QVBoxLayout(self._root)
         self._root_layout.setContentsMargins(0, 0, 0, 32)
         self._root_layout.setSpacing(0)
@@ -441,7 +480,7 @@ class GameDetailPanel(QScrollArea):
         fan_sub = QLabel("Coming Soon")
         fan_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         fan_sub.setStyleSheet(
-            f"color: {_TEXT_DIM}; font-size: 13px; border: none; background: transparent;"
+            f"color: {_TEXT_MUTED}; font-size: 13px; border: none; background: transparent;"
         )
         fan_layout.addWidget(fan_sub)
         self._body_layout.addWidget(fan_frame)
@@ -457,10 +496,14 @@ class GameDetailPanel(QScrollArea):
         rawg_client=None,
         youtube_client=None,
         twitch_client=None,
+        image_loader: AsyncImageLoader | None = None,
     ) -> None:
         """Populate the panel for *app*.  Optionally pass service clients for
         async metadata loading."""
         self._app = app
+        self._image_loader = image_loader
+        self._current_game_name = app.display_name
+        self._generation += 1
         self._hero.set_title(app.display_name)
         self._hero.set_rating("")
         self._desc_label.setText(
@@ -472,6 +515,24 @@ class GameDetailPanel(QScrollArea):
         self._clear_layout(self._trailers_layout)
         self._clear_layout(self._streams_layout)
         self._clear_info_bar()
+
+        # Image dispatch map: url -> widget(s) to receive the image
+        self._img_dispatch: dict[str, list[QLabel]] = {}
+
+        # Disconnect previous image loader handler
+        if self._connected_image_loader is not None:
+            try:
+                self._connected_image_loader.image_ready.disconnect(
+                    self._on_detail_image_ready
+                )
+            except (TypeError, RuntimeError):
+                pass
+            self._connected_image_loader = None
+
+        # Connect image loader for this session
+        if image_loader is not None:
+            image_loader.image_ready.connect(self._on_detail_image_ready)
+            self._connected_image_loader = image_loader
 
         # Hide all media sections until data arrives
         self._screenshots_title.hide()
@@ -486,39 +547,57 @@ class GameDetailPanel(QScrollArea):
         w = self._hero.width() or 800
         self._hero.set_pixmap(_placeholder_header(w, 280))
 
+        # Hero art from app's art_url
+        if image_loader is not None and getattr(app, "art_url", None):
+            self._hero_art_url = app.art_url
+            image_loader.request(app.art_url)
+        else:
+            self._hero_art_url = None
+
         # Disconnect previous signal handlers to avoid accumulation
         if self._connected_rawg is not None:
             try:
-                self._connected_rawg.game_found.disconnect(self._on_rawg_data)
+                self._connected_rawg[0].game_found.disconnect(self._connected_rawg[1])
             except (TypeError, RuntimeError):
                 pass
         if self._connected_youtube is not None:
             try:
-                self._connected_youtube.results_ready.disconnect(self._on_youtube_data)
+                self._connected_youtube[0].results_ready.disconnect(self._connected_youtube[1])
             except (TypeError, RuntimeError):
                 pass
         if self._connected_twitch is not None:
             try:
-                self._connected_twitch.streams_ready.disconnect(self._on_twitch_data)
+                self._connected_twitch[0].streams_ready.disconnect(self._connected_twitch[1])
             except (TypeError, RuntimeError):
                 pass
 
+        # Capture generation for stale-data guards in callbacks
+        gen = self._generation
+
         # Kick off async fetches
         if rawg_client is not None:
-            rawg_client.game_found.connect(self._on_rawg_data)
+            slot_rawg = lambda data, g=gen: self._on_rawg_data(data, g)
+            rawg_client.game_found.connect(slot_rawg)
             rawg_client.search_game(app.display_name)
+            self._connected_rawg = (rawg_client, slot_rawg)
+        else:
+            self._connected_rawg = None
 
         if youtube_client is not None:
-            youtube_client.results_ready.connect(self._on_youtube_data)
+            slot_yt = lambda results, g=gen: self._on_youtube_data(results, g)
+            youtube_client.results_ready.connect(slot_yt)
             youtube_client.search_trailers(f"{app.display_name} trailer")
+            self._connected_youtube = (youtube_client, slot_yt)
+        else:
+            self._connected_youtube = None
 
         if twitch_client is not None:
-            twitch_client.streams_ready.connect(self._on_twitch_data)
+            slot_tw = lambda streams, g=gen: self._on_twitch_data(streams, g)
+            twitch_client.streams_ready.connect(slot_tw)
             twitch_client.get_top_streams(app.display_name)
-
-        self._connected_rawg = rawg_client
-        self._connected_youtube = youtube_client
-        self._connected_twitch = twitch_client
+            self._connected_twitch = (twitch_client, slot_tw)
+        else:
+            self._connected_twitch = None
 
         # Fallback when no API clients are available
         if rawg_client is None and youtube_client is None and twitch_client is None:
@@ -530,10 +609,42 @@ class GameDetailPanel(QScrollArea):
     def set_header_image(self, pixmap: QPixmap) -> None:
         self._hero.set_pixmap(pixmap)
 
+    # ── Image delivery ─────────────────────────────────────────────────────
+
+    def _on_detail_image_ready(self, url: str, pixmap: QPixmap) -> None:
+        """Dispatch downloaded images to hero, screenshot thumbs, or trailer cards."""
+        if self._app is None:
+            return
+
+        # Hero art
+        if url == self._hero_art_url and not pixmap.isNull():
+            self._hero.set_pixmap(pixmap)
+
+        # Screenshot / trailer thumbnails via dispatch map
+        targets = self._img_dispatch.pop(url, [])
+        for widget in targets:
+            try:
+                if not pixmap.isNull():
+                    scaled = pixmap.scaled(
+                        widget.size(),
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                    widget.setPixmap(scaled)
+            except RuntimeError:
+                pass  # widget already deleted
+
+    def _request_image_for(self, url: str, target: QLabel) -> None:
+        """Register a widget to receive an image and request the download."""
+        if not url or self._image_loader is None:
+            return
+        self._img_dispatch.setdefault(url, []).append(target)
+        self._image_loader.request(url)
+
     # ── Service callbacks ───────────────────────────────────────────────────
 
-    def _on_rawg_data(self, data) -> None:
-        if self._app is None:
+    def _on_rawg_data(self, data, gen: int = 0) -> None:
+        if self._app is None or gen != self._generation:
             return
 
         # Description
@@ -573,14 +684,24 @@ class GameDetailPanel(QScrollArea):
                 thumb = _ClickableImage(img_url)
                 thumb.setFixedSize(240, 135)
                 thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                thumb.setScaledContents(True)
                 thumb.setStyleSheet(
                     f"background: {_BASE}; border-radius: 8px;"
                 )
                 thumb.setText(f"<span style='color: {_TEXT_DIM}; font-size: 11px'>Loading…</span>")
                 thumb.setTextFormat(Qt.TextFormat.RichText)
                 self._screenshots_layout.addWidget(thumb)
+                self._request_image_for(img_url, thumb)
 
-    def _on_youtube_data(self, results: list) -> None:
+        # If we got a background_image from RAWG, use it for hero
+        bg_image = getattr(data, "background_image", "")
+        if bg_image and self._image_loader is not None:
+            self._hero_art_url = bg_image
+            self._image_loader.request(bg_image)
+
+    def _on_youtube_data(self, results: list, gen: int = 0) -> None:
+        if self._app is None or gen != self._generation:
+            return
         self._clear_layout(self._trailers_layout)
         if results:
             self._trailers_title.show()
@@ -589,12 +710,21 @@ class GameDetailPanel(QScrollArea):
             title = getattr(item, "title", "")
             channel = getattr(item, "channel", "")
             video_id = getattr(item, "video_id", "")
+            thumbnail_url = getattr(item, "thumbnail_url", "")
             url = f"https://www.youtube.com/watch?v={video_id}" if video_id else ""
+            # Use default YouTube thumbnail if no explicit thumbnail_url
+            if not thumbnail_url and video_id:
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg"
             card = _MediaCard(280, 158, title, channel, url)
             self._trailers_layout.addWidget(card)
+            # Request thumbnail image for the card
+            if thumbnail_url:
+                self._request_image_for(thumbnail_url, card.thumb)
         self._trailers_layout.addStretch()
 
-    def _on_twitch_data(self, streams: list) -> None:
+    def _on_twitch_data(self, streams: list, gen: int = 0) -> None:
+        if self._app is None or gen != self._generation:
+            return
         self._clear_layout(self._streams_layout)
         if streams:
             self._streams_title.show()
@@ -603,8 +733,12 @@ class GameDetailPanel(QScrollArea):
             title = getattr(stream, "user_name", "")
             viewers = getattr(stream, "viewer_count", 0)
             url = getattr(stream, "stream_url", "")
+            thumbnail_url = getattr(stream, "thumbnail_url", "")
             card = _MediaCard(280, 158, title, f"{viewers:,} viewers", url)
             self._streams_layout.addWidget(card)
+            # Request thumbnail image for the card
+            if thumbnail_url:
+                self._request_image_for(thumbnail_url, card.thumb)
         self._streams_layout.addStretch()
 
     # ── Navigation ──────────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ class FileManagerPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 24, 32, 16)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         # -- header -----------------------------------------------------------
         title = QLabel("File Manager")

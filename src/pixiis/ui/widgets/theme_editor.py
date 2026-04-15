@@ -87,7 +87,7 @@ class ColorPickerButton(QPushButton):
         self.setStyleSheet(
             f"QPushButton {{"
             f"  background-color: {hex_color};"
-            f"  border: 2px solid #5c586a;"
+            f"  border: 2px solid #7a7690;"
             f"  border-radius: 6px;"
             f"}}"
             f"QPushButton:hover {{"
@@ -129,7 +129,7 @@ class ThemeEditor(QFrame):
 
         # -- colour pickers ---------------------------------------------------
         form = QFormLayout()
-        form.setSpacing(10)
+        form.setSpacing(12)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         self._color_buttons: dict[str, ColorPickerButton] = {}
@@ -149,7 +149,7 @@ class ThemeEditor(QFrame):
 
         # -- font family ------------------------------------------------------
         font_form = QFormLayout()
-        font_form.setSpacing(10)
+        font_form.setSpacing(12)
         font_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         self._font_combo = QComboBox()
@@ -167,7 +167,7 @@ class ThemeEditor(QFrame):
 
         # -- border radius slider ---------------------------------------------
         radius_form = QFormLayout()
-        radius_form.setSpacing(10)
+        radius_form.setSpacing(12)
         radius_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
         radius_row = QHBoxLayout()
@@ -188,7 +188,7 @@ class ThemeEditor(QFrame):
 
         # -- action buttons ---------------------------------------------------
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(12)
 
         self._reset_btn = QPushButton("Reset to Default")
         self._reset_btn.setStyleSheet(

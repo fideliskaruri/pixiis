@@ -41,7 +41,7 @@ class FileBrowser(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
 
         # -- path bar (breadcrumb) -------------------------------------------
         self._path_label = QLabel(_default_root())

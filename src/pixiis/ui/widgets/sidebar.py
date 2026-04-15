@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QFrame,
@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 
 _NAV_BG = QColor("#0e0d14")
 _ACCENT = QColor(233, 69, 96)        # #e94560
-_TEXT_MUTED = QColor("#5c586a")
+_TEXT_MUTED = QColor("#7a7690")
 _TEXT_SECONDARY = QColor("#8a8698")
 _TEXT_PRIMARY = QColor("#f0eef5")
 _HOVER_BG = QColor(233, 69, 96, 20)  # rgba(233,69,96,0.08)
@@ -32,6 +32,15 @@ _ICONS: dict[str, str] = {
     "settings": "\u2699",
     "file_manager": "\U0001f4c1",
 }
+
+# ── Pre-built fonts (avoid re-creating in paintEvent) ─────────────────────
+
+_NAV_ICON_FONT = QFont()
+_NAV_ICON_FONT.setPixelSize(16)
+
+_NAV_LABEL_FONT = QFont()
+_NAV_LABEL_FONT.setPixelSize(13)
+_NAV_LABEL_FONT.setWeight(QFont.Weight.Medium)
 
 
 class NavButton(QWidget):
@@ -50,6 +59,7 @@ class NavButton(QWidget):
 
         self.setFixedHeight(52)
         self.setMinimumWidth(90)
+        self.setAccessibleName(text)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMouseTracking(True)
@@ -108,25 +118,40 @@ class NavButton(QWidget):
         w, h = self.width(), self.height()
         focused = self.hasFocus()
 
-        # Background
-        if focused and not self._active:
-            # Controller focus: accent border ring
+        # Background — always reserve 2px ring space (inset rect)
+        inset = 4.0
+        rw, rh = w - inset * 2, h - inset * 2
+
+        if self._active:
+            # Active: tinted background
             bg_path = QPainterPath()
-            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
-            p.fillPath(bg_path, _FOCUS_BG)
-            pen = QPen(_FOCUS_BORDER, 1.0)
-            p.setPen(pen)
-            p.drawRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
-        elif self._active:
-            bg_path = QPainterPath()
-            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+            bg_path.addRoundedRect(inset, inset, rw, rh, 6.0, 6.0)
             p.fillPath(bg_path, _ACTIVE_BG)
+        elif focused:
+            # Focused only (not active): subtle focus background
+            bg_path = QPainterPath()
+            bg_path.addRoundedRect(inset, inset, rw, rh, 6.0, 6.0)
+            p.fillPath(bg_path, _FOCUS_BG)
         elif self._hover_progress > 0.0:
             hover_alpha = int(20 * self._hover_progress)
             hover_bg = QColor(233, 69, 96, hover_alpha)
             bg_path = QPainterPath()
-            bg_path.addRoundedRect(4.0, 4.0, w - 8.0, h - 8.0, 6.0, 6.0)
+            bg_path.addRoundedRect(inset, inset, rw, rh, 6.0, 6.0)
             p.fillPath(bg_path, hover_bg)
+
+        # Focus ring — always painted when focused, regardless of active state
+        # 2px accent border ring (always same rect, only color changes)
+        if focused:
+            pen = QPen(_ACCENT, 2.0)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(inset, inset, rw, rh, 6.0, 6.0)
+        else:
+            # Reserve 2px border space — transparent ring (no layout shift)
+            pen = QPen(QColor(0, 0, 0, 0), 2.0)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRoundedRect(inset, inset, rw, rh, 6.0, 6.0)
 
         # Bottom accent bar (active only) — full width of text+padding, 2px tall
         if self._active:
@@ -147,30 +172,22 @@ class NavButton(QWidget):
         p.setPen(QPen(text_color))
 
         # Icon
-        icon_font = QFont()
-        icon_font.setPixelSize(16)
-        p.setFont(icon_font)
         icon_rect_w = 20
 
-        label_font = QFont()
-        label_font.setPixelSize(13)
-        label_font.setWeight(QFont.Weight.Medium)
-
         # Calculate centering
-        p.setFont(label_font)
+        p.setFont(_NAV_LABEL_FONT)
         label_w = p.fontMetrics().horizontalAdvance(self._label)
         total_w = icon_rect_w + 4 + label_w
         start_x = (w - total_w) / 2.0
 
-        # Draw icon
-        p.setFont(icon_font)
-        p.drawText(int(start_x), 0, icon_rect_w, h, Qt.AlignmentFlag.AlignCenter, self._icon)
+        # Draw icon (use QRectF to avoid int truncation jitter)
+        p.setFont(_NAV_ICON_FONT)
+        p.drawText(QRectF(start_x, 0, icon_rect_w, h), Qt.AlignmentFlag.AlignCenter, self._icon)
 
         # Draw label
-        p.setFont(label_font)
+        p.setFont(_NAV_LABEL_FONT)
         p.drawText(
-            int(start_x + icon_rect_w + 4), 0,
-            label_w + 4, h,
+            QRectF(start_x + icon_rect_w + 4, 0, label_w + 4, h),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             self._label,
         )
@@ -246,7 +263,7 @@ class Sidebar(QFrame):
         btn_min.setFixedSize(32, 32)
         btn_min.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #5c586a; }"
+            + "QPushButton { color: #7a7690; }"
             "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_min.clicked.connect(self.minimize_requested.emit)
@@ -259,7 +276,7 @@ class Sidebar(QFrame):
         btn_max.setFixedSize(32, 32)
         btn_max.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #5c586a; }"
+            + "QPushButton { color: #7a7690; }"
             "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_max.clicked.connect(self.maximize_requested.emit)
@@ -272,7 +289,7 @@ class Sidebar(QFrame):
         btn_close.setFixedSize(32, 32)
         btn_close.setStyleSheet(
             _BTN_BASE
-            + "QPushButton { color: #5c586a; }"
+            + "QPushButton { color: #7a7690; }"
             "QPushButton:hover { background: #e94560; color: #ffffff; }"
         )
         btn_close.clicked.connect(self.close_requested.emit)

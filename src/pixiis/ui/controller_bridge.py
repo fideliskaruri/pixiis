@@ -168,15 +168,22 @@ class ControllerBridge(QObject):
             "hold_x": _BTN_X,
         }.get(self._voice_trigger_mode)
 
-        # A = select, B = back
-        for btn_idx, qt_key in ((_BTN_A, _KEY_RETURN), (_BTN_B, _KEY_ESCAPE)):
-            if btn_idx == _voice_btn:
-                continue
-            now = self._backend.get_button(btn_idx)
-            was = self._prev_buttons.get(btn_idx, False)
-            if now and not was:
-                self._post_key(qt_key)
-            self._prev_buttons[btn_idx] = now
+        # A = select/activate, B = back
+        # A sends Space (activates QPushButton, QCheckBox, QComboBox etc.)
+        # AND Return (activates QLineEdit submit, custom keyPressEvent handlers)
+        a_now = self._backend.get_button(_BTN_A)
+        a_was = self._prev_buttons.get(_BTN_A, False)
+        if _BTN_A != _voice_btn and a_now and not a_was:
+            self._post_key(Qt.Key.Key_Space)
+            self._post_key(_KEY_RETURN)
+        self._prev_buttons[_BTN_A] = a_now
+
+        # B = back/escape
+        b_now = self._backend.get_button(_BTN_B)
+        b_was = self._prev_buttons.get(_BTN_B, False)
+        if _BTN_B != _voice_btn and b_now and not b_was:
+            self._post_key(_KEY_ESCAPE)
+        self._prev_buttons[_BTN_B] = b_now
 
         # LB/RB = page switching
         for btn_idx, sig in ((_BTN_LB, self.tab_prev), (_BTN_RB, self.tab_next)):

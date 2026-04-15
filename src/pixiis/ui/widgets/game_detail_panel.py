@@ -427,39 +427,31 @@ class GameDetailPanel(QScrollArea):
         self._screenshots_scroll.setWidget(self._screenshots_container)
         self._body_layout.addWidget(self._screenshots_scroll)
 
-        # Media: Trailers + Streams side-by-side
-        media_row = QHBoxLayout()
-        media_row.setSpacing(24)
-
-        # Trailers column
-        trailers_col = QVBoxLayout()
-        trailers_col.setSpacing(8)
+        # Media: Trailers + Streams (full-width by default; side-by-side
+        # only when BOTH have data — see _rebuild_media_layout).
         self._trailers_title = _section_title("Trailers")
-        trailers_col.addWidget(self._trailers_title)
         self._trailers_scroll = self._make_horizontal_scroll(240)
         self._trailers_container = QWidget()
         self._trailers_layout = QHBoxLayout(self._trailers_container)
         self._trailers_layout.setContentsMargins(0, 0, 0, 0)
         self._trailers_layout.setSpacing(12)
         self._trailers_scroll.setWidget(self._trailers_container)
-        trailers_col.addWidget(self._trailers_scroll)
-        media_row.addLayout(trailers_col, 1)
 
-        # Streams column
-        streams_col = QVBoxLayout()
-        streams_col.setSpacing(8)
         self._streams_title = _section_title("Live Streams")
-        streams_col.addWidget(self._streams_title)
         self._streams_scroll = self._make_horizontal_scroll(240)
         self._streams_container = QWidget()
         self._streams_layout = QHBoxLayout(self._streams_container)
         self._streams_layout.setContentsMargins(0, 0, 0, 0)
         self._streams_layout.setSpacing(12)
         self._streams_scroll.setWidget(self._streams_container)
-        streams_col.addWidget(self._streams_scroll)
-        media_row.addLayout(streams_col, 1)
 
-        self._body_layout.addLayout(media_row)
+        # Container widget that holds whichever layout we pick
+        self._media_widget = QWidget()
+        self._media_widget.setStyleSheet("background: transparent;")
+        self._media_layout: QVBoxLayout | QHBoxLayout | None = None
+        self._body_layout.addWidget(self._media_widget)
+        # Build the initial (single-column) layout
+        self._rebuild_media_layout()
 
         # Fan Profile — coming soon
         self._fan_frame = QFrame()
@@ -487,6 +479,18 @@ class GameDetailPanel(QScrollArea):
 
         self._body_layout.addStretch()
         self._root_layout.addWidget(body, 1)
+
+        # ── Auto-scroll when D-pad moves focus to off-screen widget ────
+        self.viewport().installEventFilter(self)
+        for child in self.findChildren(QWidget):
+            if child.focusPolicy() != Qt.FocusPolicy.NoFocus:
+                child.installEventFilter(self)
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Type.FocusIn and obj is not self:
+            self.ensureWidgetVisible(obj, 50, 50)
+        return super().eventFilter(obj, event)
 
     # ── Public API ──────────────────────────────────────────────────────────
 

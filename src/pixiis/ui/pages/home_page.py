@@ -9,6 +9,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
+    QLabel,
     QVBoxLayout,
     QWidget,
 )
@@ -202,6 +203,12 @@ class HomePage(QWidget):
             self._grid = None
             root.addStretch(1)
 
+        # -- loading indicator ---------------------------------------------------
+        self._loading = QLabel("Scanning your library...")
+        self._loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._loading.setStyleSheet("color: #5c586a; font-size: 16px; padding: 40px; background: transparent;")
+        root.addWidget(self._loading)
+
         # -- initial load -----------------------------------------------------
         self._load_apps()
 
@@ -209,6 +216,8 @@ class HomePage(QWidget):
 
     def refresh(self, apps: list[AppEntry] | None = None) -> None:
         """Refresh the tile grid with an updated app list."""
+        if hasattr(self, '_loading') and self._loading.isVisible():
+            self._loading.hide()
         if apps is not None:
             self._all_apps = list(apps)
         elif self._registry is not None:

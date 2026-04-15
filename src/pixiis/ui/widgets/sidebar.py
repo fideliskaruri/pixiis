@@ -225,6 +225,7 @@ class Sidebar(QFrame):
             "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_min.clicked.connect(self.minimize_requested.emit)
+        btn_min.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addWidget(btn_min)
 
         layout.addSpacing(2)
@@ -237,6 +238,7 @@ class Sidebar(QFrame):
             "QPushButton:hover { background: #252330; color: #8a8698; }"
         )
         btn_max.clicked.connect(self.maximize_requested.emit)
+        btn_max.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addWidget(btn_max)
 
         layout.addSpacing(2)
@@ -249,6 +251,7 @@ class Sidebar(QFrame):
             "QPushButton:hover { background: #e94560; color: #ffffff; }"
         )
         btn_close.clicked.connect(self.close_requested.emit)
+        btn_close.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addWidget(btn_close)
 
     def paintEvent(self, event) -> None:

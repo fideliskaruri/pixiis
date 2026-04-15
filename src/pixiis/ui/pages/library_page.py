@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QLabel,
     QVBoxLayout,
     QWidget,
 )
@@ -208,6 +209,12 @@ class LibraryPage(QWidget):
             self._grid = None
             root.addStretch(1)
 
+        # -- loading indicator ---------------------------------------------------
+        self._loading = QLabel("Scanning your library...")
+        self._loading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._loading.setStyleSheet("color: #5c586a; font-size: 16px; padding: 40px; background: transparent;")
+        root.addWidget(self._loading)
+
         # -- initial load -----------------------------------------------------
         self._apply_filter_and_display()
 
@@ -215,6 +222,8 @@ class LibraryPage(QWidget):
 
     def refresh(self, apps: list[AppEntry] | None = None) -> None:
         """Re-apply current filter against latest data."""
+        if hasattr(self, '_loading') and self._loading.isVisible():
+            self._loading.hide()
         self._apply_filter_and_display()
 
     # -- internals ------------------------------------------------------------

@@ -104,9 +104,9 @@ class TileGrid(QScrollArea):
                 self._url_to_tile[app.art_url] = tile
                 image_loader.request(app.art_url)
 
-        # Restore focus: keep search bar focused if it was, otherwise focus first tile
+        # Restore focus: keep previous widget focused if still valid, otherwise first tile
         if prev_focus is not None and not prev_focus.isHidden():
-            if isinstance(prev_focus, (QLineEdit, QTextEdit, QPlainTextEdit)):
+            if prev_focus.focusPolicy() != Qt.FocusPolicy.NoFocus:
                 prev_focus.setFocus()
             elif self._tiles:
                 self._tiles[0].setFocus()
@@ -189,9 +189,13 @@ class TileGrid(QScrollArea):
         if new_idx is not None:
             self._tiles[new_idx].setFocus()
         else:
-            # At grid boundary — let the event propagate so D-pad can
-            # escape the grid and move focus to other UI elements
-            event.ignore()
+            # At grid boundary — escape in the appropriate direction
+            if key == Qt.Key.Key_Up:
+                self.focusPreviousChild()
+            elif key == Qt.Key.Key_Down:
+                self.focusNextChild()
+            else:
+                event.ignore()
 
     # ── Internal ────────────────────────────────────────────────────────────
 

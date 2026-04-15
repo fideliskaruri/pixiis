@@ -293,16 +293,27 @@ class ControllerBridge(QObject):
 
     @staticmethod
     def _post_nav(key: int) -> None:
+        # Bug 2 fix: allow D-pad UP/DOWN to escape text inputs
         if ControllerBridge._is_text_input():
-            return
+            if key in (_KEY_DOWN, _KEY_UP):
+                widget = QApplication.focusWidget()
+                if widget:
+                    widget.clearFocus()
+                    if key == _KEY_DOWN:
+                        ControllerBridge._post_key(Qt.Key.Key_Tab)
+                    else:
+                        ControllerBridge._post_key(Qt.Key.Key_Backtab)
+            return  # LEFT/RIGHT still blocked (cursor movement in text)
+
         widget = QApplication.focusWidget()
         if widget is None:
             return
 
-        # Check if focused widget is inside a TileGrid or QTreeView
-        # (these handle arrow keys for 2D/tree navigation)
         from pixiis.ui.widgets.tile_grid import TileGrid
-        from PySide6.QtWidgets import QTreeView
+        from pixiis.ui.widgets.sidebar import Sidebar
+        from PySide6.QtWidgets import QTreeView, QWidget
+
+        # Zone 1: TileGrid / QTreeView — post raw arrow keys
         parent = widget
         in_arrow_widget = False
         while parent is not None:
@@ -312,14 +323,53 @@ class ControllerBridge(QObject):
             parent = parent.parentWidget()
 
         if in_arrow_widget:
-            # Inside grid/tree: arrows for spatial navigation
             ControllerBridge._post_key(key)
-        else:
-            # Outside: Tab/Backtab for linear focus traversal
-            if key in (_KEY_DOWN, _KEY_RIGHT):
-                ControllerBridge._post_key(Qt.Key.Key_Tab)
-            elif key in (_KEY_UP, _KEY_LEFT):
+            return
+
+        # Zone 2: Sidebar (horizontal nav bar)
+        parent = widget
+        in_sidebar = False
+        while parent is not None:
+            if isinstance(parent, Sidebar):
+                in_sidebar = True
+                break
+            parent = parent.parentWidget()
+
+        if in_sidebar:
+            if key == _KEY_LEFT:
                 ControllerBridge._post_key(Qt.Key.Key_Backtab)
+            elif key == _KEY_RIGHT:
+                ControllerBridge._post_key(Qt.Key.Key_Tab)
+            elif key == _KEY_DOWN:
+                # Jump focus to first focusable child in current page
+                main_win = widget.window()
+                if hasattr(main_win, '_page_stack'):
+                    page = main_win._page_stack.currentWidget()
+                    if page:
+                        for child in page.findChildren(QWidget):
+                            if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(page):
+                                child.setFocus()
+                                return
+            # UP is a no-op (nothing above nav bar)
+            return
+
+        # Zone 3: Everything else (sort pills, settings controls, etc.)
+        if key == _KEY_LEFT:
+            ControllerBridge._post_key(Qt.Key.Key_Backtab)
+        elif key == _KEY_RIGHT:
+            ControllerBridge._post_key(Qt.Key.Key_Tab)
+        elif key == _KEY_DOWN:
+            ControllerBridge._post_key(Qt.Key.Key_Tab)
+        elif key == _KEY_UP:
+            # Jump to sidebar's active nav button
+            main_win = widget.window()
+            if hasattr(main_win, '_sidebar'):
+                sidebar = main_win._sidebar
+                for btn in sidebar._buttons.values():
+                    if btn._active:
+                        btn.setFocus()
+                        return
+            ControllerBridge._post_key(Qt.Key.Key_Backtab)
 
     @staticmethod
     def _post_scroll(value: float) -> None:

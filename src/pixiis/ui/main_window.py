@@ -139,6 +139,12 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+        try:
+            from pixiis.ui.widgets.voice_overlay import VoiceOverlay
+            self._voice_overlay = VoiceOverlay()
+        except Exception:
+            self._voice_overlay = None
+
         # -- register pages --------------------------------------------------
         self._register_pages()
 
@@ -329,6 +335,7 @@ class MainWindow(QMainWindow):
         worker.moveToThread(thread)
 
         thread.started.connect(worker.run)
+        worker.finished.connect(self._refresh_pages)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
@@ -360,12 +367,23 @@ class MainWindow(QMainWindow):
                 twitch_client=self._twitch_client,
             )
         self.navigate_to("game_detail")
+        # Focus the launch button for immediate A-press
+        if detail and hasattr(detail, '_hero') and hasattr(detail._hero, '_launch_btn'):
+            detail._hero._launch_btn.setFocus()
 
     def _on_voice_start(self) -> None:
-        print("[Pixiis] Voice recording started (RT pressed)")
+        if self._voice_overlay:
+            self._voice_overlay.show_text("Listening...", is_final=False)
+        # Focus search bar on searchable pages
+        current = self._page_stack.current_page_name()
+        if current in ("home", "library"):
+            page = self._page_stack._pages.get(current)
+            if page and hasattr(page, '_search') and page._search:
+                page._search.setFocus()
 
     def _on_voice_stop(self) -> None:
-        print("[Pixiis] Voice recording stopped (RT released)")
+        if self._voice_overlay:
+            self._voice_overlay.show_text("Processing...", is_final=True)
 
     def _on_launch_requested(self, app) -> None:
         """Launch the selected game."""
@@ -387,6 +405,8 @@ class MainWindow(QMainWindow):
         self._cleaned_up = True
         if self._owns_controller:
             self._controller_bridge.shutdown()
+        if hasattr(self, '_voice_overlay') and self._voice_overlay:
+            self._voice_overlay.close()
         bus.unsubscribe(LibraryUpdatedEvent, self._on_library_updated)
 
     def closeEvent(self, event) -> None:

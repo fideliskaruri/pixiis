@@ -103,6 +103,11 @@ class PageStack(QStackedWidget):
             outgoing.setGraphicsEffect(None)
             self._current_name = name
             self._animating = False
+            # Focus the first focusable child in the new page
+            for child in incoming.findChildren(QWidget):
+                if child.focusPolicy() != Qt.FocusPolicy.NoFocus and child.isVisibleTo(incoming):
+                    child.setFocus()
+                    break
 
         group.finished.connect(_on_finished)
         group.start()

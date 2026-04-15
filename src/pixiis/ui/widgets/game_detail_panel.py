@@ -189,6 +189,20 @@ class _HeroWidget(QWidget):
         self._title = ""
         self._rating_text = ""
 
+        # Real launch button (replaces painted version)
+        self._launch_btn = QPushButton("\u25b6  LAUNCH", self)
+        self._launch_btn.setFixedSize(200, 48)
+        self._launch_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._launch_btn.setObjectName("accentButton")
+        self._launch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._launch_btn.clicked.connect(self.launch_clicked.emit)
+
+        # Real back button (replaces painted version)
+        self._back_btn = QPushButton("\u2190", self)
+        self._back_btn.setFixedSize(40, 40)
+        self._back_btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._back_btn.clicked.connect(self.back_clicked.emit)
+
     def set_pixmap(self, pixmap: QPixmap) -> None:
         self._pixmap = pixmap
         self.update()
@@ -200,6 +214,11 @@ class _HeroWidget(QWidget):
     def set_rating(self, text: str) -> None:
         self._rating_text = text
         self.update()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._launch_btn.move(self.width() - 228, self.height() - 76)
+        self._back_btn.move(20, 16)
 
     def paintEvent(self, event) -> None:  # noqa: N802
         p = QPainter(self)
@@ -232,14 +251,6 @@ class _HeroWidget(QWidget):
         overlay.setColorAt(1.0, QColor(11, 10, 16, 245))
         p.fillRect(0, 0, w, h, overlay)
 
-        # Back arrow — top left
-        back_font = QFont()
-        back_font.setPixelSize(22)
-        back_font.setWeight(QFont.Weight.Bold)
-        p.setFont(back_font)
-        p.setPen(QPen(QColor(240, 238, 245, 180)))
-        p.drawText(20, 20, 40, 40, Qt.AlignmentFlag.AlignCenter, "\u2190")
-
         # Title — bottom left (Display: 32px Bold)
         title_font = QFont()
         title_font.setPixelSize(32)
@@ -263,42 +274,7 @@ class _HeroWidget(QWidget):
                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                         self._rating_text)
 
-        # Launch button — bottom right, pill shape
-        btn_w, btn_h = 200, 48
-        btn_x, btn_y = w - btn_w - 28, h - btn_h - 28
-
-        btn_path = QPainterPath()
-        btn_path.addRoundedRect(QRectF(btn_x, btn_y, btn_w, btn_h), 22.0, 22.0)
-
-        # Gradient fill for the button (primary button spec)
-        btn_grad = QLinearGradient(btn_x, btn_y, btn_x, btn_y + btn_h)
-        btn_grad.setColorAt(0.0, QColor(233, 69, 96))     # accent
-        btn_grad.setColorAt(1.0, QColor(201, 58, 82))     # accent_pressed
-        p.fillPath(btn_path, btn_grad)
-
-        # Button text (14px SemiBold per spec primary button)
-        btn_font = QFont()
-        btn_font.setPixelSize(14)
-        btn_font.setWeight(QFont.Weight.DemiBold)
-        btn_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
-        p.setFont(btn_font)
-        p.setPen(QPen(QColor(255, 255, 255)))
-        p.drawText(btn_x, btn_y, btn_w, btn_h, Qt.AlignmentFlag.AlignCenter, "\u25b6  LAUNCH")
-
-        # Store rects for click detection
-        self._back_rect = QRectF(10, 10, 60, 60)
-        self._launch_rect = QRectF(btn_x, btn_y, btn_w, btn_h)
-
         p.end()
-
-    def mousePressEvent(self, event) -> None:  # noqa: N802
-        pos = event.position() if hasattr(event, 'position') else event.pos()
-        pt = QRectF(pos.x(), pos.y(), 1, 1)
-        if hasattr(self, '_back_rect') and self._back_rect.intersects(pt):
-            self.back_clicked.emit()
-        elif hasattr(self, '_launch_rect') and self._launch_rect.intersects(pt):
-            self.launch_clicked.emit()
-        super().mousePressEvent(event)
 
 
 # ── Main panel ─────────────────────────────────────────────────────────────
@@ -312,6 +288,7 @@ class GameDetailPanel(QScrollArea):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)

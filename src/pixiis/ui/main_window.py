@@ -151,6 +151,14 @@ class MainWindow(QMainWindow):
         except Exception:
             self._voice_overlay = None
 
+        # Voice recording pipeline (faster-whisper)
+        self._voice_pipeline = None
+        try:
+            from pixiis.voice.pipeline import VoicePipeline
+            self._voice_pipeline = VoicePipeline()
+        except Exception:
+            pass
+
         # -- register pages --------------------------------------------------
         self._register_pages()
 
@@ -271,6 +279,11 @@ class MainWindow(QMainWindow):
 
     def _nav_next_page(self) -> None:
         """RB — cycle to next page."""
+        if self._vibration:
+            try:
+                self._vibration.pulse(left=10000, right=10000, duration_ms=40)
+            except Exception:
+                pass
         current = self._page_stack.current_page_name()
         if current in self._PAGE_ORDER:
             idx = (self._PAGE_ORDER.index(current) + 1) % len(self._PAGE_ORDER)
@@ -278,6 +291,11 @@ class MainWindow(QMainWindow):
 
     def _nav_prev_page(self) -> None:
         """LB — cycle to previous page."""
+        if self._vibration:
+            try:
+                self._vibration.pulse(left=10000, right=10000, duration_ms=40)
+            except Exception:
+                pass
         current = self._page_stack.current_page_name()
         if current in self._PAGE_ORDER:
             idx = (self._PAGE_ORDER.index(current) - 1) % len(self._PAGE_ORDER)
@@ -408,8 +426,17 @@ class MainWindow(QMainWindow):
             detail._hero._launch_btn.setFocus()
 
     def _on_voice_start(self) -> None:
+        # Vibration feedback
+        if self._vibration:
+            try:
+                self._vibration.pulse(left=12000, right=12000, duration_ms=50)
+            except Exception:
+                pass
+
+        # Show overlay
         if self._voice_overlay:
             self._voice_overlay.show_text("Listening...", is_final=False)
+
         # Focus search bar on searchable pages
         current = self._page_stack.current_page_name()
         if current in ("home", "library"):
@@ -417,9 +444,23 @@ class MainWindow(QMainWindow):
             if page and hasattr(page, '_search') and page._search:
                 page._search.setFocus()
 
+        # Start actual voice recording pipeline
+        if self._voice_pipeline is not None:
+            try:
+                self._voice_pipeline.start()
+            except Exception as e:
+                print(f"[Pixiis] Voice pipeline start failed: {e}")
+
     def _on_voice_stop(self) -> None:
+        # Stop recording — pipeline will publish TranscriptionEvent when done
+        if self._voice_pipeline is not None:
+            try:
+                self._voice_pipeline.stop()
+            except Exception as e:
+                print(f"[Pixiis] Voice pipeline stop failed: {e}")
+
         if self._voice_overlay:
-            self._voice_overlay.dismiss()
+            self._voice_overlay.show_text("Processing...", is_final=False)
 
     def _on_transcription(self, event: TranscriptionEvent) -> None:
         """Write final transcription text into the active search bar."""
@@ -445,6 +486,11 @@ class MainWindow(QMainWindow):
 
     def _on_launch_requested(self, app) -> None:
         """Launch the selected game."""
+        if self._vibration:
+            try:
+                self._vibration.rumble_launch()
+            except Exception:
+                pass
         name = getattr(app, "display_name", "game")
         self.show_toast(f"Launching {name}...", icon="info")
 
@@ -488,6 +534,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_voice_overlay') and self._voice_overlay:
             self._voice_overlay.cleanup()
             self._voice_overlay.close()
+        if self._voice_pipeline is not None:
+            try:
+                self._voice_pipeline.stop()
+            except Exception:
+                pass
         bus.unsubscribe(LibraryUpdatedEvent, self._on_library_updated)
         bus.unsubscribe(TranscriptionEvent, self._on_transcription)
 

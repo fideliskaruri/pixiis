@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import (
     QEasingCurve,
-    QPointF,
     QPropertyAnimation,
     QRectF,
     QSize,
@@ -13,7 +12,6 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QFont,
     QFontMetrics,
@@ -22,7 +20,6 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap,
-    QTransform,
 )
 from PySide6.QtWidgets import QWidget
 

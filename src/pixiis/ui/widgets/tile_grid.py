@@ -9,7 +9,7 @@ from PySide6.QtCore import (
     Signal,
 )
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPlainTextEdit, QScrollArea, QTextEdit, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QWidget
 
 from pixiis.core.types import AppEntry
 from pixiis.ui.widgets.flow_layout import FlowLayout

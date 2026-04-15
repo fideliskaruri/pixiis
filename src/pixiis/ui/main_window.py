@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pixiis.core import get_config, bus
+from pixiis.core.types import TranscriptionEvent
 from pixiis.library.registry import AppRegistry, LibraryUpdatedEvent
 from pixiis.ui.controller_bridge import ControllerBridge
 from pixiis.ui.page_stack import PageStack
@@ -145,7 +146,7 @@ class MainWindow(QMainWindow):
 
         try:
             from pixiis.ui.widgets.voice_overlay import VoiceOverlay
-            self._voice_overlay = VoiceOverlay()
+            self._voice_overlay = VoiceOverlay(self)
         except Exception:
             self._voice_overlay = None
 
@@ -167,6 +168,7 @@ class MainWindow(QMainWindow):
         self._controller_bridge.voice_start.connect(self._on_voice_start)
         self._controller_bridge.voice_stop.connect(self._on_voice_stop)
         bus.subscribe(LibraryUpdatedEvent, self._on_library_updated)
+        bus.subscribe(TranscriptionEvent, self._on_transcription)
 
     # -- page registration ---------------------------------------------------
 
@@ -230,7 +232,7 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(page)
         lbl = QLabel(label)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("font-size: 24px; color: #555;")
+        lbl.setStyleSheet("font-size: 24px; color: #5c586a;")
         layout.addWidget(lbl)
         return page
 
@@ -409,7 +411,25 @@ class MainWindow(QMainWindow):
 
     def _on_voice_stop(self) -> None:
         if self._voice_overlay:
-            self._voice_overlay.show_text("Processing...", is_final=True)
+            self._voice_overlay.show_text("Processing...", is_final=False)
+
+    def _on_transcription(self, event: TranscriptionEvent) -> None:
+        """Write final transcription text into the active search bar."""
+        if not event.is_final:
+            return
+        text = event.text
+
+        def _apply() -> None:
+            current = self._page_stack.current_page_name()
+            if current in ("home", "library"):
+                page = self._page_stack._pages.get(current)
+                if page and hasattr(page, "_search") and page._search:
+                    page._search.setText(text)
+                    page._search.search_changed.emit(text)
+            if self._voice_overlay:
+                self._voice_overlay.dismiss()
+
+        QTimer.singleShot(0, _apply)
 
     def show_toast(self, msg: str, icon: str = "success") -> None:
         """Show a floating toast notification."""
@@ -446,8 +466,10 @@ class MainWindow(QMainWindow):
         if self._owns_controller:
             self._controller_bridge.shutdown()
         if hasattr(self, '_voice_overlay') and self._voice_overlay:
+            self._voice_overlay.cleanup()
             self._voice_overlay.close()
         bus.unsubscribe(LibraryUpdatedEvent, self._on_library_updated)
+        bus.unsubscribe(TranscriptionEvent, self._on_transcription)
 
     def closeEvent(self, event) -> None:
         if not self._owns_controller:

@@ -34,11 +34,11 @@ class VoiceOverlay(QWidget):
 
         # ── window flags ────────────────────────────────────────────
         self.setWindowFlags(
-            Qt.WindowStaysOnTopHint
-            | Qt.FramelessWindowHint
-            | Qt.Tool
+            Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Tool
         )
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setWindowOpacity(0.0)
 
         # ── layout ──────────────────────────────────────────────────
@@ -47,11 +47,11 @@ class VoiceOverlay(QWidget):
 
         self._label = QLabel()
         self._label.setWordWrap(True)
-        self._label.setAlignment(Qt.AlignCenter)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._label.setMaximumWidth(600)
         self._label.setStyleSheet(
             "QLabel {"
-            "  color: #ffffff;"
+            "  color: #f0eef5;"
             "  font-size: 20pt;"
             "  background: transparent;"
             "}"
@@ -60,8 +60,8 @@ class VoiceOverlay(QWidget):
 
         self.setStyleSheet(
             "VoiceOverlay {"
-            "  background-color: rgba(26, 26, 46, 217);"  # #1a1a2e @ 85%
-            "  border-radius: 16px;"
+            "  background-color: rgba(28, 26, 36, 230);"  # #1c1a24 @ 90%
+            "  border-radius: 12px;"
             "}"
         )
 
@@ -98,7 +98,7 @@ class VoiceOverlay(QWidget):
         if is_final:
             self._label.setStyleSheet(
                 "QLabel {"
-                "  color: #ffffff;"
+                "  color: #f0eef5;"
                 "  font-size: 20pt;"
                 "  background: transparent;"
                 "}"
@@ -106,7 +106,7 @@ class VoiceOverlay(QWidget):
         else:
             self._label.setStyleSheet(
                 "QLabel {"
-                "  color: rgba(255, 255, 255, 178);"  # ~70% opacity
+                "  color: rgba(240, 238, 245, 178);"  # #f0eef5 @ 70%
                 "  font-size: 20pt;"
                 "  background: transparent;"
                 "}"
@@ -132,6 +132,11 @@ class VoiceOverlay(QWidget):
 
         self._hide_timer.start(self._AUTO_HIDE_MS)
 
+    def dismiss(self) -> None:
+        """Fade out gracefully (called when voice capture finishes)."""
+        self._hide_timer.stop()
+        self._begin_fade_out()
+
     def cleanup(self) -> None:
         """Unsubscribe from the event bus."""
         bus.unsubscribe(TranscriptionEvent, self._on_transcription)
@@ -149,16 +154,21 @@ class VoiceOverlay(QWidget):
         QTimer.singleShot(0, lambda: self.show_text(event.text, event.is_final))
 
     def _position_on_screen(self) -> None:
-        """Place the overlay at the bottom-centre of the primary screen,
-        unless the user has dragged it elsewhere."""
+        """Place the overlay at the bottom-centre of the parent window,
+        falling back to the primary screen if no parent is set."""
         if self._custom_pos is not None:
             self.move(self._custom_pos)
             return
 
-        screen = QApplication.primaryScreen()
-        if screen is None:
-            return
-        geo = screen.availableGeometry()
+        parent = self.parentWidget()
+        if parent is not None:
+            geo = parent.window().geometry()
+        else:
+            screen = QApplication.primaryScreen()
+            if screen is None:
+                return
+            geo = screen.availableGeometry()
+
         x = geo.x() + (geo.width() - self.width()) // 2
         y = geo.y() + geo.height() - self.height() - 80
         self.move(x, y)
@@ -166,12 +176,12 @@ class VoiceOverlay(QWidget):
     # ── dragging ────────────────────────────────────────────────────
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self._drag_pos is not None and event.buttons() & Qt.LeftButton:
+        if self._drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
             new_pos = event.globalPosition().toPoint() - self._drag_pos
             self.move(new_pos)
             self._custom_pos = new_pos

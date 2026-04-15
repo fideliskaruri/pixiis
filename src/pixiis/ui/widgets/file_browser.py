@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QDir, QUrl, Qt
+from PySide6.QtCore import QDir, QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFileSystemModel,
@@ -36,7 +36,7 @@ class FileBrowser(QFrame):
         super().__init__(parent)
         self.setObjectName("FileBrowser")
         self.setStyleSheet(
-            "#FileBrowser { background-color: #1a1a2e; border-radius: 6px; }"
+            "#FileBrowser { background-color: #13121a; border-radius: 6px; }"
         )
 
         layout = QVBoxLayout(self)
@@ -47,9 +47,9 @@ class FileBrowser(QFrame):
         self._path_label = QLabel(_default_root())
         self._path_label.setStyleSheet(
             "QLabel {"
-            "  color: #a0a0b0;"
-            "  background-color: #16213e;"
-            "  border: 1px solid #0f3460;"
+            "  color: #8a8698;"
+            "  background-color: #1c1a24;"
+            "  border: 1px solid #e94560;"
             "  border-radius: 4px;"
             "  padding: 4px 8px;"
             "  font-size: 13px;"
@@ -85,8 +85,8 @@ class FileBrowser(QFrame):
         # Style
         self._tree.setStyleSheet(
             "QTreeView {"
-            "  background-color: #1a1a2e;"
-            "  color: #e0e0e0;"
+            "  background-color: #13121a;"
+            "  color: #f0eef5;"
             "  border: none;"
             "  font-size: 13px;"
             "}"
@@ -94,25 +94,26 @@ class FileBrowser(QFrame):
             "  padding: 4px 2px;"
             "}"
             "QTreeView::item:alternate {"
-            "  background-color: #16213e;"
+            "  background-color: #1c1a24;"
             "}"
             "QTreeView::item:selected {"
-            "  background-color: #0f3460;"
+            "  background-color: #e94560;"
             "}"
             "QTreeView::item:hover {"
             "  background-color: rgba(233, 69, 96, 0.12);"
             "}"
             "QHeaderView::section {"
-            "  background-color: #16213e;"
-            "  color: #a0a0b0;"
+            "  background-color: #1c1a24;"
+            "  color: #8a8698;"
             "  border: none;"
-            "  border-bottom: 1px solid #0f3460;"
+            "  border-bottom: 1px solid #e94560;"
             "  padding: 4px 6px;"
             "  font-weight: bold;"
             "}"
         )
 
         self._tree.doubleClicked.connect(self._on_double_click)
+        self._tree.installEventFilter(self)
         layout.addWidget(self._tree, stretch=1)
 
     # -- public API -----------------------------------------------------------
@@ -130,6 +131,15 @@ class FileBrowser(QFrame):
         parent = str(Path(current).parent)
         if parent != current:
             self.navigate_to(parent)
+
+    # -- event filter ---------------------------------------------------------
+
+    def eventFilter(self, obj, event):  # noqa: N802
+        if obj is self._tree and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Backspace:
+                self.go_parent()
+                return True
+        return super().eventFilter(obj, event)
 
     # -- internals ------------------------------------------------------------
 

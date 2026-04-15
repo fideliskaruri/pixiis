@@ -34,10 +34,10 @@ except ImportError:
 # ── Defaults ────────────────────────────────────────────────────────────────
 
 _DEFAULT_COLORS = {
-    "primary": QColor("#1a1a2e"),
-    "secondary": QColor("#16213e"),
+    "primary": QColor("#13121a"),
+    "secondary": QColor("#1c1a24"),
     "accent": QColor("#e94560"),
-    "background": QColor("#0f3460"),
+    "background": QColor("#0b0a10"),
 }
 
 _DEFAULT_FONT = "Segoe UI"
@@ -86,11 +86,11 @@ class ColorPickerButton(QPushButton):
         self.setStyleSheet(
             f"QPushButton {{"
             f"  background-color: {hex_color};"
-            f"  border: 2px solid #555;"
+            f"  border: 2px solid #5c586a;"
             f"  border-radius: 6px;"
             f"}}"
             f"QPushButton:hover {{"
-            f"  border: 2px solid #e0e0e0;"
+            f"  border: 2px solid #f0eef5;"
             f"}}"
         )
 
@@ -174,7 +174,7 @@ class ThemeEditor(QFrame):
         self._radius_slider.setFixedWidth(180)
         self._radius_label = QLabel(f"{current_radius}px")
         self._radius_label.setFixedWidth(40)
-        self._radius_label.setStyleSheet("color: #e0e0e0; background: transparent;")
+        self._radius_label.setStyleSheet("color: #f0eef5; background: transparent;")
         self._radius_slider.valueChanged.connect(self._on_radius_changed)
         radius_row.addWidget(self._radius_slider)
         radius_row.addWidget(self._radius_label)
@@ -188,9 +188,9 @@ class ThemeEditor(QFrame):
 
         self._reset_btn = QPushButton("Reset to Default")
         self._reset_btn.setStyleSheet(
-            "QPushButton { background-color: #16213e; color: #e0e0e0; "
-            "border: 1px solid #0f3460; border-radius: 6px; padding: 6px 14px; }"
-            "QPushButton:hover { background-color: #0f3460; }"
+            "QPushButton { background-color: #1c1a24; color: #f0eef5; "
+            "border: 1px solid #1c1a24; border-radius: 6px; padding: 6px 14px; }"
+            "QPushButton:hover { background-color: #e94560; }"
         )
         self._reset_btn.clicked.connect(self._reset_defaults)
         btn_row.addWidget(self._reset_btn)
@@ -214,17 +214,17 @@ class ThemeEditor(QFrame):
     @staticmethod
     def _make_label(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet("color: #a0a0b0; background: transparent; font-size: 13px;")
+        lbl.setStyleSheet("color: #8a8698; background: transparent; font-size: 13px;")
         return lbl
 
     @staticmethod
     def _style_combo(combo: QComboBox) -> None:
         combo.setStyleSheet(
-            "QComboBox { background-color: #16213e; color: #e0e0e0; "
-            "border: 1px solid #0f3460; border-radius: 4px; padding: 4px 8px; }"
+            "QComboBox { background-color: #1c1a24; color: #f0eef5; "
+            "border: 1px solid #1c1a24; border-radius: 4px; padding: 4px 8px; }"
             "QComboBox::drop-down { border: none; }"
-            "QComboBox QAbstractItemView { background-color: #16213e; color: #e0e0e0; "
-            "selection-background-color: #0f3460; }"
+            "QComboBox QAbstractItemView { background-color: #1c1a24; color: #f0eef5; "
+            "selection-background-color: #e94560; }"
         )
 
     def _read_theme_color(self, key: str, default: QColor) -> QColor:

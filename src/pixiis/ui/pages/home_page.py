@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QHBoxLayout,
     QLabel,
     QVBoxLayout,

@@ -31,7 +31,7 @@ class FileManagerPage(QWidget):
             "QLabel {"
             "  font-size: 20px;"
             "  font-weight: bold;"
-            "  color: #e0e0e0;"
+            "  color: #f0eef5;"
             "  background: transparent;"
             "  padding-bottom: 2px;"
             "}"

@@ -88,6 +88,14 @@ class _ClickableImage(QLabel):
         super().__init__(parent)
         self.url = url
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if self.url:
+                QDesktopServices.openUrl(QUrl(self.url))
+        else:
+            super().keyPressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if self.url and event.button() == Qt.MouseButton.LeftButton:
@@ -108,6 +116,7 @@ class _MediaCard(QFrame):
         self._url = url
         self._hovered = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFixedSize(thumb_w + 24, thumb_h + 70)
         self.setMouseTracking(True)
 
@@ -166,6 +175,13 @@ class _MediaCard(QFrame):
 
         p.end()
         super().paintEvent(event)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            if self._url:
+                QDesktopServices.openUrl(QUrl(self._url))
+        else:
+            super().keyPressEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         if self._url and event.button() == Qt.MouseButton.LeftButton:

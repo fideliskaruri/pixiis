@@ -96,26 +96,26 @@ def launch_ui() -> None:
 # Hardcoded dark theme used when the ThemeManager service isn't available yet.
 _FALLBACK_STYLESHEET = """
 QWidget {
-    background-color: #1a1a2e;
-    color: #e0e0e0;
+    background-color: #0b0a10;
+    color: #f0eef5;
     font-family: "Segoe UI", "Roboto", sans-serif;
     font-size: 14px;
 }
 QMainWindow {
-    background-color: #1a1a2e;
+    background-color: #0b0a10;
 }
 QPushButton {
-    background-color: #16213e;
-    color: #e0e0e0;
-    border: 1px solid #0f3460;
+    background-color: #13121a;
+    color: #f0eef5;
+    border: 1px solid #1c1a24;
     border-radius: 6px;
     padding: 8px 16px;
 }
 QPushButton:hover {
-    background-color: #0f3460;
+    background-color: #1c1a24;
 }
 QPushButton:pressed {
-    background-color: #533483;
+    background-color: #e94560;
 }
 QPushButton:focus {
     border: 2px solid #e94560;
@@ -124,12 +124,12 @@ QLabel {
     background-color: transparent;
 }
 QScrollBar:vertical {
-    background: #16213e;
+    background: #13121a;
     width: 8px;
     border-radius: 4px;
 }
 QScrollBar::handle:vertical {
-    background: #0f3460;
+    background: #1c1a24;
     border-radius: 4px;
     min-height: 30px;
 }

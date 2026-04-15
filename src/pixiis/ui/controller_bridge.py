@@ -8,7 +8,15 @@ from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, QTimer, Qt, Signal
 from PySide6.QtGui import QKeyEvent, QWheelEvent
-from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
+from PySide6.QtWidgets import (
+    QApplication,
+    QDoubleSpinBox,
+    QLineEdit,
+    QPlainTextEdit,
+    QSlider,
+    QSpinBox,
+    QTextEdit,
+)
 
 import time as _time
 
@@ -321,17 +329,47 @@ class ControllerBridge(QObject):
         if current is None:
             return
 
-        # Send arrow key synchronously so we can check if the widget handled it.
-        # (postEvent is async — focus wouldn't have moved yet when we check)
-        press = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
-        accepted = QApplication.sendEvent(current, press)
+        # Value-editing controls need special D-pad handling:
+        #   - QSlider, QSpinBox, QDoubleSpinBox consume arrow keys to change
+        #     their value. LEFT/RIGHT should adjust value, but UP/DOWN must
+        #     navigate away so the user isn't trapped on the control.
+        if isinstance(current, (QSlider, QSpinBox, QDoubleSpinBox)):
+            if key in (_KEY_UP, _KEY_DOWN):
+                # Always navigate away — never let the widget eat UP/DOWN
+                ControllerBridge._spatial_focus_move(current, key)
+                return
+            # LEFT/RIGHT: let the widget adjust its value normally
+            ControllerBridge._post_key(key)
+            return
 
-        # If focus moved, the widget handled it (TileGrid, QTreeView, etc.)
+        # Send arrow key synchronously to the focused widget first.
+        press = QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(current, press)
+
+        # If focus moved, the widget handled it — done.
         new_focus = QApplication.focusWidget()
         if new_focus is not current and new_focus is not None:
             return
 
-        # Widget didn't handle it — do spatial focus search
+        # sendEvent does NOT propagate to parents. If the leaf widget
+        # (e.g. GameTile) ignored the arrow, walk up to find a parent
+        # container that does 2D navigation (TileGrid, QTreeView, etc.)
+        from pixiis.ui.widgets.tile_grid import TileGrid
+        from PySide6.QtWidgets import QTreeView
+        parent = current.parentWidget()
+        while parent is not None:
+            if isinstance(parent, (TileGrid, QTreeView)):
+                parent_press = QKeyEvent(
+                    QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier
+                )
+                QApplication.sendEvent(parent, parent_press)
+                new_focus = QApplication.focusWidget()
+                if new_focus is not current and new_focus is not None:
+                    return
+                break
+            parent = parent.parentWidget()
+
+        # No parent handler moved focus — fall back to spatial search
         ControllerBridge._spatial_focus_move(current, key)
 
     @staticmethod

@@ -71,6 +71,7 @@ QPushButton:hover {
 
 QPushButton:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QPushButton:pressed {
@@ -141,6 +142,7 @@ QPushButton#linkButton:hover {
 
 QPushButton#linkButton:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QPushButton#linkButton:pressed {
@@ -204,6 +206,7 @@ QToolButton:pressed {
 
 #Sidebar QPushButton:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 #Sidebar QPushButton:checked {
@@ -270,6 +273,7 @@ QComboBox:hover {
 
 QComboBox:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QComboBox:disabled {
@@ -334,6 +338,7 @@ QLineEdit:hover {
 
 QLineEdit:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QLineEdit:disabled {
@@ -376,6 +381,7 @@ QSpinBox:hover, QDoubleSpinBox:hover {
 
 QSpinBox:focus, QDoubleSpinBox:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QSpinBox:disabled, QDoubleSpinBox:disabled {
@@ -406,6 +412,7 @@ QSlider {
 
 QSlider:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QSlider:disabled {
@@ -438,6 +445,15 @@ QSlider::handle:horizontal:hover {
     margin: -7px 0;
     background: {{accent_hover}};
     border-radius: 9px;
+}
+
+QSlider::handle:horizontal:focus {
+    width: 20px;
+    height: 20px;
+    margin: -8px 0;
+    background: {{accent_hover}};
+    border: 2px solid #ffffff;
+    border-radius: 10px;
 }
 
 QSlider::handle:horizontal:disabled {
@@ -477,6 +493,7 @@ QCheckBox {
 
 QCheckBox:focus {
     border-color: {{accent}};
+    background: {{accent_focus_bg}};
 }
 
 QCheckBox:disabled {

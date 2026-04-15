@@ -294,6 +294,7 @@ class ThemeManager(QObject):
             "accent_dim": f"rgba({ar}, {ag}, {ab}, 0.10)",
             "accent_glow": f"rgba({ar}, {ag}, {ab}, 0.30)",
             "accent_atmospheric": f"rgba({ar}, {ag}, {ab}, 0.05)",
+            "accent_focus_bg": f"rgba({ar}, {ag}, {ab}, 0.08)",
             "surface_border": "rgba(255, 255, 255, 0.10)",
             "border_hover": "rgba(255, 255, 255, 0.12)",
             "shadow_color": "rgba(0, 0, 0, 0.40)",

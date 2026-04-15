@@ -1,4 +1,10 @@
-"""Xbox / Microsoft Store library provider."""
+"""Xbox / Microsoft Store / UWP game library provider.
+
+Uses the same proven detection approach as UWPHook (github.com/BrianLima/UWPHook):
+enumerate all AppxPackages, read their manifests for display names and AUMIDs,
+skip framework/system packages, and detect Xbox Game Pass titles via
+MicrosoftGame.Config.
+"""
 
 from __future__ import annotations
 
@@ -13,47 +19,103 @@ from pixiis.core.types import AppEntry, AppSource
 if TYPE_CHECKING:
     from pixiis.core.config import Config
 
-# Publishers / prefixes that are almost never games
-_SYSTEM_PREFIXES = (
+# PowerShell script based on UWPHook's GetAUMIDScript.ps1
+# Gets ALL non-framework UWP apps with their real display names and AUMIDs
+_PS_SCRIPT = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$apps = @()
+foreach ($pkg in Get-AppxPackage) {
+    if ($pkg.IsFramework) { continue }
+    try {
+        $manifest = Get-AppxPackageManifest $pkg
+        foreach ($appId in $manifest.Package.Applications.Application.Id) {
+            $displayName = $manifest.Package.Properties.DisplayName
+            $exe = $manifest.Package.Applications.Application.Executable
+
+            # Xbox Game Pass games may have no exe but have MicrosoftGame.Config
+            if ([string]::IsNullOrWhiteSpace($exe) -or $exe -eq 'GameLaunchHelper.exe') {
+                $configPath = Join-Path $pkg.InstallLocation 'MicrosoftGame.Config'
+                if (Test-Path $configPath) {
+                    [xml]$gc = Get-Content $configPath
+                    $exe = $gc.Game.ExecutableList.Executable.Name
+                    if ($exe -is [Object[]]) { $exe = $exe[0].ToString() }
+                } else {
+                    continue
+                }
+            }
+
+            # Skip entries with unresolved resource names
+            if ($displayName -like '*ms-resource*' -or $displayName -like '*DisplayName*') {
+                continue
+            }
+
+            # Get logo path
+            $logo = ''
+            $vis = $manifest.Package.Applications.Application.VisualElements
+            if ($vis.Square150x150Logo) {
+                $logo = Join-Path $pkg.InstallLocation $vis.Square150x150Logo
+            }
+
+            $aumid = $pkg.PackageFamilyName + '!' + $appId
+            $installDir = $pkg.InstallLocation
+
+            $apps += @{
+                Name = $displayName
+                AUMID = $aumid
+                Family = $pkg.PackageFamilyName
+                PackageName = $pkg.Name
+                Exe = $exe
+                Logo = $logo
+                InstallLocation = $installDir
+            }
+        }
+    } catch {}
+}
+$apps | ConvertTo-Json -Depth 3
+"""
+
+# Package name prefixes that are definitely NOT games/apps users want to see
+_SKIP_PREFIXES = (
     "Microsoft.Windows",
-    "Microsoft.MicrosoftEdge",
-    "Microsoft.Office",
-    "Microsoft.ScreenSketch",
-    "Microsoft.GetHelp",
-    "Microsoft.Getstarted",
-    "Microsoft.MSPaint",
-    "Microsoft.People",
-    "Microsoft.Todos",
-    "Microsoft.YourPhone",
+    "Microsoft.UI.Xaml",
+    "Microsoft.VCLibs",
+    "Microsoft.NET.",
+    "Microsoft.Services",
+    "Microsoft.DirectX",
+    "Microsoft.Advertising",
+    "Microsoft.DesktopAppInstaller",
     "Microsoft.StorePurchaseApp",
     "Microsoft.VP9VideoExtensions",
     "Microsoft.WebMediaExtensions",
     "Microsoft.HEIFImageExtension",
     "Microsoft.WebpImageExtension",
-    "Microsoft.DesktopAppInstaller",
-    "Microsoft.Services",
-    "Microsoft.UI.Xaml",
-    "Microsoft.VCLibs",
-    "Microsoft.NET",
-    "Microsoft.Advertising",
+    "Microsoft.RawImageExtension",
+    "Microsoft.AV1VideoExtension",
+    "Microsoft.HEVCVideoExtension",
     "MicrosoftWindows.",
     "windows.",
-    "Microsoft.549981C3F5F10",  # Cortana
-    "Microsoft.BingWeather",
-    "Microsoft.BingNews",
-    "Microsoft.ZuneMusic",
-    "Microsoft.ZuneVideo",
-)
-
-# Keywords that suggest a package is a game
-_GAME_KEYWORDS = (
-    "game", "xbox", "play", "entertainment", "ea.", "ubisoft",
-    "bethesda", "activision", "mojang", "minecraft",
+    "NcsiUwpApp",
+    "Microsoft.ECApp",
+    "Microsoft.LockApp",
+    "Microsoft.AsyncTextService",
+    "Microsoft.AccountsControl",
+    "Microsoft.AAD.",
+    "Microsoft.BioEnrollment",
+    "Microsoft.CredDialogHost",
+    "Microsoft.Win32WebViewHost",
+    "InputApp",
+    "MicrosoftCorporationII.QuickAssist",
+    "Microsoft.SecHealthUI",
 )
 
 
 class XboxProvider:
-    """Discover and launch Xbox / Microsoft Store games."""
+    """Discover and launch UWP / Xbox / Microsoft Store apps and games.
+
+    Uses PowerShell + Get-AppxPackageManifest (same approach as UWPHook)
+    to enumerate ALL installed UWP apps with their real display names,
+    AUMIDs, and logo paths.
+    """
 
     def __init__(self, config: Config) -> None:
         self._config = config
@@ -66,41 +128,55 @@ class XboxProvider:
         return sys.platform == "win32"
 
     def scan(self) -> list[AppEntry]:
-        packages = self._get_appx_packages()
-        if packages is None:
+        raw = self._run_detection_script()
+        if not raw:
             return []
 
         apps: list[AppEntry] = []
-        for pkg in packages:
-            if not isinstance(pkg, dict):
+        seen: set[str] = set()
+        for item in raw:
+            if not isinstance(item, dict):
                 continue
-            entry = self._package_to_entry(pkg)
-            if entry is not None:
+            entry = self._item_to_entry(item)
+            if entry is not None and entry.name not in seen:
+                seen.add(entry.name)
                 apps.append(entry)
         return apps
 
     def launch(self, app: AppEntry) -> None:
-        family = app.id
-        subprocess.Popen(
-            ["explorer.exe", f"shell:appsFolder\\{family}!App"],
-        )
+        aumid = app.metadata.get("aumid", "")
+        if aumid:
+            # Use explorer with shell:appsFolder for reliable UWP launch
+            subprocess.Popen(["explorer.exe", f"shell:appsFolder\\{aumid}"])
+        elif app.launch_command:
+            subprocess.Popen(["explorer.exe", app.launch_command])
 
     def get_icon(self, app: AppEntry) -> Path | None:
+        logo = app.metadata.get("logo", "")
+        if logo:
+            # The logo path may have a qualifier like .scale-200
+            # Try the exact path first, then common variants
+            p = Path(logo)
+            if p.exists():
+                return p
+            # Try scale variants
+            for scale in ("scale-200", "scale-100", "scale-150"):
+                variant = p.parent / (p.stem + f".{scale}" + p.suffix)
+                if variant.exists():
+                    return variant
         return None
 
     # -- internals -----------------------------------------------------------
 
-    def _get_appx_packages(self) -> list[dict] | None:
-        """Call PowerShell to enumerate installed Appx packages."""
+    def _run_detection_script(self) -> list[dict] | None:
+        """Run the PowerShell script to detect installed UWP apps."""
         try:
             result = subprocess.run(
-                [
-                    "powershell", "-NoProfile", "-Command",
-                    "Get-AppxPackage | Select-Object Name,PackageFamilyName,Publisher,IsFramework,SignatureKind | ConvertTo-Json",
-                ],
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-Command", _PS_SCRIPT],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=60,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return None
@@ -113,51 +189,46 @@ class XboxProvider:
         except json.JSONDecodeError:
             return None
 
-        # PowerShell returns a single object (not list) when there's one item
         if isinstance(data, dict):
             data = [data]
         return data
 
-    def _package_to_entry(self, pkg: dict) -> AppEntry | None:
-        """Convert an Appx package dict to an AppEntry, or None if filtered."""
-        pkg_name: str = pkg.get("Name", "")
-        family: str = pkg.get("PackageFamilyName", "")
+    def _item_to_entry(self, item: dict) -> AppEntry | None:
+        """Convert a script result dict to AppEntry, filtering system apps."""
+        display_name = item.get("Name", "")
+        aumid = item.get("AUMID", "")
+        pkg_name = item.get("PackageName", "")
+        family = item.get("Family", "")
+        logo = item.get("Logo", "")
+        install_loc = item.get("InstallLocation", "")
+        exe = item.get("Exe", "")
 
-        if not pkg_name or not family:
+        if not display_name or not aumid:
             return None
 
-        # Skip framework packages
-        if pkg.get("IsFramework"):
-            return None
-
-        # Skip system/utility packages by prefix
-        for prefix in _SYSTEM_PREFIXES:
+        # Skip known system/framework packages
+        for prefix in _SKIP_PREFIXES:
             if pkg_name.startswith(prefix):
                 return None
 
-        # Heuristic: only include packages that look like games
-        combined = f"{pkg_name} {family}".lower()
-        if not any(kw in combined for kw in _GAME_KEYWORDS):
-            return None
-
-        display_name = self._humanize_name(pkg_name)
+        # Build exe path if possible
+        exe_path = None
+        if exe and install_loc:
+            candidate = Path(install_loc) / exe
+            if candidate.exists():
+                exe_path = candidate
 
         return AppEntry(
             id=family,
             name=display_name,
             source=AppSource.XBOX,
-            launch_command=f"shell:appsFolder\\{family}!App",
-            metadata={"package_name": pkg_name, "family": family},
+            launch_command=f"shell:appsFolder\\{aumid}",
+            exe_path=exe_path,
+            icon_path=Path(logo) if logo else None,
+            metadata={
+                "aumid": aumid,
+                "package_name": pkg_name,
+                "family": family,
+                "logo": logo,
+            },
         )
-
-    @staticmethod
-    def _humanize_name(pkg_name: str) -> str:
-        """Best-effort conversion of a package Name to a readable title."""
-        # Strip publisher prefix (e.g. "Microsoft.MinecraftUWP" -> "MinecraftUWP")
-        parts = pkg_name.rsplit(".", 1)
-        raw = parts[-1] if len(parts) > 1 else pkg_name
-        # Insert spaces before uppercase runs: "MinecraftUWP" -> "Minecraft UWP"
-        import re
-        spaced = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", raw)
-        spaced = re.sub(r"(?<=[A-Z]+)(?=[A-Z][a-z])", " ", spaced)
-        return spaced

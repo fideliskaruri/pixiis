@@ -485,10 +485,16 @@ class MainWindow(QMainWindow):
 
         # Start actual voice recording
         if self._voice_pipeline is not None and self._voice_ready:
+            print("[Pixiis Voice] Starting recording...")
             try:
                 self._voice_pipeline._start_recording()
-            except Exception:
-                pass
+                print("[Pixiis Voice] Recording from mic — speak now")
+            except Exception as e:
+                print(f"[Pixiis Voice] Recording start FAILED: {e}")
+        elif self._voice_pipeline is not None:
+            print("[Pixiis Voice] Model still loading, try again in a moment")
+        else:
+            print("[Pixiis Voice] No voice pipeline available")
 
     def _on_voice_stop(self) -> None:
         print("[Pixiis Voice] === VOICE STOP ===")

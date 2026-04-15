@@ -153,7 +153,6 @@ class _MediaCard(QFrame):
 
         self.thumb = QLabel()
         self.thumb.setFixedSize(thumb_w, thumb_h)
-        self.thumb.setScaledContents(True)
         self.thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.thumb.setStyleSheet(
             f"background: {_BASE}; border-radius: 8px;"
@@ -546,6 +545,7 @@ class GameDetailPanel(QScrollArea):
         self._streams_title.hide()
         self._streams_scroll.hide()
         self._fan_frame.hide()
+        self._rebuild_media_layout()
 
         # Placeholder header
         w = self._hero.width() or 800
@@ -624,17 +624,22 @@ class GameDetailPanel(QScrollArea):
         if url == self._hero_art_url and not pixmap.isNull():
             self._hero.set_pixmap(pixmap)
 
-        # Screenshot / trailer thumbnails via dispatch map
+        # Screenshot / trailer thumbnails via dispatch map (center-crop)
         targets = self._img_dispatch.pop(url, [])
         for widget in targets:
             try:
                 if not pixmap.isNull():
+                    tw, th = widget.width(), widget.height()
                     scaled = pixmap.scaled(
-                        widget.size(),
+                        tw, th,
                         Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                         Qt.TransformationMode.SmoothTransformation,
                     )
-                    widget.setPixmap(scaled)
+                    # Center-crop to exact widget size
+                    x_off = (scaled.width() - tw) // 2
+                    y_off = (scaled.height() - th) // 2
+                    cropped = scaled.copy(x_off, y_off, tw, th)
+                    widget.setPixmap(cropped)
             except RuntimeError:
                 pass  # widget already deleted
 
@@ -688,7 +693,6 @@ class GameDetailPanel(QScrollArea):
                 thumb = _ClickableImage(img_url)
                 thumb.setFixedSize(240, 135)
                 thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                thumb.setScaledContents(True)
                 thumb.setStyleSheet(
                     f"background: {_BASE}; border-radius: 8px;"
                 )
@@ -710,6 +714,7 @@ class GameDetailPanel(QScrollArea):
         if results:
             self._trailers_title.show()
             self._trailers_scroll.show()
+            self._rebuild_media_layout()
         for item in results[:6]:
             title = getattr(item, "title", "")
             channel = getattr(item, "channel", "")
@@ -733,6 +738,7 @@ class GameDetailPanel(QScrollArea):
         if streams:
             self._streams_title.show()
             self._streams_scroll.show()
+            self._rebuild_media_layout()
         for stream in streams[:6]:
             title = getattr(stream, "user_name", "")
             viewers = getattr(stream, "viewer_count", 0)
@@ -770,6 +776,57 @@ class GameDetailPanel(QScrollArea):
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border: none; background: transparent;")
         return scroll
+
+    def _rebuild_media_layout(self) -> None:
+        """Arrange trailers/streams: side-by-side when both visible, else full-width."""
+        has_trailers = self._trailers_title.isVisible()
+        has_streams = self._streams_title.isVisible()
+
+        # Detach all four widgets from whatever layout they are in
+        for w in (self._trailers_title, self._trailers_scroll,
+                  self._streams_title, self._streams_scroll):
+            if w.parent() is not self._media_widget:
+                w.setParent(self._media_widget)
+
+        # Remove old layout
+        old = self._media_widget.layout()
+        if old is not None:
+            # Remove items without deleting the actual widgets
+            while old.count():
+                item = old.takeAt(0)
+                sub = item.layout()
+                if sub is not None:
+                    while sub.count():
+                        sub.takeAt(0)
+            # Qt requires deleting the old layout via a helper
+            QWidget().setLayout(old)
+
+        if has_trailers and has_streams:
+            # Side-by-side
+            row = QHBoxLayout(self._media_widget)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(24)
+            t_col = QVBoxLayout()
+            t_col.setSpacing(8)
+            t_col.addWidget(self._trailers_title)
+            t_col.addWidget(self._trailers_scroll)
+            row.addLayout(t_col, 1)
+            s_col = QVBoxLayout()
+            s_col.setSpacing(8)
+            s_col.addWidget(self._streams_title)
+            s_col.addWidget(self._streams_scroll)
+            row.addLayout(s_col, 1)
+            self._media_layout = row
+        else:
+            # Single column — whichever has data gets full width
+            col = QVBoxLayout(self._media_widget)
+            col.setContentsMargins(0, 0, 0, 0)
+            col.setSpacing(8)
+            col.addWidget(self._trailers_title)
+            col.addWidget(self._trailers_scroll)
+            col.addWidget(self._streams_title)
+            col.addWidget(self._streams_scroll)
+            self._media_layout = col
 
     @staticmethod
     def _clear_layout(layout) -> None:

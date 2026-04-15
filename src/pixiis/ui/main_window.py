@@ -280,11 +280,10 @@ class MainWindow(QMainWindow):
                 page.game_selected.connect(self._on_game_selected)
                 if hasattr(page, '_grid') and page._grid and hasattr(page._grid, 'tile_favorite_toggled'):
                     page._grid.tile_favorite_toggled.connect(self._on_favorite_toggled)
-                if hasattr(page, '_search') and page._search:
-                    if hasattr(page._search, 'mic_clicked'):
-                        page._search.mic_clicked.connect(self._on_voice_start)
-                    if hasattr(page._search, 'mic_stopped'):
-                        page._search.mic_stopped.connect(self._on_voice_stop)
+                if hasattr(page, 'mic_clicked'):
+                    page.mic_clicked.connect(self._on_voice_start)
+                if hasattr(page, 'mic_stopped'):
+                    page.mic_stopped.connect(self._on_voice_stop)
                 return page
             if name == "library":
                 from pixiis.ui.pages.library_page import LibraryPage
@@ -292,11 +291,10 @@ class MainWindow(QMainWindow):
                 page.game_selected.connect(self._on_game_selected)
                 if hasattr(page, '_grid') and page._grid and hasattr(page._grid, 'tile_favorite_toggled'):
                     page._grid.tile_favorite_toggled.connect(self._on_favorite_toggled)
-                if hasattr(page, '_search') and page._search:
-                    if hasattr(page._search, 'mic_clicked'):
-                        page._search.mic_clicked.connect(self._on_voice_start)
-                    if hasattr(page._search, 'mic_stopped'):
-                        page._search.mic_stopped.connect(self._on_voice_stop)
+                if hasattr(page, 'mic_clicked'):
+                    page.mic_clicked.connect(self._on_voice_start)
+                if hasattr(page, 'mic_stopped'):
+                    page.mic_stopped.connect(self._on_voice_stop)
                 return page
             if name == "settings":
                 from pixiis.ui.pages.settings_page import SettingsPage
@@ -723,7 +721,7 @@ class MainWindow(QMainWindow):
             with open(user_path, "wb") as f:
                 tomli_w.dump(data, f)
         except Exception:
-            pass
+            logger.debug("Failed to save favorites to config", exc_info=True)
         # Update in-memory config
         self._config._data.setdefault("library", {})["favorites"] = favorites
 
@@ -789,7 +787,7 @@ class MainWindow(QMainWindow):
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
         except ImportError:
-            pass
+            logger.debug("psutil not available for PID lookup")
         return None
 
     def _check_running_games(self) -> None:

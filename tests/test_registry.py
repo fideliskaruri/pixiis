@@ -106,7 +106,7 @@ def test_registry_scan_all_with_mock_provider(make_app):
     mock_config = MagicMock()
     mock_config.get.return_value = []  # no providers via config
 
-    with patch("pixiis.library.registry.LibraryCache") as MockCache:
+    with patch("pixiis.library.cache.LibraryCache") as MockCache:
         MockCache.return_value.load.return_value = None
         registry = AppRegistry(mock_config)
 

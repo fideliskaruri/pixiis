@@ -168,6 +168,8 @@ class HomePage(QWidget):
     """
 
     game_selected = Signal(object)  # AppEntry
+    mic_clicked = Signal()   # forwarded from search bar
+    mic_stopped = Signal()   # forwarded from search bar
 
     def __init__(
         self,
@@ -198,6 +200,10 @@ class HomePage(QWidget):
         if SearchBar is not None:
             self._search = SearchBar()
             self._search.search_changed.connect(self._on_search)
+            if hasattr(self._search, 'mic_clicked'):
+                self._search.mic_clicked.connect(self.mic_clicked)
+            if hasattr(self._search, 'mic_stopped'):
+                self._search.mic_stopped.connect(self.mic_stopped)
             top_bar.addWidget(self._search, stretch=1)
         else:
             self._search = None

@@ -1,0 +1,60 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Pixiis — Shared Animations
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Page enter/exit ─────────────────────────────────────────────── */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ── Stagger children ────────────────────────────────────────────── */
+
+@keyframes staggerIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Pulse (loading, mic active) ─────────────────────────────────── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+@keyframes pulseScale {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+
+/* ── Shimmer (skeleton loading) ──────────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-hover) 50%,
+    var(--surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ── Glow pulse (focus ring accent) ──────────────────────────────── */
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 16px var(--accent-shadow); }
+  50%      { box-shadow: 0 0 24px var(--accent-glow); }
+}

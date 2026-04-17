@@ -1,0 +1,112 @@
+/* SearchBar — Pill-shaped with mic button */
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  height: 48px;
+  padding: 0 var(--space-lg);
+  background: var(--surface);
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.search-bar:hover {
+  border-color: var(--border-hover);
+}
+
+.search-bar--focused {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.search-bar--recording {
+  border-color: var(--accent);
+  animation: glowPulse 1.5s infinite;
+}
+
+.search-bar__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color var(--duration-normal);
+}
+
+.search-bar--focused .search-bar__icon {
+  color: var(--accent);
+}
+
+.search-bar__input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.search-bar__input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-bar__clear {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-fast);
+}
+
+.search-bar__clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.search-bar__mic {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-normal);
+}
+
+.search-bar__mic svg {
+  width: 16px;
+  height: 16px;
+}
+
+.search-bar__mic:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.search-bar__mic--active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  animation: pulseScale 1s infinite;
+}
+
+.search-bar__mic:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}

@@ -1,0 +1,106 @@
+/* HomePage — PS5-inspired game dashboard */
+
+.home {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-2xl) var(--space-3xl) var(--space-4xl);
+}
+
+/* ── Continue Playing carousel ─────────────────────────────────────── */
+
+.home__section {
+  margin-bottom: var(--space-3xl);
+}
+
+.home__section .text-overline {
+  margin-bottom: var(--space-lg);
+}
+
+.home__carousel {
+  display: flex;
+  gap: var(--space-xl);
+  overflow-x: auto;
+  padding-bottom: var(--space-lg);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none; /* Firefox */
+}
+
+.home__carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.home__carousel > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ── Toolbar (search + sort + count) ───────────────────────────────── */
+
+.home__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.home__toolbar .search-bar {
+  flex: 1;
+  max-width: 480px;
+}
+
+.home__pills {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.pill {
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-normal) var(--ease-out);
+}
+
+.pill:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.pill--active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-glow);
+}
+
+.pill:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.home__count {
+  flex-shrink: 0;
+}
+
+/* ── Game grid ─────────────────────────────────────────────────────── */
+
+.home__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 220px));
+  gap: var(--space-xl);
+  justify-content: start;
+  padding-bottom: var(--space-4xl);
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+
+.home__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--space-4xl);
+}

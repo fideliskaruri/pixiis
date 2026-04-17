@@ -1,0 +1,103 @@
+/* NavBar — Minimal top chrome */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 var(--space-xl);
+  background: rgba(10, 10, 14, 0.9);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  -webkit-app-region: drag; /* Allow window dragging */
+  z-index: 100;
+}
+
+.navbar__logo {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  margin-right: var(--space-3xl);
+  -webkit-app-region: no-drag;
+}
+
+.navbar__tabs {
+  display: flex;
+  gap: var(--space-xs);
+  -webkit-app-region: no-drag;
+}
+
+.navbar__tab {
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border: 2px solid transparent;
+  transition: all var(--duration-normal) var(--ease-out);
+  position: relative;
+}
+
+.navbar__tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.navbar__tab--active {
+  color: var(--text);
+  background: var(--accent-dim);
+}
+
+.navbar__tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.navbar__tab:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.navbar__spacer {
+  flex: 1;
+}
+
+.navbar__controls {
+  display: flex;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.navbar__btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.navbar__btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.navbar__btn--close:hover {
+  background: var(--accent);
+  color: white;
+}

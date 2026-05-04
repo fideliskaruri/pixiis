@@ -47,6 +47,18 @@ struct Args {
     /// Optional label to embed in JSON output (e.g. "base.en-cpu-int8")
     #[arg(long, default_value = "run")]
     label: String,
+
+    /// Hold the model resident and transcribe N times (sustained-load test)
+    #[arg(long, default_value_t = 1)]
+    repeat: u32,
+}
+
+#[derive(Serialize)]
+struct Iter {
+    transcribe_ms: f64,
+    ttfb_ms: Option<f64>,
+    rss_after_ms: f64,
+    transcript: String,
 }
 
 #[derive(Serialize)]
@@ -58,14 +70,20 @@ struct BenchResult<'a> {
     threads: i32,
     gpu_requested: bool,
     model_load_ms: f64,
+    /// First (cold) iteration's transcribe wall time.
     transcribe_ms: f64,
+    /// First (cold) iteration's TTFB.
     ttfb_ms: Option<f64>,
     rss_baseline_mb: f64,
     rss_after_load_mb: f64,
     rss_peak_mb: f64,
     rss_delta_mb: f64,
+    /// First (cold) iteration's realtime factor.
     realtime_factor: f64,
     transcript: String,
+    /// Per-iteration detail when --repeat > 1.
+    repeat: u32,
+    iters: Vec<Iter>,
 }
 
 fn rss_mb() -> f64 {
@@ -166,58 +184,80 @@ fn main() -> Result<()> {
     let model_load_ms = load_start.elapsed().as_secs_f64() * 1000.0;
     let rss_after_load = rss_mb();
 
-    let mut state = ctx.create_state().context("creating WhisperState")?;
-
-    // --- Transcribe params ----------------------------------------------
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: args.beam });
     let threads = args.threads.unwrap_or_else(|| {
         std::thread::available_parallelism()
             .map(|n| n.get() as i32)
             .unwrap_or(4)
     });
-    params.set_n_threads(threads);
-    params.set_language(Some(&args.language));
-    params.set_print_progress(false);
-    params.set_print_realtime(false);
-    params.set_print_special(false);
-    params.set_print_timestamps(false);
-    params.set_translate(false);
-    params.set_suppress_blank(true);
 
-    // --- TTFB capture via new-segment callback --------------------------
-    let transcribe_start = Arc::new(Instant::now());
-    let ttfb: Arc<Mutex<Option<f64>>> = Arc::new(Mutex::new(None));
-    {
-        let ttfb_cb = Arc::clone(&ttfb);
-        let start_cb = Arc::clone(&transcribe_start);
-        params.set_new_segment_callback_safe(move |_n_new: i32| {
-            let mut slot = ttfb_cb.lock().unwrap();
-            if slot.is_none() {
-                *slot = Some(start_cb.elapsed().as_secs_f64() * 1000.0);
+    // Re-create state + params per iteration to mimic whisper.cpp's
+    // typical "fresh segment per chunk" usage. Model context stays loaded.
+    let mut iters: Vec<Iter> = Vec::with_capacity(args.repeat as usize);
+    let mut rss_peak_overall = rss_after_load;
+
+    for _i in 0..args.repeat.max(1) {
+        let mut state = ctx.create_state().context("creating WhisperState")?;
+
+        let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: args.beam });
+        params.set_n_threads(threads);
+        params.set_language(Some(&args.language));
+        params.set_print_progress(false);
+        params.set_print_realtime(false);
+        params.set_print_special(false);
+        params.set_print_timestamps(false);
+        params.set_translate(false);
+        params.set_suppress_blank(true);
+
+        // TTFB capture via segment callback. whisper-rs 0.13 exposes
+        // `set_segment_callback_safe(closure)` where
+        // `closure: FnMut(SegmentCallbackData) + 'static` — the callback
+        // fires whenever whisper.cpp emits new segments; we record
+        // wall-time of the first one.
+        let ttfb: Arc<Mutex<Option<f64>>> = Arc::new(Mutex::new(None));
+        let cb_start = Arc::new(Mutex::new(None::<Instant>));
+        {
+            let ttfb_cb = Arc::clone(&ttfb);
+            let start_cb = Arc::clone(&cb_start);
+            params.set_segment_callback_safe(
+                move |_seg: whisper_rs::SegmentCallbackData| {
+                    let mut slot = ttfb_cb.lock().unwrap();
+                    if slot.is_none() {
+                        if let Some(t) = *start_cb.lock().unwrap() {
+                            *slot = Some(t.elapsed().as_secs_f64() * 1000.0);
+                        }
+                    }
+                },
+            );
+        }
+
+        let run_start = Instant::now();
+        *cb_start.lock().unwrap() = Some(run_start);
+        state.full(params, &samples).context("whisper full() failed")?;
+        let transcribe_ms = run_start.elapsed().as_secs_f64() * 1000.0;
+        let rss_after = rss_mb();
+        if rss_after > rss_peak_overall {
+            rss_peak_overall = rss_after;
+        }
+
+        let mut transcript = String::new();
+        let n_segments = state.full_n_segments().unwrap_or(0);
+        for i in 0..n_segments {
+            if let Ok(seg) = state.full_get_segment_text(i) {
+                transcript.push_str(seg.trim());
+                transcript.push(' ');
             }
+        }
+        let transcript = transcript.trim().to_string();
+
+        iters.push(Iter {
+            transcribe_ms,
+            ttfb_ms: *ttfb.lock().unwrap(),
+            rss_after_ms: rss_after,
+            transcript,
         });
     }
 
-    // --- Run -------------------------------------------------------------
-    let _t0 = Instant::now(); // already captured in transcribe_start
-    let run_start = Instant::now();
-    state.full(params, &samples).context("whisper full() failed")?;
-    let transcribe_ms = run_start.elapsed().as_secs_f64() * 1000.0;
-    let rss_peak = rss_mb();
-
-    // --- Pull transcript text -------------------------------------------
-    let mut transcript = String::new();
-    let n_segments = state.full_n_segments().unwrap_or(0);
-    for i in 0..n_segments {
-        if let Ok(seg) = state.full_get_segment_text(i) {
-            transcript.push_str(seg.trim());
-            transcript.push(' ');
-        }
-    }
-    let transcript = transcript.trim().to_string();
-
-    // --- Report ----------------------------------------------------------
-    let ttfb_ms = *ttfb.lock().unwrap();
+    let first = iters.first().expect("at least one iter");
     let result = BenchResult {
         label: &args.label,
         model: args.model.display().to_string(),
@@ -226,18 +266,20 @@ fn main() -> Result<()> {
         threads,
         gpu_requested: args.gpu,
         model_load_ms,
-        transcribe_ms,
-        ttfb_ms,
+        transcribe_ms: first.transcribe_ms,
+        ttfb_ms: first.ttfb_ms,
         rss_baseline_mb: rss_baseline,
         rss_after_load_mb: rss_after_load,
-        rss_peak_mb: rss_peak,
-        rss_delta_mb: rss_peak - rss_baseline,
+        rss_peak_mb: rss_peak_overall,
+        rss_delta_mb: rss_peak_overall - rss_baseline,
         realtime_factor: if audio_seconds > 0.0 {
-            (transcribe_ms / 1000.0) / audio_seconds
+            (first.transcribe_ms / 1000.0) / audio_seconds
         } else {
             0.0
         },
-        transcript,
+        transcript: first.transcript.clone(),
+        repeat: args.repeat,
+        iters,
     };
 
     println!("{}", serde_json::to_string_pretty(&result)?);

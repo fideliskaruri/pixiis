@@ -25,5 +25,5 @@ serde_json = "1"
 thiserror = "1"
 
 [features]
-default = ["custom-protocol"]
+# Set by Tauri CLI for production builds. Do not remove.
 custom-protocol = ["tauri/custom-protocol"]

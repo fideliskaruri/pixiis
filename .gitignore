@@ -44,4 +44,7 @@ processed/
 *.m4a
 *.flac
 temp_*.wav
+# spike fixtures are intentionally tracked so other panes can read them
+!spike/fixtures/*.wav
+spike/baseline_run.log
 .env

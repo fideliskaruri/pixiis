@@ -16,7 +16,17 @@ parking_lot = "0.12"   # cheap Mutex<HashMap<...>> for macro table
 
 ## Shared types (Pane 7)
 
-Pane 7 owns `ControllerEvent`, `AxisEvent`, `ButtonState`, `MacroMode`, `ActionType`, `MacroAction` in `src-tauri/src/types.rs` (mirroring `src/pixiis/core/types.py`). We **import** them — we do not redefine them here.
+Pane 7 owns `ControllerEvent`, `AxisEvent`, `ButtonState`, `MacroMode`, `ActionKind`, `MacroAction` in `src-tauri/src/types.rs` (mirroring `src/pixiis/core/types.py`). We **import** them — we do not redefine them here.
+
+**Confirmed shapes from `pane7-types/scratch/types_draft.rs`:**
+- `ControllerEvent { button: u32, state: ButtonState, timestamp: f64, duration: f64 }`
+- `AxisEvent { axis: u32, value: f32, timestamp: f64 }`
+- `ButtonState::{Pressed, Held, Released}`
+- `MacroMode::{Press, Hold, Combo}` (`#[serde(rename_all = "lowercase")]`)
+- `ActionKind::{VoiceRecord, LaunchApp, SendKeys, NavigateUi, RunScript, Chain}` (`#[serde(rename_all = "snake_case")]` — matches the `voice_record` tokens used in default_config.toml)
+- `MacroAction { action: ActionKind, mode: MacroMode, trigger: String, target: String, chain: Vec<MacroAction> }`
+
+> Note: button index is **`u32`**, not `u8`. Update mapper internals accordingly.
 
 ## File layout
 
@@ -302,9 +312,17 @@ For determinism, refactor mapper internals to take an explicit `now: Instant` ar
 2. Feed `ControllerEvent { button: 0, state: PRESSED }` → `Some(...)`.
 3. Feed `ControllerEvent { button: 0, state: HELD }` → `None` (mode is press, not hold).
 
+## Coordination with Pane 9 (vibration)
+
+Pane 9's draft says: *"`gilrs` — shared with Pane 8. **Take `&Gilrs`, never construct one.**"* So `ControllerService` must expose access to its `Gilrs` instance for the vibration service.
+
+Polling needs `&mut Gilrs` (for `next_event()`); FF effects in gilrs 0.10 also typically need `&mut`. Cleanest pattern: wrap in `Arc<tokio::sync::Mutex<Gilrs>>` and lend it to vibration via an accessor on `ControllerService`. Polling acquires the lock once per tick (16 ms) and releases promptly; vibration acquires briefly to set effects. Contention is negligible.
+
+If `tokio::sync::Mutex` proves awkward for the sync polling loop, fall back to `parking_lot::Mutex` (gilrs ops are non-blocking).
+
 ## Open questions / coordination
 
-1. **Pane 7 type names** — final names for `ControllerEvent` etc. Adjust `use` paths once `types.rs` lands.
-2. **Voice direct-dispatch** — confirm with Pane 1/voice owner whether `voice::start_recording(&app)` will exist when we wire. If not, drop direct dispatch and just `emit`. Brief explicitly says emit-when-hidden is OK.
-3. **Config loader** — Pane 5 / 9 may own config loading. We fall back to a local toml read if no shared loader exists yet.
-4. **Y-axis sign convention** — confirm with Pane 7 what spatial nav expects.
+1. **Voice direct-dispatch** — confirm with voice owner (Pane 1 → Phase 1B) whether `voice::start_recording(&app)` exists. If not at wire-time, drop direct dispatch and only `emit("controller:macro", ...)`. Brief explicitly says emit-when-hidden is OK.
+2. **Config loader** — Pane 5 / 9 may own config loading. Fall back to local `toml::from_str` of `resources/default_config.toml` if no shared loader exists yet.
+3. **Y-axis sign convention** — Pane 7's draft does not declare a convention. Default to gilrs's native (up-positive) for spatial nav; Web Gamepad API is down-positive but the foreground UI handles its own input, so this only matters for the background macro path. No combos in default config use stick axes, so this is low-risk.
+4. **Trigger threshold for macros that include LT/RT** — Python's `voice_trigger = "rt"` lives outside the macro table. Out of scope for Pane 8; voice owner can subscribe to `AxisEvent` directly.

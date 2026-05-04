@@ -23,6 +23,10 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "1"
+# ts-rs lives in [dependencies] (not [dev-dependencies]) because #[derive(TS)]
+# is expanded during normal compilation; the auto-generated `#[test]` hooks
+# emit `frontend/src/api/types/*.ts` when `cargo test` runs.
+ts-rs = { version = "10", features = ["serde-compat", "no-serde-warnings", "serde-json-impl"] }
 
 [features]
 default = ["custom-protocol"]

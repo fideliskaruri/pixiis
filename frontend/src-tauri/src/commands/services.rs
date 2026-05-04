@@ -1,13 +1,13 @@
 use crate::error::AppResult;
-use serde_json::Value;
+use crate::types::{TwitchStream, YouTubeTrailer};
 
 #[tauri::command]
-pub async fn services_twitch_streams(_game_name: String) -> AppResult<Vec<Value>> {
+pub async fn services_twitch_streams(_game_name: String) -> AppResult<Vec<TwitchStream>> {
     Ok(Vec::new())
 }
 
 #[tauri::command]
-pub async fn services_youtube_trailer(_game_name: String) -> AppResult<Option<String>> {
+pub async fn services_youtube_trailer(_game_name: String) -> AppResult<Option<YouTubeTrailer>> {
     Ok(None)
 }
 

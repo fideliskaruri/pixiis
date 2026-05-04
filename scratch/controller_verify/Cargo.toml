@@ -1,0 +1,26 @@
+[package]
+name = "controller_verify"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Tiny throwaway crate that re-uses the controller subsystem source files
+# from `frontend/src-tauri/src/`. Lets us run the unit tests without
+# touching the Tauri/C++ build chain (which is broken on this VS install
+# because the MSVC `include/` directory is empty).
+
+[[bin]]
+name = "controller_verify"
+path = "src/main.rs"
+
+[lib]
+name = "controller_verify"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+parking_lot = "0.12"
+thiserror = "1"
+toml = "0.8"
+gilrs = "0.10"

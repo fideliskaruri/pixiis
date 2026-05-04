@@ -1,17 +1,30 @@
 mod commands;
+mod controller;
 mod error;
+mod types;
 
 pub use error::{AppError, AppResult};
 
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
+
+use crate::controller::mapping::MapperConfig;
+use crate::controller::ControllerService;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let controller_service = ControllerService::new();
+    // Best-effort: load macro definitions from the bundled default config.
+    // Phase 4 will replace this with the merged config loader.
+    if let Some(table) = load_default_macros() {
+        controller_service.macros().load_from_toml(&table);
+    }
+
     tauri::Builder::default()
+        .manage(controller_service.clone())
         // Single instance: focus the existing window if a second copy launches.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -28,7 +41,14 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
+            // Spawn the always-on controller poller. Reads gilrs at ~60Hz,
+            // updates connection state, and fires macros only when the
+            // window is hidden (foreground UI uses the Web Gamepad API).
+            controller_service
+                .clone()
+                .spawn(app.handle().clone(), MapperConfig::default());
+
             // System tray with Open / Scan / Quit.
             let open_i = MenuItem::with_id(app, "open", "Open Pixiis", true, None::<&str>)?;
             let scan_i = MenuItem::with_id(app, "scan", "Scan Library", true, None::<&str>)?;
@@ -97,4 +117,38 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Load the `[controller.macros]` table from the bundled
+/// `resources/default_config.toml`. Returns `None` if the file isn't on
+/// disk (dev runs without the resource bundle), letting the engine start
+/// empty rather than panicking.
+fn load_default_macros() -> Option<toml::value::Table> {
+    let candidates = [
+        // Resource bundle path, populated by tauri-build at release time.
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("resources/default_config.toml"))),
+        // Dev fallback: source-tree default config.
+        Some(std::path::PathBuf::from(
+            "../../resources/default_config.toml",
+        )),
+        Some(std::path::PathBuf::from(
+            "../resources/default_config.toml",
+        )),
+    ];
+    for path in candidates.into_iter().flatten() {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            let parsed: toml::Value = match text.parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            return parsed
+                .get("controller")
+                .and_then(|c| c.get("macros"))
+                .and_then(|m| m.as_table())
+                .cloned();
+        }
+    }
+    None
 }

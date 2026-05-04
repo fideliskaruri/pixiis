@@ -9,19 +9,27 @@ CLI tool only — no integration with the main app crate.
 
 ## Build
 
+```bash
+# Linux / WSL
+cd spike/whisper-bench
+./scripts/build.sh
+```
+
 ```bat
-:: Windows (MSVC + CMake required)
+:: Windows
 cd spike\whisper-bench
-cargo build --release
+scripts\build.bat
 ```
 
 `whisper-rs` invokes CMake at build time to compile bundled `whisper.cpp`.
 Toolchain prerequisites:
 
-- Rust stable (`rustup install stable`, MSVC host on Windows)
-- CMake ≥ 3.20 on `PATH` (`winget install Kitware.CMake`)
-- MSVC C++ build tools (Visual Studio Build Tools / Visual Studio with the
-  "Desktop development with C++" workload)
+- Rust stable (`rustup install stable`)
+- CMake ≥ 3.20 on `PATH`
+- A C/C++ compiler:
+  - Linux: `gcc` / `g++` or `clang` (zig's bundled clang via a `cc` wrapper works)
+  - Windows: MSVC build tools with the "Desktop development with C++"
+    workload (the `vcvars64.bat` env-setup is invoked by `scripts\build.bat`)
 
 GPU is **not** enabled in this build. CUDA / Vulkan / Metal would require
 extra cargo features on `whisper-rs` (e.g. `cuda`, `vulkan`) and the
@@ -48,7 +56,16 @@ curl.exe -L -o models\ggml-base.en.bin `
 
 ## Run
 
+```bash
+# Linux / WSL
+./target/release/whisper-bench \
+  --model models/ggml-base.en.bin \
+  --wav   ../../.worktrees/pane4-baseline/spike/fixtures/test_clip.wav \
+  --label base.en-cpu
+```
+
 ```bat
+:: Windows
 target\release\whisper-bench.exe ^
   --model models\ggml-base.en.bin ^
   --wav   ..\fixtures\test_clip.wav ^

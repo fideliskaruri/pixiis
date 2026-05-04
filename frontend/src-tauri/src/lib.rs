@@ -1,7 +1,11 @@
 mod commands;
 mod error;
+pub mod services;
+pub mod types;
 
 pub use error::{AppError, AppResult};
+
+use std::sync::Arc;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -29,6 +33,27 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Services container: shared HTTP client + caches for RAWG /
+            // Twitch / YouTube / image loader. Pane 9 owns this; the real
+            // config plumbing arrives with the config module — for now we
+            // read the env vars `PIXIIS_RAWG_API_KEY`, `PIXIIS_YT_API_KEY`,
+            // `PIXIIS_TWITCH_CLIENT_ID`, etc., as a stand-in.
+            let services_cfg = services::ServicesConfig::from_lookup(|key| match key {
+                "services.rawg.api_key" => std::env::var("PIXIIS_RAWG_API_KEY").ok(),
+                "services.youtube.api_key" => std::env::var("PIXIIS_YT_API_KEY").ok(),
+                "services.twitch.client_id" => std::env::var("PIXIIS_TWITCH_CLIENT_ID").ok(),
+                "services.twitch.client_secret" => std::env::var("PIXIIS_TWITCH_CLIENT_SECRET").ok(),
+                "services.twitch.access_token" => std::env::var("PIXIIS_TWITCH_TOKEN").ok(),
+                _ => None,
+            });
+            let cache_dir = app
+                .path()
+                .app_cache_dir()
+                .map(|p| p.join("images"))
+                .unwrap_or_else(|_| std::env::temp_dir().join("pixiis-images"));
+            let services = services::ServicesContainer::new(services_cfg, cache_dir)?;
+            app.manage(Arc::new(services));
+
             // System tray with Open / Scan / Quit.
             let open_i = MenuItem::with_id(app, "open", "Open Pixiis", true, None::<&str>)?;
             let scan_i = MenuItem::with_id(app, "scan", "Scan Library", true, None::<&str>)?;

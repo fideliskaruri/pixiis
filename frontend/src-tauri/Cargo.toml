@@ -1,0 +1,29 @@
+[package]
+name = "pixiis"
+version = "0.1.0"
+description = "Pixiis — controller-first launcher with voice"
+authors = ["Pixiis"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "pixiis_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+
+[features]
+# Set by Tauri CLI for production builds. Do not remove.
+custom-protocol = ["tauri/custom-protocol"]

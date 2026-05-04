@@ -6,7 +6,7 @@ pub use error::{AppError, AppResult};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager,
+    Emitter, Manager,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -35,10 +35,13 @@ pub fn run() {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &scan_i, &quit_i])?;
 
-            let _tray = TrayIconBuilder::with_id("pixiis-tray")
-                .icon(app.default_window_icon().cloned().unwrap_or_default())
+            let mut tray_builder = TrayIconBuilder::with_id("pixiis-tray")
                 .menu(&menu)
-                .menu_on_left_click(false)
+                .menu_on_left_click(false);
+            if let Some(icon) = app.default_window_icon().cloned() {
+                tray_builder = tray_builder.icon(icon);
+            }
+            let _tray = tray_builder
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => {
                         if let Some(w) = app.get_webview_window("main") {

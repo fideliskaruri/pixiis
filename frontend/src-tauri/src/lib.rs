@@ -1,6 +1,7 @@
 mod commands;
 mod controller;
 mod error;
+pub mod library;
 pub mod services;
 pub mod types;
 
@@ -70,8 +71,20 @@ pub fn run() {
                 .app_cache_dir()
                 .map(|p| p.join("images"))
                 .unwrap_or_else(|_| std::env::temp_dir().join("pixiis-images"));
-            let services = services::ServicesContainer::new(services_cfg, cache_dir)?;
+            let services = services::ServicesContainer::new(services_cfg, cache_dir.clone())?;
             app.manage(Arc::new(services));
+
+            // Library service — scans Steam + folders, persists favorites.
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| std::env::temp_dir().join("pixiis"));
+            let library = library::LibraryService::new(
+                Arc::new(library::EmptyConfig::default()),
+                app_data_dir,
+                Vec::new(),
+            );
+            app.manage(Arc::new(library));
 
             // System tray with Open / Scan / Quit.
             let open_i = MenuItem::with_id(app, "open", "Open Pixiis", true, None::<&str>)?;

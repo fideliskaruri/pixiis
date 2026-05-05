@@ -2,43 +2,25 @@
  * HomePage — Editorial library grid.
  *
  * Continue Playing band on top (when there's recent activity), then a
- * single grid of every game. Section headers use the .label primitive
- * (small-caps tracked Inter), rules separate sections, no framer-motion
- * springs. Sort + filter live in a quiet toolbar.
+ * single grid of every game. Reads the library from `useLibrary()` —
+ * the provider does the actual fetch + retry once at the app root.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
-import { getLibrary, type AppEntry } from '../api/bridge';
+import { useLibrary } from '../api/LibraryContext';
+import type { AppEntry } from '../api/bridge';
 import './HomePage.css';
 
 type SortMode = 'az' | 'recent';
 
 export function HomePage() {
-  const [games, setGames] = useState<AppEntry[]>([]);
+  const { games, status, error, refresh } = useLibrary();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('az');
-  const [loadError, setLoadError] = useState('');
-  const [reloadKey, setReloadKey] = useState(0);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoadError('');
-    getLibrary()
-      .then((entries) => {
-        if (!cancelled) setGames(entries);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [reloadKey]);
 
   const recentlyPlayed = useMemo(
     () =>
@@ -113,17 +95,21 @@ export function HomePage() {
           </span>
         </header>
 
-        {loadError !== '' ? (
+        {status === 'error' ? (
           <div className="home__empty" role="alert">
             <p className="display home__empty-title">Failed to load library</p>
-            <p className="home__empty-body">{loadError}</p>
+            <p className="home__empty-body">{error}</p>
             <button
               className="home__retry"
-              onClick={() => setReloadKey((n) => n + 1)}
+              onClick={refresh}
               data-focusable
             >
               Retry
             </button>
+          </div>
+        ) : status === 'loading' && games.length === 0 ? (
+          <div className="home__empty">
+            <p className="label">LOADING…</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="home__empty">

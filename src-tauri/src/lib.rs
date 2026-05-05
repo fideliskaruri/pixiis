@@ -144,6 +144,7 @@ pub fn run() {
             // services
             commands::services::services_twitch_streams,
             commands::services::services_youtube_trailer,
+            commands::services::services_rawg_lookup,
             commands::services::services_oauth_start,
             commands::services::services_image_url,
             // config + app

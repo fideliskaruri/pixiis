@@ -172,3 +172,93 @@
   border-left: 2px solid var(--text-dim);
   padding-left: var(--s-sm);
 }
+
+/* ── About / description ───────────────────────────────────────────── */
+
+.detail__about {
+  margin-top: var(--s-xl);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--rule);
+  max-width: 720px;
+}
+
+.detail__description {
+  margin: var(--s-md) 0 0;
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  color: var(--text);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.detail__genres {
+  list-style: none;
+  margin: var(--s-lg) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-xs);
+}
+
+.detail__genre {
+  padding: var(--s-xs) var(--s-sm);
+  border: 1px solid var(--rule);
+  /* .label class supplies font + tracking + colour */
+}
+
+/* ── Screenshots ───────────────────────────────────────────────────── */
+
+.detail__screens {
+  margin-top: var(--s-xl);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--rule);
+}
+
+.detail__screens-grid {
+  margin-top: var(--s-md);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--s-md);
+}
+
+.detail__screen {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  transition: border-color var(--t-base) var(--easing);
+}
+.detail__screen:hover         { border-color: var(--text-dim); }
+.detail__screen:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.detail__screen img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Lightbox ──────────────────────────────────────────────────────── */
+
+.detail__lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 14, 12, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: var(--s-xl);
+  cursor: zoom-out;
+  animation: fade-in var(--t-base) var(--easing) both;
+}
+
+.detail__lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 1px solid var(--rule);
+}

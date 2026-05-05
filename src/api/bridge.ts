@@ -11,6 +11,7 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import type { AppEntry as WireAppEntry } from './types/AppEntry';
 import type { AppSource } from './types/AppSource';
+import type { RawgGameData } from './types/RawgGameData';
 
 // Public, enriched shape used by every React component. `extends` the
 // generated wire type so any new field (or change to AppSource) becomes
@@ -24,7 +25,7 @@ export interface AppEntry extends WireAppEntry {
   last_played: number;
 }
 export type GameEntry = AppEntry;
-export type { AppSource };
+export type { AppSource, RawgGameData };
 
 export type Config = Record<string, unknown>;
 
@@ -79,6 +80,17 @@ export function toggleFavorite(id: string): Promise<boolean> {
 
 export async function searchLibrary(query: string): Promise<AppEntry[]> {
   return enrichAll(await invoke<WireAppEntry[]>('library_search', { query }));
+}
+
+// ── RAWG metadata ────────────────────────────────────────────────────
+
+/**
+ * Fetch RAWG metadata (description, screenshots, genres, …) for a game
+ * by its display name. Returns `null` when no API key is configured or
+ * RAWG returns no match — never throws into the UI for missing data.
+ */
+export function lookupRawg(gameName: string): Promise<RawgGameData | null> {
+  return invoke<RawgGameData | null>('services_rawg_lookup', { gameName });
 }
 
 // ── Voice ────────────────────────────────────────────────────────────

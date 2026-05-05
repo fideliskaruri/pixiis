@@ -4,7 +4,7 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 use crate::services::{image_loader::ImageLoader, oauth::OAuthFlow, twitch::TwitchClient, ServicesContainer};
-use crate::types::{TwitchStream, YouTubeTrailer};
+use crate::types::{RawgGameData, TwitchStream, YouTubeTrailer};
 
 #[tauri::command]
 pub async fn services_twitch_streams(
@@ -24,6 +24,24 @@ pub async fn services_youtube_trailer(
     game_name: String,
 ) -> AppResult<Option<YouTubeTrailer>> {
     services.youtube.get_trailer(&game_name).await
+}
+
+/// Look up RAWG metadata (description, screenshots, genres, etc.) by
+/// game name. Returns `None` when no API key is configured or RAWG
+/// returns no match — never bubbles a hard error to the UI.
+#[tauri::command]
+pub async fn services_rawg_lookup(
+    services: State<'_, Arc<ServicesContainer>>,
+    game_name: String,
+) -> AppResult<Option<RawgGameData>> {
+    if services.config.rawg_api_key.is_empty() {
+        return Ok(None);
+    }
+    match services.rawg.search_game(&game_name).await {
+        Ok(data) if data.id == 0 => Ok(None), // RAWG returned an empty/default
+        Ok(data) => Ok(Some(data)),
+        Err(_) => Ok(None),
+    }
 }
 
 #[tauri::command]

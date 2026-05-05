@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
 import { GameDetailPage } from './pages/GameDetailPage';
+import { LibraryProvider } from './api/LibraryContext';
 import { useSpatialNav } from './hooks/useSpatialNav';
 
 // styles/tokens.css is loaded via index.css; theme.css is the legacy
@@ -53,7 +54,9 @@ function Placeholder({ label }: { label: string }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <LibraryProvider>
+        <AppContent />
+      </LibraryProvider>
     </BrowserRouter>
   );
 }

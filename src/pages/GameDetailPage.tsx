@@ -1,16 +1,16 @@
 /**
  * GameDetailPage — Editorial detail view for a single game.
  *
- * Loads the entry by id from the library cache (the same `getLibrary()`
- * call that fed the home grid). Hero art, serif game name, source label,
- * playtime, ▶ PLAY accent button, favorite toggle, and a back link.
+ * Loads the entry by id from the same library cache (`getLibrary()`)
+ * that fed the home grid. Hero art, serif game name, source label,
+ * playtime, ▶ PLAY accent button, favorite toggle, back link.
  *
- * RAWG description / screenshots / trailer are deliberately deferred to
- * the next iteration — this page proves the route + types + accent-only
+ * RAWG description / screenshots / trailer are deferred to a later
+ * iteration — this page proves the route + types + accent-only
  * editorial loop end-to-end.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   getLibrary,
@@ -22,8 +22,13 @@ import {
 import './GameDetailPage.css';
 
 type LaunchState = 'idle' | 'launching' | 'launched' | 'error';
+type LoadState =
+  | { kind: 'loading' }
+  | { kind: 'loaded'; game: AppEntry }
+  | { kind: 'not-found' }
+  | { kind: 'error'; message: string };
 
-const SOURCE_LABELS: Record<AppEntry['source'], string> = {
+const SOURCE_LABELS: Partial<Record<AppEntry['source'], string>> = {
   steam: 'STEAM',
   xbox: 'XBOX',
   epic: 'EPIC',
@@ -37,85 +42,130 @@ export function GameDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const [game, setGame] = useState<AppEntry | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [state, setState] = useState<LoadState>({ kind: 'loading' });
   const [favorite, setFavorite] = useState(false);
+  const [favoriteError, setFavoriteError] = useState('');
   const [launchState, setLaunchState] = useState<LaunchState>('idle');
-  const [launchError, setLaunchError] = useState<string>('');
+  const [launchError, setLaunchError] = useState('');
+
+  // setTimeout handle for the post-launch visual confirmation —
+  // cleared on unmount and on every re-arm.
+  const launchedTimer = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     getLibrary()
       .then((entries) => {
         if (cancelled) return;
-        const match = entries.find((e) => e.id === id) ?? null;
-        if (match === null) {
-          setNotFound(true);
+        const match = entries.find((e) => e.id === id);
+        if (match === undefined) {
+          setState({ kind: 'not-found' });
           return;
         }
-        setGame(match);
+        setState({ kind: 'loaded', game: match });
         setFavorite(match.is_favorite);
       })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setState({
+          kind: 'error',
+          message: err instanceof Error ? err.message : String(err),
+        });
       });
     return () => {
       cancelled = true;
     };
   }, [id]);
 
+  // Tear the LAUNCHED timer down with the component.
+  useEffect(() => {
+    return () => {
+      if (launchedTimer.current !== null) {
+        window.clearTimeout(launchedTimer.current);
+        launchedTimer.current = null;
+      }
+    };
+  }, []);
+
   const onPlay = async (): Promise<void> => {
-    if (game === null || launchState === 'launching') return;
+    if (state.kind !== 'loaded' || launchState === 'launching') return;
     setLaunchState('launching');
     setLaunchError('');
     try {
-      await launchGame(game.id);
+      await launchGame(state.game.id);
       setLaunchState('launched');
-      // Reset the button after a short visual confirmation so a second
-      // click re-launches if the user wants it.
-      window.setTimeout(() => setLaunchState('idle'), 1500);
-    } catch (err) {
+      if (launchedTimer.current !== null) {
+        window.clearTimeout(launchedTimer.current);
+      }
+      launchedTimer.current = window.setTimeout(() => {
+        setLaunchState('idle');
+        launchedTimer.current = null;
+      }, 1500);
+    } catch (err: unknown) {
       setLaunchError(err instanceof Error ? err.message : String(err));
       setLaunchState('error');
     }
   };
 
   const onToggleFavorite = async (): Promise<void> => {
-    if (game === null) return;
+    if (state.kind !== 'loaded') return;
+    setFavoriteError('');
     try {
-      const next = await toggleFavorite(game.id);
+      const next = await toggleFavorite(state.game.id);
       setFavorite(next);
-    } catch {
-      /* surface errors here in a future iteration */
+    } catch (err: unknown) {
+      setFavoriteError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  if (notFound) {
+  if (state.kind === 'loading') {
     return (
-      <div className="detail detail--empty">
-        <p className="text-h3 text-secondary">Game not found</p>
-        <button className="detail__back" onClick={() => navigate(-1)}>
+      <div className="detail detail--empty fade-in">
+        <p className="label">LOADING…</p>
+      </div>
+    );
+  }
+
+  if (state.kind === 'not-found') {
+    return (
+      <div className="detail detail--empty fade-in">
+        <p className="label">NOT FOUND</p>
+        <p className="detail__empty-body">No library entry with id <code>{id}</code>.</p>
+        <button
+          className="detail__back"
+          onClick={() => navigate(-1)}
+          data-focusable
+        >
           ← Back
         </button>
       </div>
     );
   }
 
-  if (game === null) {
+  if (state.kind === 'error') {
     return (
-      <div className="detail detail--empty">
-        <p className="label">LOADING…</p>
+      <div className="detail detail--empty fade-in">
+        <p className="label">FAILED TO LOAD</p>
+        <p className="detail__empty-body">{state.message}</p>
+        <button
+          className="detail__back"
+          onClick={() => navigate(-1)}
+          data-focusable
+        >
+          ← Back
+        </button>
       </div>
     );
   }
 
+  const game = state.game;
   const art = imageUrl(game.art_url);
   const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
   const playButtonLabel =
     launchState === 'launching'
       ? 'LAUNCHING…'
       : launchState === 'launched'
-        ? 'LAUNCHED ✓'
+        ? 'LAUNCHED'
         : '▶ PLAY';
 
   return (
@@ -135,8 +185,6 @@ export function GameDetailPage() {
             className="detail__art"
             src={art}
             alt=""
-            // alt is decorative — the real title lives in the heading below
-            aria-hidden="true"
           />
         )}
         <div className="detail__hero-fade" aria-hidden="true" />
@@ -150,13 +198,13 @@ export function GameDetailPage() {
           {game.playtime_display !== '' && (
             <div className="detail__meta-row">
               <dt className="label">PLAYED</dt>
-              <dd className="text-body">{game.playtime_display}</dd>
+              <dd className="detail__meta-value">{game.playtime_display}</dd>
             </div>
           )}
           {!game.is_installed && (
             <div className="detail__meta-row">
               <dt className="label">STATUS</dt>
-              <dd className="text-body text-muted">Not installed</dd>
+              <dd className="detail__meta-value detail__meta-value--dim">Not installed</dd>
             </div>
           )}
         </dl>
@@ -184,8 +232,13 @@ export function GameDetailPage() {
       </div>
 
       {launchError !== '' && (
-        <p className="detail__error text-body" role="alert">
+        <p className="detail__error" role="alert">
           {launchError}
+        </p>
+      )}
+      {favoriteError !== '' && (
+        <p className="detail__error" role="alert">
+          {favoriteError}
         </p>
       )}
     </article>

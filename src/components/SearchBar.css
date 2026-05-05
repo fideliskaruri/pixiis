@@ -1,41 +1,32 @@
-/* SearchBar — Pill-shaped with mic button */
+/* ═══════════════════════════════════════════════════════════════════
+   SearchBar — Editorial input.
+   Square edges, 1px rule border, accent only on focus ring (outline),
+   no glow/pulse animations.
+   ═══════════════════════════════════════════════════════════════════ */
 
 .search-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  height: 48px;
-  padding: 0 var(--space-lg);
-  background: var(--surface);
-  border: 2px solid transparent;
-  border-radius: var(--radius-pill);
-  transition: all var(--duration-normal) var(--ease-out);
+  gap: var(--s-sm);
+  height: 40px;
+  padding: 0 var(--s-md);
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  transition: border-color var(--t-base) var(--easing);
 }
 
-.search-bar:hover {
-  border-color: var(--border-hover);
-}
+.search-bar:hover           { border-color: var(--text-dim); }
+.search-bar:focus-within    { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.search-bar--focused {
-  border-color: var(--accent);
-  background: var(--surface-hover);
-}
-
-.search-bar--recording {
-  border-color: var(--accent);
-  animation: glowPulse 1.5s infinite;
-}
+/* Recording state: steady text-dim border + a small label-tracked
+   "REC" caption rendered by the component (no pulsing animation). */
+.search-bar--recording      { border-color: var(--text-dim); }
 
 .search-bar__icon {
-  width: 18px;
-  height: 18px;
-  color: var(--text-muted);
+  width: 16px;
+  height: 16px;
+  color: var(--text-dim);
   flex-shrink: 0;
-  transition: color var(--duration-normal);
-}
-
-.search-bar--focused .search-bar__icon {
-  color: var(--accent);
 }
 
 .search-bar__input {
@@ -44,14 +35,11 @@
   border: none;
   outline: none;
   color: var(--text);
-  font-family: var(--font);
-  font-size: 15px;
+  font-family: var(--font-body);
+  font-size: var(--t-body);
   font-weight: 400;
 }
-
-.search-bar__input::placeholder {
-  color: var(--text-muted);
-}
+.search-bar__input::placeholder { color: var(--text-mute); }
 
 .search-bar__clear {
   width: 24px;
@@ -59,20 +47,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
-  border-radius: 50%;
-  color: var(--text-muted);
-  font-size: 11px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
   cursor: pointer;
   flex-shrink: 0;
-  transition: all var(--duration-fast);
+  transition: color var(--t-base) var(--easing),
+              border-color var(--t-base) var(--easing);
 }
-
-.search-bar__clear:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text);
-}
+.search-bar__clear:hover         { color: var(--text); border-color: var(--rule); }
+.search-bar__clear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .search-bar__mic {
   width: 32px;
@@ -81,32 +67,14 @@
   align-items: center;
   justify-content: center;
   background: transparent;
-  border: 2px solid transparent;
-  border-radius: 50%;
-  color: var(--text-muted);
+  border: 1px solid transparent;
+  color: var(--text-dim);
   cursor: pointer;
   flex-shrink: 0;
-  transition: all var(--duration-normal);
+  transition: color var(--t-base) var(--easing),
+              border-color var(--t-base) var(--easing);
 }
-
-.search-bar__mic svg {
-  width: 16px;
-  height: 16px;
-}
-
-.search-bar__mic:hover {
-  color: var(--accent);
-  background: var(--accent-dim);
-}
-
-.search-bar__mic--active {
-  color: var(--accent);
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  animation: pulseScale 1s infinite;
-}
-
-.search-bar__mic:focus-visible {
-  border-color: var(--accent);
-  outline: none;
-}
+.search-bar__mic svg          { width: 16px; height: 16px; }
+.search-bar__mic:hover        { color: var(--text); border-color: var(--rule); }
+.search-bar__mic--active      { color: var(--text); border-color: var(--text-dim); }
+.search-bar__mic:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -8,7 +8,9 @@ import { HomePage } from './pages/HomePage';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { useSpatialNav } from './hooks/useSpatialNav';
 
-import './styles/theme.css';
+// styles/tokens.css is loaded via index.css; theme.css is the legacy
+// PS5-glass palette and must NOT be imported here — it shadows editorial
+// :root variables (--bg, --accent, --text, --font, --ease-*).
 import './styles/animations.css';
 
 function AppContent() {
@@ -31,10 +33,18 @@ function AppContent() {
 
 function Placeholder({ label }: { label: string }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100%', color: 'var(--text-muted)', fontSize: 24, fontWeight: 600,
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: 'var(--text-mute)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 'var(--t-title)',
+        fontWeight: 500,
+      }}
+    >
       {label} — coming soon
     </div>
   );

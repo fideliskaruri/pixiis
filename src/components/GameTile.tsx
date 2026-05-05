@@ -83,9 +83,7 @@ export function GameTile({
         <p className="game-tile__source label">{sourceLabel}</p>
         <h3 className="game-tile__name">{game.name}</h3>
         {game.playtime_display !== '' && (
-          <p className="game-tile__playtime text-caption">
-            {game.playtime_display}
-          </p>
+          <p className="game-tile__playtime">{game.playtime_display}</p>
         )}
       </div>
 

@@ -1,30 +1,21 @@
 /**
  * Pixiis API Bridge — Tauri-native invoke() calls.
  *
- * The old Python sidecar / FastAPI HTTP API is gone in this build; every
- * function below routes through `@tauri-apps/api/core::invoke` to the
- * Rust commands defined in `frontend/src-tauri/src/commands/`.
+ * The wire shape comes straight from the Rust types via ts-rs
+ * (`src/api/types/AppEntry.ts`). The bridge then enriches every
+ * row with derived fields (favorite, last-played, playtime display)
+ * so React components can read flat properties without going
+ * through the metadata map.
  */
 
-import { invoke } from '@tauri-apps/api/core';
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import type { AppEntry as WireAppEntry } from './types/AppEntry';
+import type { AppSource } from './types/AppSource';
 
-// The wire shape of crate::types::AppEntry (Pane 7 + library port). The
-// fields below `metadata` are *derived* on the JS side from metadata
-// values that the Rust helpers (is_favorite / playtime_minutes / etc.)
-// also key on — kept here so existing React components can read flat
-// properties without thinking about the metadata map. Frontend code
-// historically called this type `GameEntry`; alias retained.
-export interface AppEntry {
-  id: string;
-  name: string;
-  source: 'steam' | 'xbox' | 'epic' | 'gog' | 'ea' | 'startmenu' | 'manual';
-  launch_command: string;
-  exe_path: string | null;
-  icon_path: string | null;
-  art_url: string | null;
-  metadata: Record<string, unknown>;
-  // ── Derived (filled by enrich()) ──
+// Public, enriched shape used by every React component. `extends` the
+// generated wire type so any new field (or change to AppSource) becomes
+// a TypeScript error here, not a silent drift.
+export interface AppEntry extends WireAppEntry {
   is_favorite: boolean;
   is_game: boolean;
   is_installed: boolean;
@@ -33,6 +24,7 @@ export interface AppEntry {
   last_played: number;
 }
 export type GameEntry = AppEntry;
+export type { AppSource };
 
 export type Config = Record<string, unknown>;
 
@@ -48,7 +40,7 @@ function formatPlaytime(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-function enrich(raw: AppEntry): AppEntry {
+function enrich(raw: WireAppEntry): AppEntry {
   const m = raw.metadata ?? {};
   const playtime_minutes = asNumber(m.playtime_minutes);
   return {
@@ -56,25 +48,25 @@ function enrich(raw: AppEntry): AppEntry {
     metadata: m,
     is_favorite: m.favorite === true,
     is_game: raw.source !== 'manual' || /\.exe$/i.test(raw.launch_command),
-    is_installed: raw.exe_path != null,
+    is_installed: raw.exe_path !== null,
     playtime_minutes,
     playtime_display: formatPlaytime(playtime_minutes),
     last_played: asNumber(m.last_played),
   };
 }
 
-function enrichAll(rows: AppEntry[]): AppEntry[] {
+function enrichAll(rows: WireAppEntry[]): AppEntry[] {
   return rows.map(enrich);
 }
 
 // ── Library ──────────────────────────────────────────────────────────
 
 export async function getLibrary(): Promise<AppEntry[]> {
-  return enrichAll(await invoke<AppEntry[]>('library_get_all'));
+  return enrichAll(await invoke<WireAppEntry[]>('library_get_all'));
 }
 
 export async function scanLibrary(): Promise<AppEntry[]> {
-  return enrichAll(await invoke<AppEntry[]>('library_scan'));
+  return enrichAll(await invoke<WireAppEntry[]>('library_scan'));
 }
 
 export function launchGame(id: string): Promise<void> {
@@ -86,7 +78,7 @@ export function toggleFavorite(id: string): Promise<boolean> {
 }
 
 export async function searchLibrary(query: string): Promise<AppEntry[]> {
-  return enrichAll(await invoke<AppEntry[]>('library_search', { query }));
+  return enrichAll(await invoke<WireAppEntry[]>('library_search', { query }));
 }
 
 // ── Voice ────────────────────────────────────────────────────────────
@@ -96,8 +88,8 @@ export function voiceStart(): Promise<void> {
 }
 
 export async function voiceStop(): Promise<{ text: string }> {
-  // Backend returns the transcribed text directly; wrap it so existing
-  // callers that expect `{ text }` keep working.
+  // Backend returns the transcribed text; wrap it so existing callers
+  // that destructure `{ text }` keep working.
   const text = await invoke<string>('voice_stop');
   return { text };
 }
@@ -115,13 +107,13 @@ export function saveConfig(config: Partial<Config>): Promise<void> {
 // ── Image proxy ──────────────────────────────────────────────────────
 
 /**
- * Resolve an image URL for use in <img src>. For HTTP(S) URLs we currently
- * pass through unchanged (Steam CDN art is CORS-friendly). For local file
- * paths the helper falls back to Tauri's `convertFileSrc`, which produces
- * a `tauri://` or `asset://` URL that the webview can render directly.
+ * Resolve an image URL for use in <img src>. HTTP(S) URLs pass through
+ * unchanged (Steam CDN art is CORS-friendly). Local file paths fall
+ * back to Tauri's `convertFileSrc`, which produces a `tauri://` URL the
+ * webview can render directly.
  */
 export function imageUrl(url: string | null): string {
-  if (!url) return '';
+  if (url === null || url === '') return '';
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
     return url;
   }

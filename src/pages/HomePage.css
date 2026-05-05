@@ -71,6 +71,8 @@
 
 .home__count {
   margin-left: auto;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
   color: var(--text-dim);
 }
 
@@ -93,4 +95,24 @@
   padding: var(--s-2xl) 0;
 }
 .home__empty-title { margin: 0; }
-.home__empty-body  { margin: 0; color: var(--text-dim); line-height: 1.55; }
+.home__empty-body  {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.home__retry {
+  margin-top: var(--s-md);
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--text-dim);
+  padding: var(--s-sm) var(--s-lg);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  cursor: pointer;
+  transition: border-color var(--t-base) var(--easing);
+}
+.home__retry:hover         { border-color: var(--text); }
+.home__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -49,3 +49,9 @@ temp_*.wav
 spike/baseline_run.log
 .claude/
 .env
+# build.sh + tauri outputs
+/build.log
+frontend/src-tauri/target/
+frontend/src-tauri/build_check.err
+frontend/dist/
+frontend/node_modules/

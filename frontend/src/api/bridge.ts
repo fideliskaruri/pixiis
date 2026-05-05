@@ -9,9 +9,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
-// Match the wire shape of crate::types::AppEntry (Pane 7 + library port).
-// Frontend code historically called this `GameEntry`; kept as an alias so
-// existing components (HomePage, GameTile) don't all have to change names.
+// The wire shape of crate::types::AppEntry (Pane 7 + library port). The
+// fields below `metadata` are *derived* on the JS side from metadata
+// values that the Rust helpers (is_favorite / playtime_minutes / etc.)
+// also key on — kept here so existing React components can read flat
+// properties without thinking about the metadata map. Frontend code
+// historically called this type `GameEntry`; alias retained.
 export interface AppEntry {
   id: string;
   name: string;
@@ -21,19 +24,57 @@ export interface AppEntry {
   icon_path: string | null;
   art_url: string | null;
   metadata: Record<string, unknown>;
+  // ── Derived (filled by enrich()) ──
+  is_favorite: boolean;
+  is_game: boolean;
+  is_installed: boolean;
+  playtime_minutes: number;
+  playtime_display: string;
+  last_played: number;
 }
 export type GameEntry = AppEntry;
 
 export type Config = Record<string, unknown>;
 
-// ── Library ──────────────────────────────────────────────────────────
-
-export function getLibrary(): Promise<AppEntry[]> {
-  return invoke<AppEntry[]>('library_get_all');
+function asNumber(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
-export function scanLibrary(): Promise<AppEntry[]> {
-  return invoke<AppEntry[]>('library_scan');
+function formatPlaytime(minutes: number): string {
+  if (minutes <= 0) return '';
+  if (minutes < 60) return `${minutes}m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function enrich(raw: AppEntry): AppEntry {
+  const m = raw.metadata ?? {};
+  const playtime_minutes = asNumber(m.playtime_minutes);
+  return {
+    ...raw,
+    metadata: m,
+    is_favorite: m.favorite === true,
+    is_game: raw.source !== 'manual' || /\.exe$/i.test(raw.launch_command),
+    is_installed: raw.exe_path != null,
+    playtime_minutes,
+    playtime_display: formatPlaytime(playtime_minutes),
+    last_played: asNumber(m.last_played),
+  };
+}
+
+function enrichAll(rows: AppEntry[]): AppEntry[] {
+  return rows.map(enrich);
+}
+
+// ── Library ──────────────────────────────────────────────────────────
+
+export async function getLibrary(): Promise<AppEntry[]> {
+  return enrichAll(await invoke<AppEntry[]>('library_get_all'));
+}
+
+export async function scanLibrary(): Promise<AppEntry[]> {
+  return enrichAll(await invoke<AppEntry[]>('library_scan'));
 }
 
 export function launchGame(id: string): Promise<void> {
@@ -44,8 +85,8 @@ export function toggleFavorite(id: string): Promise<boolean> {
   return invoke<boolean>('library_toggle_favorite', { id });
 }
 
-export function searchLibrary(query: string): Promise<AppEntry[]> {
-  return invoke<AppEntry[]>('library_search', { query });
+export async function searchLibrary(query: string): Promise<AppEntry[]> {
+  return enrichAll(await invoke<AppEntry[]>('library_search', { query }));
 }
 
 // ── Voice ────────────────────────────────────────────────────────────

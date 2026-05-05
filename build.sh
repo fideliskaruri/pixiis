@@ -17,6 +17,25 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND="$REPO_ROOT/frontend"
 
+# Make sure rustup-installed cargo + pip-installed cmake/ninja are reachable
+# even if the user's shell hasn't been re-sourced since installing them.
+for d in "$HOME/.cargo/bin" "$HOME/.local/bin"; do
+  if [[ -d "$d" && ":$PATH:" != *":$d:"* ]]; then
+    PATH="$d:$PATH"
+  fi
+done
+export PATH
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "build.sh: cargo not on PATH. Install Rust via https://rustup.rs/ or" >&2
+  echo "          add ~/.cargo/bin to your shell profile." >&2
+  exit 127
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "build.sh: node not on PATH. Install Node 20+ before running." >&2
+  exit 127
+fi
+
 mode="release"
 case "${1:-}" in
   ""|build|release) mode="release" ;;

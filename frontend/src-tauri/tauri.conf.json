@@ -43,9 +43,8 @@
     "shortDescription": "Controller-first launcher with voice",
     "longDescription": "Pixiis is a Windows game launcher that scans Steam, Epic, GOG, Xbox, and EA libraries and offers controller + voice control.",
     "windows": {
-      "wix": null,
       "nsis": {
-        "installMode": "perUser",
+        "installMode": "currentUser",
         "displayLanguageSelector": false
       }
     },

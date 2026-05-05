@@ -1,1 +1,4 @@
+@import './styles/tokens.css';
+@import './styles/animations.css';
+
 /* Reset handled by theme.css */

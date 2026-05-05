@@ -1,60 +1,71 @@
 /* ═══════════════════════════════════════════════════════════════════
-   Pixiis — Shared Animations
+   Pixiis — Editorial animations
+   Restrained motion: cross-fades, linear thickening, no springs.
+   All timings + easing reference tokens.css.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* ── Page enter/exit ─────────────────────────────────────────────── */
+/* ── Page cross-fade (200 ms) ───────────────────────────────────────── */
 
-@keyframes fadeIn {
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.fade-in  { animation: fade-in  var(--t-base) var(--easing) both; }
+.fade-out { animation: fade-out var(--t-base) var(--easing) both; }
+
+/* ── Tile focus (border thicken + restrained scale, no spring) ──────── */
+
+.tile-focus {
+  border: 1px solid var(--rule);
+  transform: scale(1);
+  transition:
+    border-color var(--t-base) var(--easing),
+    border-width var(--t-base) var(--easing),
+    transform    var(--t-base) var(--easing);
+}
+
+.tile-focus:focus-visible,
+.tile-focus[data-focused='true'] {
+  border: 2px solid var(--focus);
+  transform: scale(1.04);
+  outline: none;
+}
+
+/* ── Toast (asymmetric in/out) ──────────────────────────────────────── */
+
+@keyframes toast-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeOut {
+@keyframes toast-out {
   from { opacity: 1; transform: translateY(0); }
-  to   { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 0; transform: translateY(8px); }
 }
 
-/* ── Stagger children ────────────────────────────────────────────── */
+.toast-in  { animation: toast-in  150ms var(--easing) both; }
+.toast-out { animation: toast-out 300ms var(--easing) both; }
 
-@keyframes staggerIn {
-  from { opacity: 0; transform: translateY(16px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
+/* ── Reduced motion ─────────────────────────────────────────────────── */
 
-/* ── Pulse (loading, mic active) ─────────────────────────────────── */
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.5; }
-}
-
-@keyframes pulseScale {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.05); }
-}
-
-/* ── Shimmer (skeleton loading) ──────────────────────────────────── */
-
-@keyframes shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--surface) 25%,
-    var(--surface-hover) 50%,
-    var(--surface) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--radius-md);
-}
-
-/* ── Glow pulse (focus ring accent) ──────────────────────────────── */
-
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 16px var(--accent-shadow); }
-  50%      { box-shadow: 0 0 24px var(--accent-glow); }
+@media (prefers-reduced-motion: reduce) {
+  .fade-in,
+  .fade-out,
+  .toast-in,
+  .toast-out {
+    animation-duration: 1ms;
+  }
+  .tile-focus {
+    transition-duration: 1ms;
+  }
+  .tile-focus:focus-visible,
+  .tile-focus[data-focused='true'] {
+    transform: none;
+  }
 }

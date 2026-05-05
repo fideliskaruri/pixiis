@@ -1,44 +1,57 @@
 /**
- * HomePage — Recently played carousel + game grid.
- * PS5-inspired: horizontal "Continue Playing" row, then a grid of all games.
+ * HomePage — Editorial library grid.
+ *
+ * Continue Playing band on top (when there's recent activity), then a
+ * single grid of every game. Section headers use the .label primitive
+ * (small-caps tracked Inter), rules separate sections, no framer-motion
+ * springs. Sort + filter live in a quiet toolbar.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
-import { getLibrary, type GameEntry } from '../api/bridge';
+import { getLibrary, type AppEntry } from '../api/bridge';
 import './HomePage.css';
 
+type SortMode = 'az' | 'recent';
+
 export function HomePage() {
-  const [games, setGames] = useState<GameEntry[]>([]);
+  const [games, setGames] = useState<AppEntry[]>([]);
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<'az' | 'recent'>('az');
+  const [sort, setSort] = useState<SortMode>('az');
   const navigate = useNavigate();
 
   useEffect(() => {
-    getLibrary().then(setGames).catch(() => {});
+    let cancelled = false;
+    getLibrary()
+      .then((entries) => {
+        if (!cancelled) setGames(entries);
+      })
+      .catch(() => {
+        /* swallow — empty state below handles it */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Recently played (top carousel)
   const recentlyPlayed = useMemo(
-    () => games
-      .filter(g => g.is_game && g.last_played > 0)
-      .sort((a, b) => b.last_played - a.last_played)
-      .slice(0, 8),
+    () =>
+      games
+        .filter((g) => g.is_game && g.last_played > 0)
+        .sort((a, b) => b.last_played - a.last_played)
+        .slice(0, 8),
     [games],
   );
 
-  // Filtered + sorted game grid
   const filtered = useMemo(() => {
-    let list = games.filter(g => g.is_game);
-    if (search) {
+    let list = games.filter((g) => g.is_game);
+    if (search !== '') {
       const q = search.toLowerCase();
-      list = list.filter(g => g.name.toLowerCase().includes(q));
+      list = list.filter((g) => g.name.toLowerCase().includes(q));
     }
-    // Favorites first, then sort
-    list.sort((a, b) => {
+    list = list.slice().sort((a, b) => {
       if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
       if (sort === 'recent') return b.last_played - a.last_played;
       return a.name.localeCompare(b.name);
@@ -46,84 +59,77 @@ export function HomePage() {
     return list;
   }, [games, search, sort]);
 
-  const gameCount = filtered.length;
+  const onOpen = (g: AppEntry): void => {
+    navigate(`/game/${encodeURIComponent(g.id)}`);
+  };
 
   return (
-    <div className="home">
-      {/* Recently Played Carousel */}
+    <div className="home fade-in">
       {recentlyPlayed.length > 0 && (
         <section className="home__section">
-          <h2 className="text-overline">Continue Playing</h2>
+          <p className="label home__section-head">CONTINUE PLAYING</p>
           <div className="home__carousel">
-            {recentlyPlayed.map((game, i) => (
-              <motion.div
+            {recentlyPlayed.map((game) => (
+              <GameTile
                 key={game.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <GameTile
-                  game={game}
-                  size="landscape"
-                  onSelect={(g) => navigate(`/game/${g.id}`)}
-                />
-              </motion.div>
+                game={game}
+                size="landscape"
+                onSelect={onOpen}
+              />
             ))}
           </div>
+          <hr className="rule" />
         </section>
       )}
 
-      {/* Search + Sort + Count */}
-      <div className="home__toolbar">
-        <SearchBar value={search} onChange={setSearch} />
-        <div className="home__pills">
-          <button
-            className={`pill ${sort === 'az' ? 'pill--active' : ''}`}
-            onClick={() => setSort('az')}
-            data-focusable
-          >
-            A–Z
-          </button>
-          <button
-            className={`pill ${sort === 'recent' ? 'pill--active' : ''}`}
-            onClick={() => setSort('recent')}
-            data-focusable
-          >
-            Recent
-          </button>
-        </div>
-        <span className="home__count text-caption text-muted">{gameCount} games</span>
-      </div>
+      <section className="home__section">
+        <header className="home__toolbar">
+          <p className="label home__section-head">LIBRARY</p>
+          <SearchBar value={search} onChange={setSearch} />
+          <div className="home__pills">
+            <button
+              className={`home__pill ${sort === 'az' ? 'home__pill--active' : ''}`}
+              onClick={() => setSort('az')}
+              data-focusable
+              aria-pressed={sort === 'az'}
+            >
+              A–Z
+            </button>
+            <button
+              className={`home__pill ${sort === 'recent' ? 'home__pill--active' : ''}`}
+              onClick={() => setSort('recent')}
+              data-focusable
+              aria-pressed={sort === 'recent'}
+            >
+              Recent
+            </button>
+          </div>
+          <span className="home__count text-caption">
+            {filtered.length} {filtered.length === 1 ? 'game' : 'games'}
+          </span>
+        </header>
 
-      {/* Game Grid */}
-      <div className="home__grid">
         {filtered.length === 0 ? (
           <div className="home__empty">
-            <p className="text-h3 text-secondary">
-              {search ? 'No matching games' : 'No games found'}
+            <p className="display home__empty-title">
+              {search !== '' ? 'No matches' : 'No games yet'}
             </p>
-            {!search && (
-              <p className="text-body text-muted" style={{ marginTop: 8 }}>
-                Go to Settings → Library to add your game sources.
+            {search === '' && (
+              <p className="text-body home__empty-body">
+                Pixiis scans Steam and your common game folders on launch.
+                Click <em>Scan Library</em> from the tray, or add an extra
+                folder under Settings → Library.
               </p>
             )}
           </div>
         ) : (
-          filtered.map((game, i) => (
-            <motion.div
-              key={game.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.02, duration: 0.3 }}
-            >
-              <GameTile
-                game={game}
-                onSelect={(g) => navigate(`/game/${g.id}`)}
-              />
-            </motion.div>
-          ))
+          <div className="home__grid">
+            {filtered.map((game) => (
+              <GameTile key={game.id} game={game} onSelect={onOpen} />
+            ))}
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

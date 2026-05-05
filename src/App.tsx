@@ -5,6 +5,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
+import { GameDetailPage } from './pages/GameDetailPage';
 import { useSpatialNav } from './hooks/useSpatialNav';
 
 import './styles/theme.css';
@@ -20,7 +21,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/library" element={<Placeholder label="Library" />} />
-          <Route path="/game/:id" element={<Placeholder label="Game Detail" />} />
+          <Route path="/game/:id" element={<GameDetailPage />} />
           <Route path="/settings" element={<Placeholder label="Settings" />} />
         </Routes>
       </main>

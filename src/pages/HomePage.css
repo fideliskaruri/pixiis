@@ -1,106 +1,96 @@
-/* HomePage — PS5-inspired game dashboard */
+/* ═══════════════════════════════════════════════════════════════════
+   HomePage — Editorial library layout.
+   Generous whitespace, horizontal rules between sections, no glass.
+   ═══════════════════════════════════════════════════════════════════ */
 
 .home {
   height: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
-  padding: var(--space-2xl) var(--space-3xl) var(--space-4xl);
+  padding: var(--s-xl) clamp(var(--s-lg), 6vw, var(--s-2xl)) var(--s-2xl);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.home__section { margin-bottom: var(--s-xl); }
+
+.home__section-head {
+  margin: 0 0 var(--s-md);
 }
 
 /* ── Continue Playing carousel ─────────────────────────────────────── */
 
-.home__section {
-  margin-bottom: var(--space-3xl);
-}
-
-.home__section .text-overline {
-  margin-bottom: var(--space-lg);
-}
-
 .home__carousel {
   display: flex;
-  gap: var(--space-xl);
+  gap: var(--s-md);
   overflow-x: auto;
-  padding-bottom: var(--space-lg);
+  padding-bottom: var(--s-sm);
   scroll-snap-type: x mandatory;
-  scrollbar-width: none; /* Firefox */
 }
+.home__carousel > *      { scroll-snap-align: start; flex: 0 0 auto; }
+.home__carousel::-webkit-scrollbar { height: 6px; }
+.home__carousel::-webkit-scrollbar-track { background: transparent; }
+.home__carousel::-webkit-scrollbar-thumb { background: var(--rule); }
 
-.home__carousel::-webkit-scrollbar {
-  display: none;
-}
-
-.home__carousel > * {
-  scroll-snap-align: start;
-  flex-shrink: 0;
-}
-
-/* ── Toolbar (search + sort + count) ───────────────────────────────── */
+/* ── Toolbar (label · search · pills · count) ──────────────────────── */
 
 .home__toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
-  margin-bottom: var(--space-xl);
+  gap: var(--s-md);
+  flex-wrap: wrap;
+  margin: 0 0 var(--s-lg);
+  padding-bottom: var(--s-md);
+  border-bottom: 1px solid var(--rule);
 }
 
-.home__toolbar .search-bar {
-  flex: 1;
-  max-width: 480px;
+.home__toolbar .home__section-head {
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .home__pills {
   display: flex;
-  gap: var(--space-xs);
+  gap: var(--s-xs);
 }
 
-.pill {
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-pill);
-  border: 2px solid transparent;
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 500;
+.home__pill {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--text-dim);
+  padding: var(--s-xs) var(--s-md);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  letter-spacing: 0.04em;
   cursor: pointer;
-  transition: all var(--duration-normal) var(--ease-out);
+  transition: color var(--t-base) var(--easing),
+              border-color var(--t-base) var(--easing);
 }
-
-.pill:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-
-.pill--active {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border-color: var(--accent-glow);
-}
-
-.pill:focus-visible {
-  border-color: var(--accent);
-  outline: none;
-}
+.home__pill:hover                 { color: var(--text); }
+.home__pill--active               { color: var(--text); border-color: var(--text-dim); }
+.home__pill:focus-visible         { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .home__count {
-  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-dim);
 }
 
-/* ── Game grid ─────────────────────────────────────────────────────── */
+/* ── Grid ──────────────────────────────────────────────────────────── */
 
 .home__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 220px));
-  gap: var(--space-xl);
-  justify-content: start;
-  padding-bottom: var(--space-4xl);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-lg) var(--s-md);
 }
 
 /* ── Empty state ───────────────────────────────────────────────────── */
 
 .home__empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: var(--space-4xl);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-md);
+  max-width: 540px;
+  padding: var(--s-2xl) 0;
 }
+.home__empty-title { margin: 0; }
+.home__empty-body  { margin: 0; color: var(--text-dim); line-height: 1.55; }

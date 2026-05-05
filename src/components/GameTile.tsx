@@ -1,14 +1,17 @@
 /**
- * GameTile — The hero element. A floating glass card with cover art.
+ * GameTile — Editorial cover card.
  *
- * PS5-inspired: on focus, the card rises toward you with a spring
- * animation, casts a warm coral shadow, and the art brightens.
- * Everything else dims.
+ * Editorial language:
+ *   - No springs, no glass, no overshoot. The tile-focus animation
+ *     in styles/animations.css is the only motion (1px → 2px border,
+ *     scale 1.0 → 1.04, 200 ms ease-in-out).
+ *   - Source label uses .label primitive (small-caps, tracked, dim).
+ *   - Single accent (#C5402F) is reserved for the ▶ PLAY button on
+ *     the GameDetailPage; tiles use only neutrals + focus ring.
  */
 
-import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { type GameEntry, imageUrl } from '../api/bridge';
+import { useState } from 'react';
+import { type AppEntry, type GameEntry, imageUrl } from '../api/bridge';
 import './GameTile.css';
 
 interface Props {
@@ -18,7 +21,7 @@ interface Props {
   onFavorite?: (game: GameEntry) => void;
 }
 
-const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<AppEntry['source'], string> = {
   steam: 'STEAM',
   xbox: 'XBOX',
   epic: 'EPIC',
@@ -28,80 +31,77 @@ const SOURCE_LABELS: Record<string, string> = {
   manual: 'CUSTOM',
 };
 
-export function GameTile({ game, size = 'normal', onSelect, onFavorite }: Props) {
-  const [focused, setFocused] = useState(false);
+export function GameTile({
+  game,
+  size = 'normal',
+  onSelect,
+  onFavorite,
+}: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
   const artSrc = imageUrl(game.art_url);
-  const sourceLabel = SOURCE_LABELS[game.source] || game.source.toUpperCase();
+  const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
 
   return (
-    <motion.div
-      ref={ref}
-      className={`game-tile game-tile--${size} ${focused ? 'game-tile--focused' : ''} ${!game.is_installed ? 'game-tile--uninstalled' : ''}`}
+    <div
+      className={`game-tile game-tile--${size} tile-focus ${
+        !game.is_installed ? 'game-tile--uninstalled' : ''
+      }`}
       data-focusable
       tabIndex={0}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
       onClick={() => onSelect?.(game)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onSelect?.(game);
-        if (e.key === 'y' || e.key === 'Y') onFavorite?.(game);
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect?.(game);
+        }
+        if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          onFavorite?.(game);
+        }
       }}
-      whileHover={{ scale: 1.03, y: -4 }}
-      whileFocus={{ scale: 1.05, y: -8 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      layout
+      role="button"
+      aria-label={`${game.name} — ${sourceLabel}`}
     >
-      {/* Cover art */}
       <div className="game-tile__art">
-        {artSrc && (
+        {artSrc !== '' && (
           <img
             src={artSrc}
-            alt={game.name}
+            alt=""
+            aria-hidden="true"
             loading="lazy"
             onLoad={() => setImgLoaded(true)}
             className={`game-tile__img ${imgLoaded ? 'game-tile__img--loaded' : ''}`}
           />
         )}
         {!imgLoaded && (
-          <div className="game-tile__placeholder">
-            <span className="game-tile__placeholder-icon">🎮</span>
-          </div>
+          <div className="game-tile__placeholder" aria-hidden="true" />
         )}
       </div>
 
-      {/* Bottom gradient overlay */}
-      <div className="game-tile__gradient" />
+      <div className="game-tile__caption">
+        <p className="game-tile__source label">{sourceLabel}</p>
+        <h3 className="game-tile__name">{game.name}</h3>
+        {game.playtime_display !== '' && (
+          <p className="game-tile__playtime text-caption">
+            {game.playtime_display}
+          </p>
+        )}
+      </div>
 
-      {/* Source badge */}
-      <span className="game-tile__badge">{sourceLabel}</span>
-
-      {/* Favorite heart */}
       {game.is_favorite && (
-        <button
-          className="game-tile__heart game-tile__heart--active"
-          onClick={(e) => { e.stopPropagation(); onFavorite?.(game); }}
-          aria-label="Remove from favorites"
+        <span
+          className="game-tile__favorite-mark"
+          aria-label="Favorite"
+          title="Favorite"
         >
           ♥
-        </button>
+        </span>
       )}
 
-      {/* Not installed overlay */}
       {!game.is_installed && (
-        <div className="game-tile__uninstalled-badge">NOT INSTALLED</div>
+        <span className="game-tile__not-installed label">NOT INSTALLED</span>
       )}
-
-      {/* Game name + playtime */}
-      <div className="game-tile__info">
-        <h3 className="game-tile__name">{game.name}</h3>
-        {game.playtime_display && (
-          <span className="game-tile__playtime">{game.playtime_display}</span>
-        )}
-      </div>
-    </motion.div>
+    </div>
   );
 }

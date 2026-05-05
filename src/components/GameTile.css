@@ -1,216 +1,104 @@
 /* ═══════════════════════════════════════════════════════════════════
-   GameTile — Floating glass card with cinematic depth
+   GameTile — Editorial cover card.
+   No glass, no shadow halos, no spring scale. Border thickens on
+   focus via the .tile-focus primitive in animations.css.
    ═══════════════════════════════════════════════════════════════════ */
 
 .game-tile {
   position: relative;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-elev);
   cursor: pointer;
-  background: var(--surface);
-  border: 2px solid transparent;
-  box-shadow: var(--shadow-card);
-  transition:
-    border-color var(--duration-normal) var(--ease-out),
-    box-shadow var(--duration-smooth) var(--ease-out);
-  outline: none;
-  user-select: none;
+  /* .tile-focus supplies border + transform transition */
 }
 
-/* ── Sizes ─────────────────────────────────────────────────────────── */
+.game-tile--normal    { width: 200px; }
+.game-tile--large     { width: 260px; }
+.game-tile--landscape { width: 320px; }
 
-.game-tile--normal {
-  width: 220px;
-  aspect-ratio: 3 / 4.2;
-}
+.game-tile--normal    .game-tile__art { aspect-ratio: 2 / 3; }
+.game-tile--large     .game-tile__art { aspect-ratio: 2 / 3; }
+.game-tile--landscape .game-tile__art { aspect-ratio: 16 / 9; }
 
-.game-tile--large {
-  width: 280px;
-  aspect-ratio: 3 / 4.2;
-}
-
-.game-tile--landscape {
-  width: 320px;
-  aspect-ratio: 16 / 9;
-}
-
-/* ── Focus / Hover depth ───────────────────────────────────────────── */
-
-.game-tile:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-card-hover);
-}
-
-.game-tile:hover .game-tile__art::after {
-  opacity: 1;
-}
-
-.game-tile--focused,
-.game-tile:focus-visible {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-card-focus);
-  z-index: 10;
-}
-
-.game-tile--focused .game-tile__art::after {
-  opacity: 1;
-}
-
-/* ── Cover art ─────────────────────────────────────────────────────── */
+/* ── Art ───────────────────────────────────────────────────────────── */
 
 .game-tile__art {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  width: 100%;
+  background: var(--bg);
   overflow: hidden;
-}
-
-/* Brightness boost on hover/focus */
-.game-tile__art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.04);
-  opacity: 0;
-  transition: opacity var(--duration-normal) var(--ease-out);
-  pointer-events: none;
 }
 
 .game-tile__img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
   opacity: 0;
-  transition: opacity var(--duration-slow) var(--ease-out);
+  transition: opacity var(--t-base) var(--easing);
 }
-
-.game-tile__img--loaded {
-  opacity: 1;
-}
-
-/* ── Placeholder ───────────────────────────────────────────────────── */
+.game-tile__img--loaded { opacity: 1; }
 
 .game-tile__placeholder {
   position: absolute;
   inset: 0;
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* ── Caption ───────────────────────────────────────────────────────── */
+
+.game-tile__caption {
+  padding: var(--s-md);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--surface-hover) 0%, var(--surface) 100%);
+  gap: var(--s-xs);
+  border-top: 1px solid var(--rule);
 }
 
-.game-tile__placeholder-icon {
-  font-size: 40px;
-  opacity: 0.3;
-}
-
-/* ── Bottom gradient overlay ───────────────────────────────────────── */
-
-.game-tile__gradient {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 50%;
-  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
-  pointer-events: none;
-}
-
-/* ── Source badge ──────────────────────────────────────────────────── */
-
-.game-tile__badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 3px 8px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-  z-index: 2;
-}
-
-/* ── Favorite heart ────────────────────────────────────────────────── */
-
-.game-tile__heart {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  border: none;
-  border-radius: 50%;
-  font-size: 14px;
-  color: var(--text-muted);
-  cursor: pointer;
-  z-index: 2;
-  transition: all var(--duration-fast);
-}
-
-.game-tile__heart--active {
-  color: var(--accent);
-}
-
-.game-tile__heart:hover {
-  transform: scale(1.2);
-}
-
-/* ── Not installed overlay ─────────────────────────────────────────── */
-
-.game-tile--uninstalled .game-tile__img {
-  filter: saturate(0.3) brightness(0.6);
-}
-
-.game-tile__uninstalled-badge {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 4px 12px;
-  background: rgba(0, 0, 0, 0.7);
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  z-index: 3;
-}
-
-/* ── Game info (name + playtime) ───────────────────────────────────── */
-
-.game-tile__info {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 14px 14px 16px;
-  z-index: 2;
-}
+.game-tile__source { margin: 0; }
 
 .game-tile__name {
-  font-size: 15px;
-  font-weight: 600;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  font-weight: 500;
   color: var(--text);
-  line-height: 1.3;
+  line-height: 1.25;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.game-tile__playtime {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
+.game-tile__playtime { margin: 0; color: var(--text-dim); }
+
+/* ── Indicators ────────────────────────────────────────────────────── */
+
+.game-tile__favorite-mark {
+  position: absolute;
+  top: var(--s-sm);
+  right: var(--s-sm);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text);
+  background: rgba(15, 14, 12, 0.7);
+  border: 1px solid var(--rule);
 }
+
+.game-tile__not-installed {
+  position: absolute;
+  top: var(--s-sm);
+  left: var(--s-sm);
+  padding: 2px 8px;
+  background: rgba(15, 14, 12, 0.85);
+  color: var(--text-dim);
+}
+
+.game-tile--uninstalled .game-tile__img,
+.game-tile--uninstalled .game-tile__placeholder { opacity: 0.55; }

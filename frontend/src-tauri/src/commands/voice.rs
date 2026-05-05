@@ -1,5 +1,5 @@
 use crate::error::AppResult;
-use serde_json::Value;
+use crate::types::{TranscriptionEvent, VoiceDevice};
 
 #[tauri::command]
 pub async fn voice_start() -> AppResult<()> {
@@ -7,12 +7,16 @@ pub async fn voice_start() -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn voice_stop() -> AppResult<Value> {
-    Ok(serde_json::json!({ "text": "" }))
+pub async fn voice_stop() -> AppResult<TranscriptionEvent> {
+    Ok(TranscriptionEvent {
+        text: String::new(),
+        is_final: true,
+        timestamp: 0.0,
+    })
 }
 
 #[tauri::command]
-pub async fn voice_get_devices() -> AppResult<Vec<Value>> {
+pub async fn voice_get_devices() -> AppResult<Vec<VoiceDevice>> {
     Ok(Vec::new())
 }
 
@@ -32,6 +36,6 @@ pub async fn voice_inject_text(_text: String) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn voice_get_transcript_log(_limit: Option<u32>) -> AppResult<Vec<Value>> {
+pub async fn voice_get_transcript_log(_limit: Option<u32>) -> AppResult<Vec<TranscriptionEvent>> {
     Ok(Vec::new())
 }

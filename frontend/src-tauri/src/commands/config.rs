@@ -1,14 +1,14 @@
 use crate::error::AppResult;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
 
 #[tauri::command]
-pub async fn config_get() -> AppResult<Value> {
-    Ok(serde_json::json!({}))
+pub async fn config_get() -> AppResult<Map<String, Value>> {
+    Ok(Map::new())
 }
 
 #[tauri::command]
-pub async fn config_set(_patch: Value) -> AppResult<()> {
+pub async fn config_set(_patch: Map<String, Value>) -> AppResult<()> {
     Ok(())
 }
 

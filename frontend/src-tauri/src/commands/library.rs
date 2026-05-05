@@ -1,13 +1,14 @@
 use crate::error::AppResult;
-use serde_json::Value;
+use crate::types::{AppEntry, Playtime};
+use serde_json::{Map, Value};
 
 #[tauri::command]
-pub async fn library_get_all() -> AppResult<Vec<Value>> {
+pub async fn library_get_all() -> AppResult<Vec<AppEntry>> {
     Ok(Vec::new())
 }
 
 #[tauri::command]
-pub async fn library_scan() -> AppResult<Vec<Value>> {
+pub async fn library_scan() -> AppResult<Vec<AppEntry>> {
     Ok(Vec::new())
 }
 
@@ -22,7 +23,7 @@ pub async fn library_toggle_favorite(_id: String) -> AppResult<bool> {
 }
 
 #[tauri::command]
-pub async fn library_search(_query: String) -> AppResult<Vec<Value>> {
+pub async fn library_search(_query: String) -> AppResult<Vec<AppEntry>> {
     Ok(Vec::new())
 }
 
@@ -32,11 +33,11 @@ pub async fn library_get_icon(_id: String) -> AppResult<Option<String>> {
 }
 
 #[tauri::command]
-pub async fn library_get_metadata(_id: String) -> AppResult<Value> {
-    Ok(Value::Null)
+pub async fn library_get_metadata(_id: String) -> AppResult<Map<String, Value>> {
+    Ok(Map::new())
 }
 
 #[tauri::command]
-pub async fn playtime_get(_id: String) -> AppResult<Value> {
-    Ok(serde_json::json!({ "minutes": 0, "last_played": 0 }))
+pub async fn playtime_get(_id: String) -> AppResult<Playtime> {
+    Ok(Playtime::default())
 }

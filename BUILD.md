@@ -38,7 +38,24 @@ under 100 MB.
 
 ## Build
 
-From the repo root, on the `wave1/integration` branch:
+From the repo root, on the `wave1/integration` branch, in **Git Bash**
+(included with Git for Windows) or WSL:
+
+```bash
+./build.sh
+```
+
+That's it. The script `npm install`s if needed, then `npm run tauri
+build`s, then prints the path to the resulting `.exe`. Two other
+modes are available:
+
+```bash
+./build.sh dev      # hot-reloading dev shell — no installer
+./build.sh clean    # nuke target/ dist/ node_modules/ then rebuild
+```
+
+If you're in cmd or PowerShell and don't want to install Git Bash, the
+manual equivalent is:
 
 ```bat
 cd frontend

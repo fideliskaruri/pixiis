@@ -112,6 +112,7 @@ impl Backend {
     }
 
     /// Names of every gamepad gilrs currently knows about.
+    #[allow(dead_code)] // surfaced via voice_get_devices once that lands
     pub fn connected_gamepads(&self) -> Vec<String> {
         self.gilrs
             .gamepads()

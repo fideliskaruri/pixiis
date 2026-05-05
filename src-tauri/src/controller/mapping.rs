@@ -33,6 +33,7 @@ pub struct ButtonMapper {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Axis variant is plumbed but not yet emitted
 pub enum MapperEvent {
     Button(ControllerEvent),
     Axis(AxisEvent),

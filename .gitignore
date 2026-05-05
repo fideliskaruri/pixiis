@@ -55,3 +55,10 @@ src-tauri/target/
 src-tauri/build_check.err
 dist/
 node_modules/
+
+# Multi-agent build leftovers (worktrees + Visual Studio workspace state)
+/.worktrees/
+.vs/
+*.vsidx
+*.suo
+*.wsuo

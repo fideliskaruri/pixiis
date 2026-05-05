@@ -40,7 +40,10 @@ pub async fn services_rawg_lookup(
     match services.rawg.search_game(&game_name).await {
         Ok(data) if data.id == 0 => Ok(None), // RAWG returned an empty/default
         Ok(data) => Ok(Some(data)),
-        Err(_) => Ok(None),
+        Err(e) => {
+            eprintln!("services_rawg_lookup({game_name:?}) failed: {e}");
+            Ok(None)
+        }
     }
 }
 

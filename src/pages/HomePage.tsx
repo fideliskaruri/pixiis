@@ -69,6 +69,8 @@ export function HomePage() {
       )}
 
       <section className="home__section">
+        {/* Top hairline only when Continue Playing didn't render its own. */}
+        {recentlyPlayed.length === 0 && <hr className="rule home__top-rule" />}
         <header className="home__toolbar">
           <p className="label home__section-head">LIBRARY</p>
           <SearchBar value={search} onChange={setSearch} />
@@ -109,7 +111,8 @@ export function HomePage() {
           </div>
         ) : status === 'loading' && games.length === 0 ? (
           <div className="home__empty">
-            <p className="label">LOADING…</p>
+            <p className="display home__empty-title">One moment.</p>
+            <p className="label">LOADING LIBRARY</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="home__empty">

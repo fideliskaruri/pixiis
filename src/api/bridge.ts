@@ -86,11 +86,16 @@ export async function searchLibrary(query: string): Promise<AppEntry[]> {
 
 /**
  * Fetch RAWG metadata (description, screenshots, genres, …) for a game
- * by its display name. Returns `null` when no API key is configured or
- * RAWG returns no match — never throws into the UI for missing data.
+ * by its display name. Returns `null` when no API key is configured,
+ * when RAWG returns no match, or when the IPC call rejects — never
+ * throws into the UI.
  */
-export function lookupRawg(gameName: string): Promise<RawgGameData | null> {
-  return invoke<RawgGameData | null>('services_rawg_lookup', { gameName });
+export async function lookupRawg(gameName: string): Promise<RawgGameData | null> {
+  try {
+    return await invoke<RawgGameData | null>('services_rawg_lookup', { gameName });
+  } catch {
+    return null;
+  }
 }
 
 // ── Voice ────────────────────────────────────────────────────────────

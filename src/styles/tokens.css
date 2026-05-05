@@ -17,6 +17,11 @@
   --rule:      rgba(237, 233, 221, 0.08);
   --accent:    #C5402F;          /* RESERVED for ▶ PLAY and focus rings only */
   --focus:     #C5402F;
+  /* Scrims (overlays + chip backgrounds) — derived from --bg via
+     color-mix at the call site. Keep the literal here for browsers
+     that lack color-mix; references in code prefer color-mix. */
+  --scrim-md:  rgba(15, 14, 12, 0.7);
+  --scrim-lg:  rgba(15, 14, 12, 0.92);
 
   /* ── Type ────────────────────────────────────────────────────────── */
   --font-display: 'Fraunces', 'Times New Roman', Georgia, serif;

@@ -92,7 +92,8 @@
   justify-content: center;
   font-size: 16px;
   color: var(--text);
-  background: rgba(15, 14, 12, 0.7);
+  background: var(--scrim-md);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
   border: 1px solid var(--rule);
 }
 
@@ -100,8 +101,9 @@
   position: absolute;
   top: var(--s-sm);
   left: var(--s-sm);
-  padding: 2px 8px;
-  background: rgba(15, 14, 12, 0.85);
+  padding: var(--s-xs) var(--s-sm);
+  background: var(--scrim-md);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   color: var(--text-dim);
 }
 

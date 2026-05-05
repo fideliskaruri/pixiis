@@ -191,19 +191,26 @@
   white-space: pre-line;
 }
 
+/* Genres render as a bare row of small-caps labels — no chrome.
+   Editorial tag bar, not pill chips. */
 .detail__genres {
   list-style: none;
   margin: var(--s-lg) 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--s-xs);
+  gap: var(--s-md);
 }
 
 .detail__genre {
-  padding: var(--s-xs) var(--s-sm);
-  border: 1px solid var(--rule);
-  /* .label class supplies font + tracking + colour */
+  /* .label class supplies font + tracking + colour. */
+  padding: 0;
+}
+.detail__genre + .detail__genre::before {
+  content: '·';
+  display: inline-block;
+  margin-right: var(--s-md);
+  color: var(--text-mute);
 }
 
 /* ── Screenshots ───────────────────────────────────────────────────── */
@@ -214,16 +221,32 @@
   border-top: 1px solid var(--rule);
 }
 
+/* Asymmetric featured slot: the first screenshot spans 2 cols × 2 rows
+   when there are at least four. Falls back to a uniform row otherwise. */
 .detail__screens-grid {
   margin-top: var(--s-md);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 120px;
   gap: var(--s-md);
+}
+.detail__screens-grid .detail__screen:first-child:not(:last-child):not(:nth-last-child(-n + 2)) {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+@media (max-width: 720px) {
+  .detail__screens-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 100px;
+  }
+  .detail__screens-grid .detail__screen:first-child:not(:last-child):not(:nth-last-child(-n + 2)) {
+    grid-column: span 2;
+    grid-row: span 1;
+  }
 }
 
 .detail__screen {
   position: relative;
-  aspect-ratio: 16 / 9;
   background: var(--bg-elev);
   border: 1px solid var(--rule);
   cursor: pointer;
@@ -246,15 +269,16 @@
 .detail__lightbox {
   position: fixed;
   inset: 0;
-  background: rgba(15, 14, 12, 0.92);
+  background: var(--scrim-lg);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 200;
   padding: var(--s-xl);
   cursor: zoom-out;
-  animation: fade-in var(--t-base) var(--easing) both;
 }
+.detail__lightbox:focus { outline: none; }
 
 .detail__lightbox-img {
   max-width: 100%;

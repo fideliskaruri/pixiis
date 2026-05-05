@@ -57,16 +57,21 @@ export function GameDetailPage() {
   }, [game]);
 
   // Background RAWG lookup. Failure is non-fatal — page renders without it.
+  // Keyed on `game?.id` so that local mutations to the entry (e.g. favorite
+  // toggle re-deriving a fresh array reference in the library context)
+  // don't fire a redundant network call.
+  const gameId = game?.id;
+  const gameName = game?.name;
   useEffect(() => {
-    if (game === undefined) return;
+    if (gameId === undefined || gameName === undefined) return;
     let cancelled = false;
-    void lookupRawg(game.name).then((data) => {
+    void lookupRawg(gameName).then((data) => {
       if (!cancelled) setRawg(data);
     });
     return () => {
       cancelled = true;
     };
-  }, [game]);
+  }, [gameId, gameName]);
 
   // Tear down the LAUNCHED-confirmation timer with the component.
   useEffect(() => {
@@ -78,15 +83,6 @@ export function GameDetailPage() {
     };
   }, []);
 
-  // Esc closes the screenshot lightbox.
-  useEffect(() => {
-    if (lightbox === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightbox(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightbox]);
 
   const onPlay = async (): Promise<void> => {
     if (game === undefined || launchState === 'launching') return;
@@ -250,9 +246,11 @@ export function GameDetailPage() {
       )}
 
       {description !== '' && (
-        <section className="detail__about">
-          <p className="label">ABOUT</p>
-          <p className="detail__description">{description}</p>
+        <section className="detail__about" aria-labelledby="detail-about-head">
+          <h2 id="detail-about-head" className="label">ABOUT</h2>
+          {description.split(/\n{2,}/).map((para, i) => (
+            <p key={i} className="detail__description">{para}</p>
+          ))}
           {genres.length > 0 && (
             <ul className="detail__genres" aria-label="Genres">
               {genres.map((g) => (
@@ -266,18 +264,18 @@ export function GameDetailPage() {
       )}
 
       {screenshots.length > 0 && (
-        <section className="detail__screens">
-          <p className="label">SCREENSHOTS</p>
+        <section className="detail__screens" aria-labelledby="detail-screens-head">
+          <h2 id="detail-screens-head" className="label">SCREENSHOTS</h2>
           <div className="detail__screens-grid">
-            {screenshots.map((src) => (
+            {screenshots.map((src, i) => (
               <button
-                key={src}
+                key={`${i}-${src}`}
                 className="detail__screen"
                 onClick={() => setLightbox(src)}
                 data-focusable
                 aria-label="Open screenshot"
               >
-                <img src={src} alt="" loading="lazy" />
+                <img src={src} alt="" loading="lazy" decoding="async" />
               </button>
             ))}
           </div>
@@ -285,15 +283,55 @@ export function GameDetailPage() {
       )}
 
       {lightbox !== null && (
-        <div
-          className="detail__lightbox"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLightbox(null)}
-        >
-          <img src={lightbox} alt="" className="detail__lightbox-img" />
-        </div>
+        <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
       )}
     </article>
+  );
+}
+
+/**
+ * Modal screenshot viewer with a minimal focus trap, esc-to-close,
+ * and return-focus to the element that triggered it.
+ */
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<Element | null>(null);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement;
+    dialogRef.current?.focus();
+    return () => {
+      const el = triggerRef.current;
+      if (el instanceof HTMLElement) el.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === 'Tab') {
+        // Single focusable element — keep tab focus inside the dialog.
+        e.preventDefault();
+        dialogRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={dialogRef}
+      className="detail__lightbox fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Screenshot viewer"
+      tabIndex={-1}
+      onClick={onClose}
+    >
+      <img src={src} alt="" className="detail__lightbox-img" />
+    </div>
   );
 }

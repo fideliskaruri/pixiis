@@ -28,6 +28,12 @@ thiserror = "1"
 # emit `frontend/src/api/types/*.ts` when `cargo test` runs.
 ts-rs = { version = "10", features = ["serde-compat", "no-serde-warnings", "serde-json-impl"] }
 
+# Controller (gilrs poller, macro engine).
+gilrs = "0.10"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+parking_lot = "0.12"
+toml = "0.8"
+
 [features]
 # Set by Tauri CLI for production builds. Do not remove.
 custom-protocol = ["tauri/custom-protocol"]

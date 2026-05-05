@@ -2,7 +2,7 @@
 # Build the Pixiis Tauri app.
 #
 # Defaults to a release build (NSIS installer at
-# `frontend/src-tauri/target/release/bundle/nsis/Pixiis_*-setup.exe`).
+# `src-tauri/target/release/bundle/nsis/Pixiis_*-setup.exe`).
 # Pass `dev` to run `npm run tauri dev` instead, or `clean` to scrub
 # build artifacts before rebuilding.
 #
@@ -15,7 +15,6 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRONTEND="$REPO_ROOT/frontend"
 
 # Make sure rustup-installed cargo + pip-installed cmake/ninja are reachable
 # even if the user's shell hasn't been re-sourced since installing them.
@@ -56,7 +55,7 @@ EOF
     ;;
 esac
 
-cd "$FRONTEND"
+cd "$REPO_ROOT"
 
 if [[ "$mode" == "clean" ]]; then
   echo "==> clean: removing target/, dist/, node_modules/"
@@ -90,7 +89,7 @@ npm run tauri build
 
 # Surface where the installer landed (only the Windows NSIS path is
 # enabled in tauri.conf.json; the others fall through silently).
-INSTALLER_DIR="$FRONTEND/src-tauri/target/release/bundle/nsis"
+INSTALLER_DIR="$REPO_ROOT/src-tauri/target/release/bundle/nsis"
 if [[ -d "$INSTALLER_DIR" ]]; then
   echo
   echo "==> Installers:"

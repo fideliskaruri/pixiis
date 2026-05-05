@@ -170,7 +170,7 @@ fn load_default_macros() -> Option<toml::value::Table> {
             .and_then(|p| p.parent().map(|p| p.join("resources/default_config.toml"))),
         // Dev fallback: source-tree default config.
         Some(std::path::PathBuf::from(
-            "../../resources/default_config.toml",
+            "../resources/default_config.toml",
         )),
         Some(std::path::PathBuf::from(
             "../resources/default_config.toml",

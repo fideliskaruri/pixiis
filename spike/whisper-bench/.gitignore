@@ -1,5 +1,0 @@
-/target
-/models/*.bin
-/models/*.gguf
-/build.err
-Cargo.lock

@@ -1,122 +1,85 @@
 # Pixiis
 
-Unified game launcher with controller navigation and voice input for Windows.
+Controller-first Windows game launcher with voice control. Tauri 2 +
+React 19 + Rust.
 
-Pixiis scans your installed games across Steam, Xbox, Epic, GOG, EA, and more, then presents them in a single controller-friendly dashboard with voice-to-text search.
+Scans Steam (registry → `libraryfolders.vdf` → `appmanifest_*.acf`)
+and common game folders (`C:\Program Files`, drive-root `Games`,
+`SteamLibrary`, `GOG Games`, `Epic Games` directories), then presents
+a controller-friendly grid with one accent colour and zero bouncy
+animations.
 
-## Features
-
-- **Unified game library** — auto-detects games from Steam, Xbox/UWP, Epic, GOG, EA, Start Menu, and custom folders
-- **Controller-first navigation** — full Xbox controller support with D-pad/stick navigation, bumper page switching, and configurable voice trigger
-- **Voice input** — hold a trigger to dictate search queries or text; powered by faster-whisper with live + final transcription passes
-- **Dark gaming theme** — custom Qt stylesheet with theme editor and per-color customization
-- **Game metadata** — pulls cover art, descriptions, and ratings from RAWG
-- **Twitch & YouTube integration** — look up streams and trailers for any game
-- **Text-to-speech** — spoken feedback via Kokoro TTS
-- **Auto-start** — optional Windows startup via registry
-- **Configurable** — TOML-based config with sensible defaults and a full Settings UI
-
-## Installation
+## Build
 
 ```bash
-git clone <repo-url> pixiis
-cd pixiis
-pip install -e ".[all]"
+./build.sh           # release → NSIS installer .exe
+./build.sh dev       # hot-reloading dev shell, no installer
+./build.sh clean     # nuke node_modules / target / dist, then build
 ```
 
-### Requirements
+Prereqs and detail in [`BUILD.md`](BUILD.md). On a fresh Windows box
+you'll need: VS 2026 with the *Desktop development with C++* workload,
+Rust stable (`rustup`), Node 20+, CMake, and NSIS.
 
-- Python 3.10+
-- Windows 10/11 (controller and game-library features are Windows-specific)
-- CUDA-capable GPU recommended for voice models (CPU fallback available)
+## Layout
 
-## Usage
-
-```bash
-# Launch the dashboard UI
-pixiis --ui
-
-# Scan installed games (CLI)
-pixiis --scan
-
-# Run as background daemon (tray icon, controller, voice — no window)
-pixiis --daemon
-
-# Show version
-pixiis --version
 ```
-
-## Controller Mapping
-
-| Input | Action |
-|---|---|
-| Left Stick / D-pad | Navigate tiles and UI elements |
-| A | Select / confirm |
-| B | Back / cancel |
-| X | Search |
-| Y | Launch selected game |
-| LB / RB | Previous / next page tab |
-| Right Trigger* | Hold to record voice input |
-| Right Stick | Scroll |
-| LB + RB | Open file manager |
-
-*\* Voice trigger is configurable in Settings: Right Trigger, Left Trigger, Hold Y, or Hold X.*
+.
+├── README.md           this file
+├── BUILD.md            prerequisites + troubleshooting
+├── build.sh            one-shot build wrapper
+├── package.json        React app
+├── index.html
+├── public/
+├── src/                ── React (Vite + TS)
+│   ├── api/            bridge.ts + auto-generated types/
+│   ├── components/
+│   ├── pages/
+│   └── styles/         editorial design tokens
+├── src-tauri/          ── Rust (Tauri 2 backend)
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── icons/
+│   └── src/
+│       ├── lib.rs
+│       ├── commands/   ── invoke handlers, split per subsystem
+│       ├── controller/ ── gilrs poller + macro engine
+│       ├── library/    ── Steam + folder scanners
+│       ├── services/   ── RAWG / Twitch / YouTube / OAuth
+│       └── types.rs    ── ts-rs auto-exports to src/api/types/
+└── resources/          bundled config + theme defaults
+```
 
 ## Configuration
 
-Pixiis uses TOML configuration files:
+External services need API keys at runtime via env vars (the proper
+config loader is a future Phase):
 
-- **Defaults:** `resources/default_config.toml` (bundled)
-- **User overrides:** `%APPDATA%/pixiis/config.toml` (created on first settings save)
+```
+PIXIIS_RAWG_API_KEY
+PIXIIS_YT_API_KEY
+PIXIIS_TWITCH_CLIENT_ID
+PIXIIS_TWITCH_CLIENT_SECRET
+```
 
-### Key sections
+Without keys those services silently return empty — the launcher
+itself still works for local + Steam library + controller nav.
 
-| Section | What it controls |
+## Status
+
+| Subsystem | State |
 |---|---|
-| `[voice]` | Whisper model, device (cuda/cpu), energy threshold, VAD backend |
-| `[voice.tts]` | Text-to-speech voice and speed |
-| `[controller]` | Deadzone, vibration, hold threshold, voice trigger |
-| `[controller.macros]` | Button-to-action mapping |
-| `[library]` | Enabled providers, scan interval, custom paths |
-| `[ui]` | Tile size, animations, fullscreen |
-| `[ui.colors]` | Theme colors, font, border radius |
-| `[services.*]` | API keys for RAWG, YouTube, Twitch |
-| `[daemon]` | Auto-start on boot |
+| Tauri window + tray (Open / Scan / Quit) | shipped |
+| React → Rust `invoke()` bridge | shipped |
+| Steam scanner + folder scanner | shipped |
+| Controller (gilrs poller + macros) | shipped |
+| External services (RAWG / Twitch / YouTube / OAuth) | shipped |
+| Type contracts (ts-rs auto-export) | shipped |
+| Editorial design tokens | shipped |
+| Voice transcription (whisper-rs) | scaffolded — commands return `Ok(default)`, no audio pipeline yet |
+| Other storefronts (Epic, GOG, EA, Xbox/UWP, Start Menu) | not yet — folder scanner catches most catalogues |
 
-All settings can also be changed from the in-app Settings page.
-
-## Building
-
-```bash
-# Build distributable with PyInstaller
-python scripts/build.py
-
-# Or use the spec file directly
-pyinstaller pixiis.spec
-```
-
-Output goes to `dist/pixiis/`. An NSIS installer stub is generated at `installer.nsi`.
-
-## Project Structure
-
-```
-pixiis/
-  src/pixiis/
-    controller/    Xbox controller backend and macro system
-    core/          Config, events, paths, types
-    daemon/        Background daemon and Windows auto-start
-    library/       Game library scanners (Steam, Xbox, Epic, GOG, EA, ...)
-    services/      RAWG, Twitch, YouTube, TTS, image loading
-    ui/            PySide6 dashboard — pages, widgets, controller bridge
-    voice/         Audio capture, VAD, transcription pipeline
-  resources/       Default config, themes, icons
-  scripts/         Build and utility scripts
-```
-
-## Screenshots
-
-<!-- TODO: Add screenshots -->
-
-## License
-
-See LICENSE file for details.
+The legacy Python launcher lives on the `master` branch if you want to
+fall back. Phase-0 spike crates (whisper-rs benchmark, Kokoro TTS
+benchmark, faster-whisper baseline, UWP detection) are reachable
+through their `wave1/*-spike` branches.

@@ -49,8 +49,8 @@
       }
     },
     "resources": [
-      "../../resources/default_config.toml",
-      "../../resources/themes/*.json"
+      "../resources/default_config.toml",
+      "../resources/themes/*.json"
     ]
   }
 }

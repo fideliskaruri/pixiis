@@ -4,7 +4,7 @@
 //! `src/pixiis/services/{rawg,twitch,youtube}.py`.
 //!
 //! Every public struct/enum derives `Serialize, Deserialize, TS` and is
-//! marked `#[ts(export, export_to = "../../src/api/types/")]`, so the ts-rs
+//! marked `#[ts(export, export_to = "../src/api/types/")]`, so the ts-rs
 //! `cargo test` hooks emit one `.ts` declaration per type into
 //! `frontend/src/api/types/` (the path is relative to `CARGO_MANIFEST_DIR`).
 
@@ -18,7 +18,7 @@ use ts_rs::TS;
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub enum AppSource {
     Steam,
     Xbox,
@@ -30,7 +30,7 @@ pub enum AppSource {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct AppEntry {
     pub id: String,
     pub name: String,
@@ -126,7 +126,7 @@ impl AppEntry {
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub enum ButtonState {
     Pressed,
     Held,
@@ -134,7 +134,7 @@ pub enum ButtonState {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct ControllerEvent {
     pub button: u32,
     pub state: ButtonState,
@@ -144,7 +144,7 @@ pub struct ControllerEvent {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct AxisEvent {
     pub axis: u32,
     pub value: f32,
@@ -155,7 +155,7 @@ pub struct AxisEvent {
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub enum MacroMode {
     Press,
     Hold,
@@ -164,7 +164,7 @@ pub enum MacroMode {
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub enum ActionKind {
     VoiceRecord,
     LaunchApp,
@@ -175,7 +175,7 @@ pub enum ActionKind {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct MacroAction {
     pub action: ActionKind,
     pub mode: MacroMode,
@@ -192,7 +192,7 @@ pub struct MacroAction {
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub enum Direction {
     Up,
     Down,
@@ -203,7 +203,7 @@ pub enum Direction {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct NavigationEvent {
     pub direction: Direction,
     pub timestamp: f64,
@@ -212,7 +212,7 @@ pub struct NavigationEvent {
 // ── Transcription ────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct TranscriptionEvent {
     pub text: String,
     pub is_final: bool,
@@ -222,7 +222,7 @@ pub struct TranscriptionEvent {
 // ── Service DTOs ─────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct RawgGameData {
     #[serde(default)]
     pub id: u32,
@@ -249,7 +249,7 @@ pub struct RawgGameData {
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct TwitchStream {
     #[serde(default)]
     pub user_name: String,
@@ -265,7 +265,7 @@ pub struct TwitchStream {
 
 /// A single YouTube video search result (mapped from `services/youtube.py::YouTubeResult`).
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct YouTubeTrailer {
     #[serde(default)]
     pub video_id: String,
@@ -287,7 +287,7 @@ pub struct YouTubeTrailer {
 /// session. Matches the keys Pane 5's stub returns and the helpers on
 /// [`AppEntry`].
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct Playtime {
     #[serde(default)]
     pub minutes: u32,
@@ -299,7 +299,7 @@ pub struct Playtime {
 /// and may extend the shape; this is the minimum surface the IPC boundary
 /// promises today (matches the stub fixture).
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct ControllerState {
     #[serde(default)]
     pub connected: bool,
@@ -311,7 +311,7 @@ pub struct ControllerState {
 
 /// One audio input device, as returned by `voice_get_devices`.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Default)]
-#[ts(export, export_to = "../../src/api/types/")]
+#[ts(export, export_to = "../src/api/types/")]
 pub struct VoiceDevice {
     pub id: String,
     pub name: String,

@@ -1,85 +1,88 @@
 /**
- * Pixiis API Bridge — communicates with the Python backend.
+ * Pixiis API Bridge — Tauri-native invoke() calls.
  *
- * In development: connects to localhost:8420 (FastAPI server).
- * In production (Tauri): connects to the sidecar on a dynamic port.
+ * The old Python sidecar / FastAPI HTTP API is gone in this build; every
+ * function below routes through `@tauri-apps/api/core::invoke` to the
+ * Rust commands defined in `frontend/src-tauri/src/commands/`.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8420';
+import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
-export interface GameEntry {
+// Match the wire shape of crate::types::AppEntry (Pane 7 + library port).
+// Frontend code historically called this `GameEntry`; kept as an alias so
+// existing components (HomePage, GameTile) don't all have to change names.
+export interface AppEntry {
   id: string;
   name: string;
-  source: string;
+  source: 'steam' | 'xbox' | 'epic' | 'gog' | 'ea' | 'startmenu' | 'manual';
   launch_command: string;
   exe_path: string | null;
   icon_path: string | null;
   art_url: string | null;
-  is_game: boolean;
-  is_installed: boolean;
-  is_favorite: boolean;
-  playtime_minutes: number;
-  playtime_display: string;
-  last_played: number;
   metadata: Record<string, unknown>;
 }
+export type GameEntry = AppEntry;
 
-export interface Config {
-  [key: string]: unknown;
-}
+export type Config = Record<string, unknown>;
 
 // ── Library ──────────────────────────────────────────────────────────
 
-export async function getLibrary(): Promise<GameEntry[]> {
-  const res = await fetch(`${API_BASE}/library`);
-  return res.json();
+export function getLibrary(): Promise<AppEntry[]> {
+  return invoke<AppEntry[]>('library_get_all');
 }
 
-export async function scanLibrary(): Promise<GameEntry[]> {
-  const res = await fetch(`${API_BASE}/library/scan`, { method: 'POST' });
-  return res.json();
+export function scanLibrary(): Promise<AppEntry[]> {
+  return invoke<AppEntry[]>('library_scan');
 }
 
-export async function launchGame(id: string): Promise<void> {
-  await fetch(`${API_BASE}/library/launch/${id}`, { method: 'POST' });
+export function launchGame(id: string): Promise<void> {
+  return invoke('library_launch', { id });
 }
 
-export async function toggleFavorite(id: string): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/library/favorite/${id}`, { method: 'POST' });
-  const data = await res.json();
-  return data.is_favorite;
+export function toggleFavorite(id: string): Promise<boolean> {
+  return invoke<boolean>('library_toggle_favorite', { id });
+}
+
+export function searchLibrary(query: string): Promise<AppEntry[]> {
+  return invoke<AppEntry[]>('library_search', { query });
 }
 
 // ── Voice ────────────────────────────────────────────────────────────
 
-export async function voiceStart(): Promise<void> {
-  await fetch(`${API_BASE}/voice/start`, { method: 'POST' });
+export function voiceStart(): Promise<void> {
+  return invoke('voice_start');
 }
 
 export async function voiceStop(): Promise<{ text: string }> {
-  const res = await fetch(`${API_BASE}/voice/stop`, { method: 'POST' });
-  return res.json();
+  // Backend returns the transcribed text directly; wrap it so existing
+  // callers that expect `{ text }` keep working.
+  const text = await invoke<string>('voice_stop');
+  return { text };
 }
 
 // ── Config ───────────────────────────────────────────────────────────
 
-export async function getConfig(): Promise<Config> {
-  const res = await fetch(`${API_BASE}/config`);
-  return res.json();
+export function getConfig(): Promise<Config> {
+  return invoke<Config>('config_get');
 }
 
-export async function saveConfig(config: Partial<Config>): Promise<void> {
-  await fetch(`${API_BASE}/config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
+export function saveConfig(config: Partial<Config>): Promise<void> {
+  return invoke('config_set', { values: config });
 }
 
-// ── Image proxy (for CORS-safe image loading) ────────────────────────
+// ── Image proxy ──────────────────────────────────────────────────────
 
+/**
+ * Resolve an image URL for use in <img src>. For HTTP(S) URLs we currently
+ * pass through unchanged (Steam CDN art is CORS-friendly). For local file
+ * paths the helper falls back to Tauri's `convertFileSrc`, which produces
+ * a `tauri://` or `asset://` URL that the webview can render directly.
+ */
 export function imageUrl(url: string | null): string {
   if (!url) return '';
-  // Steam CDN and most game art URLs are CORS-friendly
-  return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  return convertFileSrc(url);
 }

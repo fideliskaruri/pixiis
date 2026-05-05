@@ -26,11 +26,6 @@ pub async fn voice_set_device(_device_id: String) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub async fn voice_speak(_text: String, _voice: Option<String>) -> AppResult<()> {
-    Ok(())
-}
-
-#[tauri::command]
 pub async fn voice_inject_text(_text: String) -> AppResult<()> {
     Ok(())
 }

@@ -135,7 +135,6 @@ pub fn run() {
             commands::voice::voice_stop,
             commands::voice::voice_get_devices,
             commands::voice::voice_set_device,
-            commands::voice::voice_speak,
             commands::voice::voice_inject_text,
             commands::voice::voice_get_transcript_log,
             // controller

@@ -73,14 +73,13 @@ desktop shortcut.
 | Frontend type contracts (`frontend/src/api/types/*.ts`) | ✅ Pane 7 (ts-rs auto-export) |
 | Editorial design tokens (Fraunces / Inter / `#C5402F`) | ✅ Pane 6 (tokens.css) |
 | Voice transcription (whisper-rs) | ⏳ scaffolded; commands return `Ok(default)` — voice button is wired but no audio pipeline yet |
-| TTS (Kokoro ONNX) | ⏳ same |
 | Other storefront scanners (Epic, GOG, EA, Xbox, Start Menu) | ⏳ stubs return empty; the `Provider` trait + folder fallback covers most catalogues |
 
-The full whisper / Kokoro / additional-storefront wiring lives in the
-spike crates under `spike/whisper-bench/`, `spike/kokoro-bench/`,
-`spike/uwp-detect/` — they're production-grade Phase 0 spikes that
-just haven't been lifted into `frontend/src-tauri/` yet. See each
-spike's `RESULTS.md` for benchmarks and recommended models.
+The full whisper / additional-storefront wiring lives in the spike
+crates under `spike/whisper-bench/` and `spike/uwp-detect/` — both
+are production-grade Phase 0 spikes that just haven't been lifted
+into `frontend/src-tauri/` yet. See each spike's `RESULTS.md` for
+benchmarks and recommended models.
 
 ## Configuration
 

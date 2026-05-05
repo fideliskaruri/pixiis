@@ -166,7 +166,7 @@ fn parse_game(obj: Value) -> RawgGameData {
         .unwrap_or_else(|| get_str("description"));
 
     RawgGameData {
-        id: get_u64("id"),
+        id: get_u64("id") as u32,
         name: get_str("name"),
         description,
         rating: get_f64("rating") as f32,

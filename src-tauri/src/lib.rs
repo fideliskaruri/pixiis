@@ -94,7 +94,7 @@ pub fn run() {
 
             let mut tray_builder = TrayIconBuilder::with_id("pixiis-tray")
                 .menu(&menu)
-                .menu_on_left_click(false);
+                .show_menu_on_left_click(false);
             if let Some(icon) = app.default_window_icon().cloned() {
                 tray_builder = tray_builder.icon(icon);
             }

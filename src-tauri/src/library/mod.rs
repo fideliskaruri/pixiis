@@ -203,7 +203,7 @@ mod launcher {
         command
             .spawn()
             .map(|_| ())
-            .map_err(|e| AppError::Internal(format!("launch failed: {e}")))
+            .map_err(|e| AppError::Other(format!("launch failed: {e}")))
     }
 
     fn open_url(url: &str) -> AppResult<()> {
@@ -215,7 +215,7 @@ mod launcher {
         let res = Command::new("open").arg(url).spawn();
 
         res.map(|_| ())
-            .map_err(|e| AppError::Internal(format!("open url failed: {e}")))
+            .map_err(|e| AppError::Other(format!("open url failed: {e}")))
     }
 }
 

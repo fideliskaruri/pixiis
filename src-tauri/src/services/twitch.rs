@@ -231,7 +231,7 @@ impl TwitchClient {
                 },
                 user_name: s.user_name,
                 title: s.title,
-                viewer_count: s.viewer_count,
+                viewer_count: s.viewer_count as u32,
                 thumbnail_url: s.thumbnail_url,
             })
             .collect();

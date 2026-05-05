@@ -1,9 +1,15 @@
 /**
- * NavBar — Top navigation bar.
- * Minimal chrome — the content IS the interface.
+ * NavBar — Editorial top chrome.
+ *
+ * The window is frameless (decorations: false in tauri.conf.json), so
+ * NavBar owns the minimize / maximize / close buttons. They route
+ * through Tauri 2's window API. The matching capability allow-list
+ * lives in `src-tauri/capabilities/default.json`.
  */
 
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import './NavBar.css';
 
 const NAV_ITEMS = [
@@ -13,6 +19,35 @@ const NAV_ITEMS = [
 ];
 
 export function NavBar() {
+  const win = getCurrentWindow();
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void win.isMaximized().then((m) => {
+      if (!cancelled) setMaximized(m);
+    });
+    const unlisten = win.onResized(() => {
+      void win.isMaximized().then((m) => {
+        if (!cancelled) setMaximized(m);
+      });
+    });
+    return () => {
+      cancelled = true;
+      void unlisten.then((fn) => fn());
+    };
+  }, [win]);
+
+  const onMinimize = () => {
+    void win.minimize();
+  };
+  const onToggleMaximize = () => {
+    void win.toggleMaximize();
+  };
+  const onClose = () => {
+    void win.close();
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar__logo">PIXIIS</div>
@@ -34,11 +69,34 @@ export function NavBar() {
 
       <div className="navbar__spacer" />
 
-      {/* Window controls (frameless window) */}
       <div className="navbar__controls">
-        <button className="navbar__btn" aria-label="Minimize">─</button>
-        <button className="navbar__btn" aria-label="Maximize">□</button>
-        <button className="navbar__btn navbar__btn--close" aria-label="Close">✕</button>
+        <button
+          className="navbar__btn"
+          aria-label="Minimize"
+          title="Minimize"
+          onClick={onMinimize}
+          data-focusable
+        >
+          ─
+        </button>
+        <button
+          className="navbar__btn"
+          aria-label={maximized ? 'Restore' : 'Maximize'}
+          title={maximized ? 'Restore' : 'Maximize'}
+          onClick={onToggleMaximize}
+          data-focusable
+        >
+          {maximized ? '❐' : '□'}
+        </button>
+        <button
+          className="navbar__btn navbar__btn--close"
+          aria-label="Close"
+          title="Close"
+          onClick={onClose}
+          data-focusable
+        >
+          ✕
+        </button>
       </div>
     </nav>
   );

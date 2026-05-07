@@ -69,7 +69,7 @@
 }
 .home__pill:hover                 { color: var(--text); }
 .home__pill--active               { color: var(--text); border-color: var(--text-dim); }
-.home__pill:focus-visible         { outline: 2px solid var(--focus); outline-offset: 2px; }
+.home__pill:focus-visible         { outline: 2px solid var(--focus); outline-offset: 4px; }
 
 .home__count {
   margin-left: auto;
@@ -96,7 +96,16 @@
   max-width: 540px;
   padding: var(--s-2xl) 0;
 }
-.home__empty-title { margin: 0; }
+/* Quiet magazine empty-state heading — serif but not display-loud. */
+.home__empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-headline);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.1;
+  color: var(--text);
+}
 .home__empty-body  {
   margin: 0;
   font-family: var(--font-body);
@@ -117,4 +126,4 @@
   transition: border-color var(--t-base) var(--easing);
 }
 .home__retry:hover         { border-color: var(--text); }
-.home__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.home__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }

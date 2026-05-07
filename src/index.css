@@ -1,4 +1,5 @@
 @import './styles/tokens.css';
 @import './styles/animations.css';
 
-/* Reset handled by theme.css */
+/* Global reset + scrollbar lives in tokens.css; theme.css (PS5 glass)
+   is intentionally not imported. */

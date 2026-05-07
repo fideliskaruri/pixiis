@@ -100,11 +100,40 @@
 .accent-btn:hover         { filter: brightness(1.1); }
 .accent-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 
-/* ── Body baseline ─────────────────────────────────────────────────── */
+/* ── Reset + baseline ──────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
   font-size: var(--t-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Magazine-quiet scrollbars — the rule colour shows up only when scrolling. */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-mute); }
+
+::selection {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+  color: var(--text);
 }

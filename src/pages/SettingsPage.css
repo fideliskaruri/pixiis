@@ -494,7 +494,9 @@
 }
 
 .settings__twitch-status--error {
-  color: var(--accent);
+  /* Single-accent rule: errors stay in the neutral palette; the
+     `Failed` label carries enough weight on its own. */
+  color: var(--text);
 }
 
 /* ── About ────────────────────────────────────────────────────────── */
@@ -537,7 +539,8 @@
 }
 
 .settings__notice--warn {
-  border-left-color: var(--accent);
+  /* Single-accent rule: warnings use a stronger neutral border, not red. */
+  border-left-color: var(--text);
   color: var(--text);
 }
 

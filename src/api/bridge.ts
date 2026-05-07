@@ -118,7 +118,10 @@ export function getConfig(): Promise<Config> {
 }
 
 export function saveConfig(config: Partial<Config>): Promise<void> {
-  return invoke('config_set', { values: config });
+  // Arg name matches the Rust signature `config_set(_patch: Map<...>)` and
+  // the inline call in SettingsPage; previously this used `values:` which
+  // would silently miss the parameter once the stub gets a real impl.
+  return invoke('config_set', { patch: config });
 }
 
 // ── Onboarding marker ────────────────────────────────────────────────

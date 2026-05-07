@@ -1,1 +1,2 @@
-/* All styles in theme.css and component CSS files */
+/* App.tsx uses inline layout styles only. Tokens + reset live in
+   styles/tokens.css; the per-component CSS sits next to each component. */

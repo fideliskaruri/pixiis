@@ -2,7 +2,7 @@
  * SearchBar — Search with mic button and controller support.
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import './SearchBar.css';
 
 interface Props {
@@ -23,16 +23,11 @@ export function SearchBar({
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
 
-  // Debounce
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    onChange(val); // immediate update for display
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      // Could trigger a filtered search here
-    }, 300);
-  }, [onChange]);
+  // The list itself is filtered downstream; the input just forwards each
+  // keystroke. (A previous version queued a debounced no-op alongside.)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    onChange(e.target.value);
+  };
 
   return (
     <div className={`search-bar ${focused ? 'search-bar--focused' : ''} ${isMicActive ? 'search-bar--recording' : ''}`}>

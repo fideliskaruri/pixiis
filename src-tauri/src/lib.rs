@@ -74,7 +74,7 @@ pub fn run() {
             let services = services::ServicesContainer::new(services_cfg, cache_dir.clone())?;
             app.manage(Arc::new(services));
 
-            // Library service — scans Steam + folders, persists favorites.
+            // Library service — scans Steam + Xbox/UWP + folders, persists favorites.
             let app_data_dir = app
                 .path()
                 .app_data_dir()

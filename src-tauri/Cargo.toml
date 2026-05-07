@@ -42,8 +42,25 @@ sha2 = "0.10"
 lru = "0.12"
 webbrowser = "1"
 
+# quick-xml parses AppxManifest.xml + MicrosoftGame.Config for the Xbox /
+# UWP scanner (Pane 4). Cross-platform so the manifest-parsing unit tests
+# run on Linux CI even though the WinRT enumeration is Windows-only.
+quick-xml = "0.31"
+
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_UI_Input_XboxController", "Win32_Foundation"] }
+windows = { version = "0.58", features = [
+    "Win32_UI_Input_XboxController",
+    "Win32_Foundation",
+    # Xbox / UWP scanner — WinRT PackageManager + manifest helpers (Pane 4).
+    "Management_Deployment",
+    "ApplicationModel",
+    "ApplicationModel_Core",
+    "ApplicationModel_AppExtensions",
+    "Foundation",
+    "Foundation_Collections",
+    "Storage",
+    "Win32_System_Com",
+] }
 # Steam library scanner reads HKLM\SOFTWARE\Wow6432Node\Valve\Steam.
 winreg = "0.52"
 

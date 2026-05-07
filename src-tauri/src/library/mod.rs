@@ -8,6 +8,7 @@
 pub mod cache;
 pub mod folder;
 pub mod steam;
+pub mod xbox;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -53,6 +54,7 @@ impl LibraryService {
         let overlay = cache::load(&cache_path).unwrap_or_default();
         let providers: Vec<Box<dyn Provider>> = vec![
             Box::new(steam::SteamProvider::new(config.clone())),
+            Box::new(xbox::XboxProvider::new()),
             Box::new(folder::FolderProvider::new(extra_folder_paths)),
         ];
         Self {
@@ -190,6 +192,11 @@ mod launcher {
             // direct keeps the launch path local.
             return open_url(cmd);
         }
+        // Xbox / UWP entries carry `shell:appsFolder\<AUMID>` from
+        // `library/xbox.rs` — same UWPHook pattern the Python wrapper used.
+        if cmd.starts_with("shell:") {
+            return open_shell_uri(cmd);
+        }
 
         let cwd = entry
             .exe_path
@@ -216,6 +223,25 @@ mod launcher {
 
         res.map(|_| ())
             .map_err(|e| AppError::Other(format!("open url failed: {e}")))
+    }
+
+    /// Hand a `shell:` URI to Explorer. UWPHook's reference launch path
+    /// — more reliable for `shell:appsFolder\<AUMID>` than `cmd /c start`,
+    /// which occasionally swallows the AUMID argument when it contains a
+    /// `!` character (cmd's history expansion) on some locales.
+    fn open_shell_uri(uri: &str) -> AppResult<()> {
+        #[cfg(target_os = "windows")]
+        let res = Command::new("explorer.exe").arg(uri).spawn();
+        // Non-Windows: `shell:` is meaningless; treat as a no-op error so
+        // tests fail loudly if the launcher is exercised cross-platform.
+        #[cfg(not(target_os = "windows"))]
+        let res: std::io::Result<std::process::Child> = Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "shell: URIs are Windows-only",
+        ));
+
+        res.map(|_| ())
+            .map_err(|e| AppError::Other(format!("launch shell uri failed: {e}")))
     }
 }
 

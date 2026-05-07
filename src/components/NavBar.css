@@ -3,6 +3,9 @@
    Square edges, no glass, no accent on chrome (accent is reserved for
    ▶ PLAY + focus rings). The active tab uses a 1px text-dim underline,
    not a coral fill.
+   Drag region is now declared via the `data-tauri-drag-region` HTML
+   attribute in NavBar.tsx (Tauri 2 ignores Electron's
+   `-webkit-app-region` CSS property).
    ═══════════════════════════════════════════════════════════════════ */
 
 .navbar {
@@ -13,7 +16,6 @@
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   user-select: none;
-  -webkit-app-region: drag;
   z-index: 100;
 }
 
@@ -24,13 +26,11 @@
   color: var(--text);
   letter-spacing: var(--tracking-display);
   margin-right: var(--s-xl);
-  -webkit-app-region: no-drag;
 }
 
 .navbar__tabs {
   display: flex;
   gap: var(--s-md);
-  -webkit-app-region: no-drag;
 }
 
 .navbar__tab {
@@ -58,7 +58,6 @@
 .navbar__controls {
   display: flex;
   gap: 2px;
-  -webkit-app-region: no-drag;
 }
 
 .navbar__btn {

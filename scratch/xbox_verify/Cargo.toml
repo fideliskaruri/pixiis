@@ -1,0 +1,17 @@
+# Throwaway verify crate — re-exports the production xbox provider via
+# #[path] so we can `cargo test` it on this WSL (Tauri's GTK Linux deps
+# don't build here, so the real `src-tauri` cargo check fails before our
+# code is reached). Same pattern Pane 8 (controller) used in wave 1.
+[package]
+name = "xbox-verify"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+quick-xml = "0.31"
+
+[dev-dependencies]
+tempfile = "3"

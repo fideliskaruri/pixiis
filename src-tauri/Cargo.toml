@@ -46,9 +46,25 @@ webbrowser = "1"
 # safe on every target — not gated by `cfg(windows)` so unit tests can
 # read shipped binary fixtures on Linux CI.
 lnk = "0.5"
+# quick-xml parses AppxManifest.xml + MicrosoftGame.Config for the Xbox /
+# UWP scanner (Pane 4). Cross-platform so the manifest-parsing unit tests
+# run on Linux CI even though the WinRT enumeration is Windows-only.
+quick-xml = "0.31"
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_UI_Input_XboxController", "Win32_Foundation"] }
+windows = { version = "0.58", features = [
+    "Win32_UI_Input_XboxController",
+    "Win32_Foundation",
+    # Xbox / UWP scanner — WinRT PackageManager + manifest helpers (Pane 4).
+    "Management_Deployment",
+    "ApplicationModel",
+    "ApplicationModel_Core",
+    "ApplicationModel_AppExtensions",
+    "Foundation",
+    "Foundation_Collections",
+    "Storage",
+    "Win32_System_Com",
+] }
 # Steam (and now GOG/EA) library scanners read storefront state from HKLM.
 winreg = "0.52"
 

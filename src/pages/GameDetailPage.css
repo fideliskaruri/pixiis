@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    GameDetailPage — Editorial detail layout.
-   Asymmetric: tall hero on the left, header + actions on the right.
+   Hero (banner with title overlay, or portrait poster with title below)
+   → ▶ PLAY → meta sidebar + about column → screenshots rail.
    ═══════════════════════════════════════════════════════════════════ */
 
 .detail {
@@ -50,22 +51,29 @@
 }
 .detail__back:hover         { color: var(--text); }
 .detail__back:focus-visible {
-  outline: none;
-  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
   color: var(--text);
 }
 
 /* ── Hero art ──────────────────────────────────────────────────────── */
 
+/* Two modes:
+   - banner : RAWG background_image (landscape), full content-width, title overlaid.
+   - poster : storefront portrait (Steam 2:3 etc.), full content-width capped, title below. */
 .detail__hero {
   position: relative;
   width: 100%;
-  max-width: 720px;
-  aspect-ratio: 2 / 3;
   background: var(--bg-elev);
   border: 1px solid var(--rule);
   overflow: hidden;
   margin-bottom: var(--s-xl);
+}
+
+.detail__hero--banner { aspect-ratio: 21 / 9; }
+.detail__hero--poster {
+  aspect-ratio: 2 / 3;
+  max-width: 480px;
 }
 
 .detail__art {
@@ -78,31 +86,72 @@
 .detail__hero-fade {
   position: absolute;
   inset: auto 0 0 0;
-  height: 35%;
+  height: 55%;
   background: linear-gradient(to top, var(--bg) 0%, transparent 100%);
   pointer-events: none;
 }
 
-/* ── Header ────────────────────────────────────────────────────────── */
+/* Banner overlay — title sits over the bottom of the hero, scrim in
+   .detail__hero-fade does the legibility work. */
+.detail__hero-overlay {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: var(--s-xl) clamp(var(--s-md), 4vw, var(--s-xl));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.detail__hero--banner .detail__title { margin: 0; }
+
+/* ── Header (poster mode only) ─────────────────────────────────────── */
 
 .detail__header {
   margin-bottom: var(--s-xl);
 }
 
 .detail__title {
-  margin: var(--s-sm) 0 var(--s-lg);
+  margin: var(--s-sm) 0 0;
   /* .display class supplies font-family/size/letter-spacing/line-height */
 }
 
-/* ── Meta list (small-caps key, body value) ────────────────────────── */
+/* ── Two-column body: meta sidebar + about ─────────────────────────── */
+
+.detail__body {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  gap: var(--s-xl);
+  margin-top: var(--s-xl);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--rule);
+}
+
+@media (max-width: 720px) {
+  .detail__body {
+    grid-template-columns: 1fr;
+    gap: var(--s-lg);
+  }
+}
+
+.detail__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-lg);
+}
+
+.detail__sidebar-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+/* ── Meta list inside sidebar (small-caps key, body value, vertical) ── */
 
 .detail__meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, max-content));
-  gap: var(--s-md) var(--s-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-md);
   margin: 0;
-  padding-top: var(--s-md);
-  border-top: 1px solid var(--rule);
 }
 
 .detail__meta-row {
@@ -159,7 +208,7 @@
 }
 .detail__favorite:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: 4px;
 }
 
 /* ── Error ─────────────────────────────────────────────────────────── */
@@ -173,12 +222,9 @@
   padding-left: var(--s-sm);
 }
 
-/* ── About / description ───────────────────────────────────────────── */
+/* ── About / description (right column of .detail__body) ───────────── */
 
 .detail__about {
-  margin-top: var(--s-xl);
-  padding-top: var(--s-lg);
-  border-top: 1px solid var(--rule);
   max-width: 720px;
 }
 
@@ -190,27 +236,23 @@
   line-height: 1.65;
   white-space: pre-line;
 }
+.detail__description--dim { color: var(--text-dim); }
 
-/* Genres render as a bare row of small-caps labels — no chrome.
-   Editorial tag bar, not pill chips. */
+/* Genres render as a stacked column of small-caps labels in the sidebar.
+   No chrome — editorial tag list, not pill chips. */
 .detail__genres {
   list-style: none;
-  margin: var(--s-lg) 0 0;
+  margin: 0;
   padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-md);
+  flex-direction: column;
+  gap: var(--s-xs);
 }
 
 .detail__genre {
   /* .label class supplies font + tracking + colour. */
   padding: 0;
-}
-.detail__genre + .detail__genre::before {
-  content: '·';
-  display: inline-block;
-  margin-right: var(--s-md);
-  color: var(--text-mute);
+  color: var(--text);
 }
 
 /* ── Screenshots ───────────────────────────────────────────────────── */
@@ -255,7 +297,7 @@
   transition: border-color var(--t-base) var(--easing);
 }
 .detail__screen:hover         { border-color: var(--text-dim); }
-.detail__screen:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.detail__screen:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
 
 .detail__screen img {
   display: block;

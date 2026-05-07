@@ -99,7 +99,7 @@ export function HomePage() {
 
         {status === 'error' ? (
           <div className="home__empty" role="alert">
-            <p className="display home__empty-title">Failed to load library</p>
+            <p className="home__empty-title">Failed to load library</p>
             <p className="home__empty-body">{error}</p>
             <button
               className="home__retry"
@@ -111,12 +111,12 @@ export function HomePage() {
           </div>
         ) : status === 'loading' && games.length === 0 ? (
           <div className="home__empty">
-            <p className="display home__empty-title">One moment.</p>
+            <p className="home__empty-title">One moment.</p>
             <p className="label">LOADING LIBRARY</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="home__empty">
-            <p className="display home__empty-title">
+            <p className="home__empty-title">
               {search !== '' ? 'No matches' : 'No games yet'}
             </p>
             {search === '' && (

@@ -148,7 +148,6 @@ export function GameDetailPage() {
     );
   }
 
-  const art = imageUrl(game.art_url);
   const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
   const playButtonLabel =
     launchState === 'launching'
@@ -164,6 +163,16 @@ export function GameDetailPage() {
   const metacritic = rawg?.metacritic ?? 0;
   const released = rawg?.released ?? '';
 
+  // Hero modes: a RAWG background_image is a wide banner art piece — render
+  // it full-bleed with the title overlaid. Otherwise fall back to the
+  // storefront's portrait poster (Steam library_600x900 etc.) and render
+  // the title below; the wireframe's overlay only works on landscape art.
+  const banner = rawg?.background_image ?? '';
+  const heroMode: 'banner' | 'poster' =
+    banner !== '' ? 'banner' : 'poster';
+  const heroSrc =
+    heroMode === 'banner' ? banner : imageUrl(game.art_url);
+
   return (
     <article className="detail fade-in">
       <button
@@ -175,44 +184,25 @@ export function GameDetailPage() {
         ← Back
       </button>
 
-      <div className="detail__hero">
-        {art !== '' && <img className="detail__art" src={art} alt="" />}
+      <div className={`detail__hero detail__hero--${heroMode}`}>
+        {heroSrc !== '' && (
+          <img className="detail__art" src={heroSrc} alt="" />
+        )}
         <div className="detail__hero-fade" aria-hidden="true" />
+        {heroMode === 'banner' && (
+          <div className="detail__hero-overlay">
+            <p className="label">{sourceLabel}</p>
+            <h1 className="detail__title display">{game.name}</h1>
+          </div>
+        )}
       </div>
 
-      <header className="detail__header">
-        <p className="label">{sourceLabel}</p>
-        <h1 className="detail__title display">{game.name}</h1>
-
-        <dl className="detail__meta">
-          {game.playtime_display !== '' && (
-            <div className="detail__meta-row">
-              <dt className="label">PLAYED</dt>
-              <dd className="detail__meta-value">{game.playtime_display}</dd>
-            </div>
-          )}
-          {metacritic > 0 && (
-            <div className="detail__meta-row">
-              <dt className="label">METACRITIC</dt>
-              <dd className="detail__meta-value">{metacritic}</dd>
-            </div>
-          )}
-          {released !== '' && (
-            <div className="detail__meta-row">
-              <dt className="label">RELEASED</dt>
-              <dd className="detail__meta-value">{released}</dd>
-            </div>
-          )}
-          {!game.is_installed && (
-            <div className="detail__meta-row">
-              <dt className="label">STATUS</dt>
-              <dd className="detail__meta-value detail__meta-value--dim">
-                Not installed
-              </dd>
-            </div>
-          )}
-        </dl>
-      </header>
+      {heroMode === 'poster' && (
+        <header className="detail__header">
+          <p className="label">{sourceLabel}</p>
+          <h1 className="detail__title display">{game.name}</h1>
+        </header>
+      )}
 
       <div className="detail__actions">
         <button
@@ -245,23 +235,68 @@ export function GameDetailPage() {
         </p>
       )}
 
-      {description !== '' && (
+      <div className="detail__body">
+        <aside className="detail__sidebar" aria-label="Game details">
+          <dl className="detail__meta">
+            {game.playtime_display !== '' && (
+              <div className="detail__meta-row">
+                <dt className="label">PLAYED</dt>
+                <dd className="detail__meta-value">{game.playtime_display}</dd>
+              </div>
+            )}
+            {metacritic > 0 && (
+              <div className="detail__meta-row">
+                <dt className="label">RATING</dt>
+                <dd className="detail__meta-value">{metacritic}</dd>
+              </div>
+            )}
+            {released !== '' && (
+              <div className="detail__meta-row">
+                <dt className="label">RELEASED</dt>
+                <dd className="detail__meta-value">{released}</dd>
+              </div>
+            )}
+            <div className="detail__meta-row">
+              <dt className="label">STORE</dt>
+              <dd className="detail__meta-value">{sourceLabel}</dd>
+            </div>
+            {!game.is_installed && (
+              <div className="detail__meta-row">
+                <dt className="label">STATUS</dt>
+                <dd className="detail__meta-value detail__meta-value--dim">
+                  Not installed
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {genres.length > 0 && (
+            <div className="detail__sidebar-block">
+              <p className="label">GENRE</p>
+              <ul className="detail__genres" aria-label="Genres">
+                {genres.map((g) => (
+                  <li key={g} className="detail__genre label">
+                    {g.toUpperCase()}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
+
         <section className="detail__about" aria-labelledby="detail-about-head">
           <h2 id="detail-about-head" className="label">ABOUT</h2>
-          {description.split(/\n{2,}/).map((para, i) => (
-            <p key={i} className="detail__description">{para}</p>
-          ))}
-          {genres.length > 0 && (
-            <ul className="detail__genres" aria-label="Genres">
-              {genres.map((g) => (
-                <li key={g} className="detail__genre label">
-                  {g.toUpperCase()}
-                </li>
-              ))}
-            </ul>
+          {description !== '' ? (
+            description.split(/\n{2,}/).map((para, i) => (
+              <p key={i} className="detail__description">{para}</p>
+            ))
+          ) : (
+            <p className="detail__description detail__description--dim">
+              Description not available.
+            </p>
           )}
         </section>
-      )}
+      </div>
 
       {screenshots.length > 0 && (
         <section className="detail__screens" aria-labelledby="detail-screens-head">

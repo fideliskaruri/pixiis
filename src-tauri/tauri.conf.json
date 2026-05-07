@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Pixiis",
-  "version": "0.1.0",
-  "identifier": "com.pixiis.launcher",
+  "version": "0.2.0",
+  "identifier": "com.pixiis.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -33,6 +33,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "publisher": "Fidelis Karuri",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,12 +47,15 @@
       "nsis": {
         "installMode": "currentUser",
         "displayLanguageSelector": false
-      }
+      },
+      "signCommand": null
     },
     "resources": [
       "../resources/default_config.toml",
       "../resources/models/whisper/*.bin",
-      "../resources/models/silero/*.onnx"
+      "../resources/models/silero/*.onnx",
+      "../resources/models/kokoro/*.onnx",
+      "../resources/models/kokoro/*.bin"
     ]
   }
 }

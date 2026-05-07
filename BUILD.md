@@ -77,3 +77,58 @@ Double-click to install. Pixiis lands in
   not a hang. That step alone takes 4–6 minutes on a cold cache.
 - **Type bindings out of sync** after editing `src-tauri/src/types.rs` —
   re-emit them with `cd src-tauri && cargo test --bins`.
+
+## Code signing (release builds)
+
+`bundle.windows.signCommand` is `null` in `src-tauri/tauri.conf.json`,
+which is the right setting for dev and CI smoke builds — Tauri skips
+signtool entirely and the resulting `.exe` is unsigned. Windows
+SmartScreen will warn the first time a downloaded copy launches; that
+is expected and only goes away once we ship a signed build.
+
+For release, hook one of two flows.
+
+### Option A — Authenticode certificate on the build host
+
+The simplest path. Set the env vars below before `npm run tauri build`,
+then point `signCommand` at `signtool.exe` (it lives in the Windows SDK
+under `C:\Program Files (x86)\Windows Kits\10\bin\<sdk>\x64\`):
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY=path/to/cert.pfx
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD='cert-password'
+```
+
+In `tauri.conf.json`:
+
+```jsonc
+"windows": {
+  "signCommand": "signtool sign /fd sha256 /td sha256 /tr http://timestamp.digicert.com /f $env:TAURI_SIGNING_PRIVATE_KEY /p $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD %1",
+  "nsis": { ... }
+}
+```
+
+The `%1` placeholder is mandatory — Tauri substitutes the binary path
+into it before invoking the command, once for each PE file in the
+bundle (the main exe + the NSIS installer).
+
+### Option B — Cross-platform via osslsigncode
+
+If the build host isn't Windows (e.g. a Linux release pipeline cross-
+compiling with `cargo-xwin`), use `osslsigncode` instead:
+
+```jsonc
+"signCommand": "osslsigncode sign -pkcs12 $TAURI_SIGNING_PRIVATE_KEY -pass $TAURI_SIGNING_PRIVATE_KEY_PASSWORD -t http://timestamp.digicert.com -in %1 -out %1.signed && mv %1.signed %1"
+```
+
+### CI checklist
+
+1. Inject the `.pfx` from a secret store at job start; never commit it.
+2. Keep `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in encrypted env, not in
+   the repo or build logs.
+3. After `tauri build`, run `signtool verify /pa
+   target/release/bundle/nsis/Pixiis_*_x64-setup.exe` to confirm the
+   Authenticode chain validates.
+4. Update the version in `src-tauri/tauri.conf.json` and
+   `src-tauri/Cargo.toml` together — the NSIS installer name embeds
+   the former, and the latter shows up in the file properties dialog.

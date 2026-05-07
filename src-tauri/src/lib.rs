@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use tauri::{
     menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
 
@@ -157,6 +157,7 @@ pub fn run() {
             let menu = Menu::with_items(app, &[&open_i, &scan_i, &quit_i])?;
 
             let mut tray_builder = TrayIconBuilder::with_id("pixiis-tray")
+                .tooltip("Pixiis")
                 .menu(&menu)
                 .show_menu_on_left_click(false);
             if let Some(icon) = app.default_window_icon().cloned() {
@@ -179,6 +180,23 @@ pub fn run() {
                         app.exit(0);
                     }
                     _ => {}
+                })
+                // Left-click the tray icon to raise the window — matches the
+                // Windows convention for minimised-to-tray launchers.
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.unminimize();
+                            let _ = w.set_focus();
+                        }
+                    }
                 })
                 .build(app)?;
 

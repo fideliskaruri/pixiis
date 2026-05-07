@@ -6,7 +6,11 @@
 //! later via the same `Provider` shape.
 
 pub mod cache;
+pub mod ea;
+pub mod epic;
 pub mod folder;
+pub mod gog;
+pub mod startmenu;
 pub mod steam;
 
 use std::collections::HashMap;
@@ -51,10 +55,7 @@ impl LibraryService {
     ) -> Self {
         let cache_path = cache_dir.join("library_overlay.json");
         let overlay = cache::load(&cache_path).unwrap_or_default();
-        let providers: Vec<Box<dyn Provider>> = vec![
-            Box::new(steam::SteamProvider::new(config.clone())),
-            Box::new(folder::FolderProvider::new(extra_folder_paths)),
-        ];
+        let providers = build_providers(config, extra_folder_paths);
         Self {
             inner: RwLock::new(State {
                 entries: HashMap::new(),
@@ -157,6 +158,38 @@ impl LibraryService {
     }
 }
 
+/// Build the provider list, honouring the optional `library.providers`
+/// allow-list in user config. When unset (the default), every provider
+/// is enabled and each one's `is_available()` decides whether it
+/// actually contributes entries on this machine.
+fn build_providers(
+    config: Arc<dyn ConfigLookup>,
+    extra_folder_paths: Vec<PathBuf>,
+) -> Vec<Box<dyn Provider>> {
+    // All providers we know how to construct, in scan-priority order.
+    // Storefronts come first so their entries win the first-write-wins
+    // dedup over the catch-all folder + start-menu scanners.
+    let candidates: Vec<Box<dyn Provider>> = vec![
+        Box::new(steam::SteamProvider::new(config.clone())),
+        Box::new(epic::EpicProvider::new()),
+        Box::new(gog::GogProvider::new()),
+        Box::new(ea::EaProvider::new()),
+        Box::new(folder::FolderProvider::new(extra_folder_paths)),
+        Box::new(startmenu::StartMenuProvider::new()),
+    ];
+
+    let allow = config.get_strs("library.providers");
+    if allow.is_empty() {
+        return candidates;
+    }
+    let allow_set: std::collections::HashSet<String> =
+        allow.into_iter().map(|s| s.to_lowercase()).collect();
+    candidates
+        .into_iter()
+        .filter(|p| allow_set.contains(p.name()))
+        .collect()
+}
+
 /// Trait used by providers to look up dotted-path config values without
 /// pulling in the whole config crate. The `services::ServicesConfig`
 /// already uses the same `from_lookup` shape.
@@ -184,10 +217,10 @@ mod launcher {
 
     pub fn launch(entry: &AppEntry) -> AppResult<()> {
         let cmd = &entry.launch_command;
-        if cmd.starts_with("steam://") {
-            // Use the OS shell — Tauri's tauri-plugin-shell can also do this,
-            // but since Steam URLs don't need the plugin's allowlist, going
-            // direct keeps the launch path local.
+        // All storefront launchers register their own URL scheme (Steam,
+        // Epic, GOG Galaxy, EA / Origin). Hand any URL-shaped command
+        // straight to the OS shell — the launcher then takes over.
+        if is_launcher_url(cmd) {
             return open_url(cmd);
         }
 
@@ -204,6 +237,16 @@ mod launcher {
             .spawn()
             .map(|_| ())
             .map_err(|e| AppError::Other(format!("launch failed: {e}")))
+    }
+
+    fn is_launcher_url(cmd: &str) -> bool {
+        const SCHEMES: &[&str] = &[
+            "steam://",
+            "com.epicgames.launcher://",
+            "goggalaxy://",
+            "origin2://",
+        ];
+        SCHEMES.iter().any(|s| cmd.starts_with(s))
     }
 
     fn open_url(url: &str) -> AppResult<()> {

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
 import { GameDetailPage } from './pages/GameDetailPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { LibraryProvider } from './api/LibraryContext';
 import { useSpatialNav } from './hooks/useSpatialNav';
 
@@ -25,7 +26,7 @@ function AppContent() {
           <Route path="/" element={<HomePage />} />
           <Route path="/library" element={<Placeholder label="Library" />} />
           <Route path="/game/:id" element={<GameDetailPage />} />
-          <Route path="/settings" element={<Placeholder label="Settings" />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
     </div>

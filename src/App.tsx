@@ -14,6 +14,7 @@ import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { OnboardingPage } from './pages/OnboardingPage';
+import { FileManagerPage } from './pages/FileManagerPage';
 import { LibraryProvider } from './api/LibraryContext';
 import { useSpatialNav } from './hooks/useSpatialNav';
 import { getOnboarded } from './api/bridge';
@@ -78,6 +79,7 @@ function AppContent() {
             <Route path="/" element={<HomePage />} />
             <Route path="/library" element={<Placeholder label="Library" />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
+            <Route path="/files" element={<FileManagerPage />} />
             <Route path="/settings" element={<Placeholder label="Settings" />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
           </Routes>

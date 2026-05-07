@@ -154,6 +154,8 @@ pub fn run() {
             commands::config::app_quit,
             commands::config::app_show,
             commands::config::app_set_autostart,
+            commands::config::app_get_onboarded,
+            commands::config::app_set_onboarded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

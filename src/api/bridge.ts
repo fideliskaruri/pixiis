@@ -121,6 +121,16 @@ export function saveConfig(config: Partial<Config>): Promise<void> {
   return invoke('config_set', { values: config });
 }
 
+// ── Onboarding marker ────────────────────────────────────────────────
+
+export function getOnboarded(): Promise<boolean> {
+  return invoke<boolean>('app_get_onboarded');
+}
+
+export function setOnboarded(value: boolean): Promise<void> {
+  return invoke('app_set_onboarded', { value });
+}
+
 // ── Image proxy ──────────────────────────────────────────────────────
 
 /**

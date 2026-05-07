@@ -42,8 +42,28 @@ sha2 = "0.10"
 lru = "0.12"
 webbrowser = "1"
 
+# Voice subsystem (Pane 1 / Wave 2):
+# - whisper-rs binds whisper.cpp; default features compile bundled C/C++.
+# - cpal owns the platform input stream (WASAPI on Windows).
+# - ort runs the Silero VAD ONNX model; load-dynamic dlopens onnxruntime
+#   at runtime so we don't add a build-time C++ deps trail (matches the
+#   Wave 1 Kokoro spike's choice — see spike/kokoro-bench/RESULTS.md).
+#   Behind the `silero-vad` feature so the default build doesn't depend on
+#   the ort API (which is in rc churn); EnergyVad is always available.
+# - crossbeam-channel for the audio capture → pipeline plumbing.
+whisper-rs = { version = "0.13", default-features = false }
+cpal = "0.15"
+ort = { version = "2.0.0-rc.10", default-features = false, features = ["load-dynamic", "ndarray"], optional = true }
+ndarray = { version = "0.16", optional = true }
+crossbeam-channel = "0.5"
+dirs = "5"
+
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_UI_Input_XboxController", "Win32_Foundation"] }
+windows = { version = "0.58", features = [
+    "Win32_UI_Input_XboxController",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Foundation",
+] }
 # Steam library scanner reads HKLM\SOFTWARE\Wow6432Node\Valve\Steam.
 winreg = "0.52"
 
@@ -55,3 +75,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 [features]
 # Set by Tauri CLI for production builds. Do not remove.
 custom-protocol = ["tauri/custom-protocol"]
+# Enable the Silero ONNX VAD path. Off by default — relies on `ort` 2.0-rc
+# whose API still moves between versions and on `onnxruntime.dll` being
+# resolvable at runtime. EnergyVad is always available as a fallback.
+silero-vad = ["dep:ort", "dep:ndarray"]

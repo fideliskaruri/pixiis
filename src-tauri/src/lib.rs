@@ -4,6 +4,7 @@ mod error;
 pub mod library;
 pub mod services;
 pub mod types;
+pub mod voice;
 
 pub use error::{AppError, AppResult};
 
@@ -85,6 +86,48 @@ pub fn run() {
                 Vec::new(),
             );
             app.manage(Arc::new(library));
+
+            // Voice subsystem (Pane 1 / Wave 2). Loads the bundled Whisper
+            // model from `resources/models/whisper/ggml-base.en-q5_0.bin`,
+            // copies it into `%APPDATA%/pixiis/models/whisper/` on first
+            // run, and brings up the Silero VAD when the `silero-vad`
+            // feature is on (otherwise EnergyVad fallback). If the model
+            // can't be found we still register the commands but they all
+            // return a clean error instead of panicking the app.
+            let voice_slot = match voice::model::ensure_default_whisper_model() {
+                Some(model_path) => {
+                    let silero_path = voice::model::ensure_silero_model();
+                    match voice::VoiceService::new(
+                        app.handle().clone(),
+                        model_path,
+                        silero_path,
+                    ) {
+                        Ok(svc) => commands::voice::VoiceServiceSlot {
+                            service: Some(svc),
+                            init_error: None,
+                        },
+                        Err(e) => {
+                            eprintln!("[voice] init failed: {e}");
+                            commands::voice::VoiceServiceSlot {
+                                service: None,
+                                init_error: Some(e.to_string()),
+                            }
+                        }
+                    }
+                }
+                None => {
+                    let msg = format!(
+                        "whisper model {} not found in user dir or bundle",
+                        voice::model::DEFAULT_WHISPER_FILENAME
+                    );
+                    eprintln!("[voice] {msg}");
+                    commands::voice::VoiceServiceSlot {
+                        service: None,
+                        init_error: Some(msg),
+                    }
+                }
+            };
+            app.manage(Arc::new(voice_slot));
 
             // System tray with Open / Scan / Quit.
             let open_i = MenuItem::with_id(app, "open", "Open Pixiis", true, None::<&str>)?;

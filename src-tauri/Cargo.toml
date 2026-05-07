@@ -42,6 +42,24 @@ sha2 = "0.10"
 lru = "0.12"
 webbrowser = "1"
 
+# Voice subsystem (TTS — Pane 2 / Wave 2). Pane 1 (STT) will pull the same
+# `ort` + `cpal` versions on its own merge — feature sets are deliberately
+# identical so the two-pane Cargo.toml merge is additive.
+# - ort 2.0 runs Kokoro v1.0; `load-dynamic` dlopens onnxruntime at runtime so
+#   we don't carry an openssl/ureq build-time chain (matches the Wave 1 spike,
+#   see spike/kokoro-bench/RESULTS.md). `ndarray` is a hard dep of `ort`.
+# - cpal owns the audio output device (Pane 1 will share for input).
+# - libloading is for the espeak-ng FFI wrapper.
+# - zip + byteorder parse voices-v1.0.bin (np.savez of f32 npy).
+# - num_cpus picks the ORT intra-op thread count.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "load-dynamic", "cuda"] }
+ndarray = "0.16"
+cpal = "0.15"
+libloading = "0.8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+byteorder = "1"
+num_cpus = "1.16"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_UI_Input_XboxController", "Win32_Foundation"] }
 # Steam library scanner reads HKLM\SOFTWARE\Wow6432Node\Valve\Steam.

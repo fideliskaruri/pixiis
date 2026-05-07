@@ -4,6 +4,7 @@ mod error;
 pub mod library;
 pub mod services;
 pub mod types;
+pub mod voice;
 
 pub use error::{AppError, AppResult};
 
@@ -81,10 +82,31 @@ pub fn run() {
                 .unwrap_or_else(|_| std::env::temp_dir().join("pixiis"));
             let library = library::LibraryService::new(
                 Arc::new(library::EmptyConfig::default()),
-                app_data_dir,
+                app_data_dir.clone(),
                 Vec::new(),
             );
             app.manage(Arc::new(library));
+
+            // TTS engine (Pane 2 / wave2-tts) — Kokoro v1.0 via ort 2.0.
+            // Construction is cheap (no IO); the model + voices file load on
+            // the first `voice_speak` call. We resolve resource paths through
+            // the same fallback chain as `load_default_macros` below: the
+            // installer drops bundle resources next to the exe; dev runs read
+            // from `<repo>/resources/`.
+            let resource_dir = resolve_resource_dir();
+            // First-run copy of bundled model files into the per-user app
+            // data dir. If the bundle didn't ship with model files (dev
+            // builds, or a future "download on first use" flow), the call
+            // is a no-op and `voice_speak` returns NotFound until the model
+            // is installed.
+            if let Err(e) = voice::ensure_model_files(&app_data_dir, &resource_dir) {
+                eprintln!("[tts] model bundle copy: {e}");
+            }
+            let tts_engine = Arc::new(voice::TtsEngine::new(voice::TtsConfig::from_app_dirs(
+                &app_data_dir,
+                &resource_dir,
+            )));
+            app.manage(tts_engine);
 
             // System tray with Open / Scan / Quit.
             let open_i = MenuItem::with_id(app, "open", "Open Pixiis", true, None::<&str>)?;
@@ -137,6 +159,7 @@ pub fn run() {
             commands::voice::voice_set_device,
             commands::voice::voice_inject_text,
             commands::voice::voice_get_transcript_log,
+            commands::voice::voice_speak,
             // controller
             commands::controller::controller_register_macro,
             commands::controller::controller_get_state,
@@ -157,6 +180,26 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Best-effort resolution of the bundle resource directory. The installer
+/// places resources next to the exe at `resources/`; dev runs find them at
+/// `../resources/` relative to the working directory (Tauri starts with
+/// `src-tauri/` as its CWD). Returns the first existing candidate, falling
+/// back to the dev path so missing-file diagnostics remain readable.
+fn resolve_resource_dir() -> std::path::PathBuf {
+    let candidates: [Option<std::path::PathBuf>; 2] = [
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("resources"))),
+        Some(std::path::PathBuf::from("../resources")),
+    ];
+    for c in candidates.into_iter().flatten() {
+        if c.exists() {
+            return c;
+        }
+    }
+    std::path::PathBuf::from("../resources")
 }
 
 /// Load the `[controller.macros]` table from the bundled

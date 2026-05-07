@@ -1,0 +1,22 @@
+[package]
+name = "scanners_verify"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Throwaway harness: re-exports the four Wave 2 scanner modules from
+# `src-tauri/src/library/` via `#[path]` so we can run their unit tests on
+# Linux without the Tauri/GTK build dependencies. Same trick Pane 8 used
+# for the controller subsystem in Wave 1.
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+lnk = "0.5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lib]
+name = "scanners_verify"
+path = "src/lib.rs"

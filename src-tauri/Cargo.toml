@@ -42,9 +42,14 @@ sha2 = "0.10"
 lru = "0.12"
 webbrowser = "1"
 
+# Start Menu shortcut parsing (.lnk → target exe path). Pure-Rust parser,
+# safe on every target — not gated by `cfg(windows)` so unit tests can
+# read shipped binary fixtures on Linux CI.
+lnk = "0.5"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_UI_Input_XboxController", "Win32_Foundation"] }
-# Steam library scanner reads HKLM\SOFTWARE\Wow6432Node\Valve\Steam.
+# Steam (and now GOG/EA) library scanners read storefront state from HKLM.
 winreg = "0.52"
 
 [dev-dependencies]

@@ -49,10 +49,12 @@ export function NavBar() {
   };
 
   return (
-    <nav className="navbar">
-      <div className="navbar__logo">PIXIIS</div>
+    <nav className="navbar" data-tauri-drag-region>
+      <div className="navbar__logo" data-tauri-drag-region="false">
+        PIXIIS
+      </div>
 
-      <div className="navbar__tabs">
+      <div className="navbar__tabs" data-tauri-drag-region="false">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.path}
@@ -69,7 +71,7 @@ export function NavBar() {
 
       <div className="navbar__spacer" />
 
-      <div className="navbar__controls">
+      <div className="navbar__controls" data-tauri-drag-region="false">
         <button
           className="navbar__btn"
           aria-label="Minimize"

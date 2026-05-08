@@ -6,11 +6,12 @@
  * the provider does the actual fetch + retry once at the app root.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
 import { useLibrary } from '../api/LibraryContext';
+import { useToast } from '../api/ToastContext';
 import type { AppEntry } from '../api/bridge';
 import './HomePage.css';
 
@@ -18,9 +19,24 @@ type SortMode = 'az' | 'recent';
 
 export function HomePage() {
   const { games, status, error, refresh } = useLibrary();
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('az');
   const navigate = useNavigate();
+  const lastToastedError = useRef<string>('');
+
+  // Surface load failures as a transient toast in addition to the inline
+  // retry surface — guards against the user navigating away mid-error
+  // and missing the embedded message.
+  useEffect(() => {
+    if (status === 'error' && error !== '' && error !== lastToastedError.current) {
+      toast(`Library load failed: ${error}`, 'error');
+      lastToastedError.current = error;
+    }
+    if (status === 'ready') {
+      lastToastedError.current = '';
+    }
+  }, [status, error, toast]);
 
   const recentlyPlayed = useMemo(
     () =>

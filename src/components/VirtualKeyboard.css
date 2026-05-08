@@ -1,0 +1,83 @@
+/* ═══════════════════════════════════════════════════════════════════
+   VirtualKeyboard — On-screen keyboard, editorial restraint.
+   Square keys on --bg-elev, hairline borders, single-accent focus only
+   on the currently selected key.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.vkbd {
+  position: fixed;
+  z-index: 920;
+  width: 720px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  padding: var(--s-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  box-shadow: 0 12px 48px color-mix(in srgb, var(--bg) 80%, transparent);
+  animation: fade-in var(--t-base) var(--easing) both;
+}
+
+.vkbd__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 var(--s-xs) var(--s-sm);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--s-xs);
+}
+
+.vkbd__hint {
+  color: var(--text-mute);
+}
+
+.vkbd__row {
+  display: flex;
+  gap: var(--s-xs);
+}
+
+.vkbd__key {
+  flex: 1;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color var(--t-fast) var(--easing),
+    color var(--t-fast) var(--easing),
+    background var(--t-fast) var(--easing);
+}
+
+.vkbd__key:hover { border-color: var(--text-mute); }
+
+.vkbd__key--selected {
+  border-color: var(--focus);
+  border-width: 2px;
+  /* Compensate for the wider border so the row stays aligned. */
+  margin: -1px;
+}
+
+.vkbd__key--space,
+.vkbd__key--backspace,
+.vkbd__key--enter,
+.vkbd__key--shift {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-dim);
+}
+
+.vkbd__key--active {
+  background: color-mix(in srgb, var(--text) 8%, var(--bg-elev));
+  color: var(--text);
+}

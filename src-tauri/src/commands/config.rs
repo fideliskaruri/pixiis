@@ -1,9 +1,22 @@
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use crate::error::{AppError, AppResult};
 use serde_json::{Map, Value};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use toml_edit::{Document, Item, Table};
+
+// ── Global summon hotkey ─────────────────────────────────────────────
+//
+// Default: Ctrl+Shift+Alt+P (PIXIIS). Persisted at
+// `daemon.summon_shortcut`. The string format is the human-readable
+// `"Ctrl+Shift+Alt+P"` shape — `parse_summon_shortcut` translates
+// single-letter keys to the W3C `KeyboardEvent.code` form
+// (`KeyP`) before handing it to the plugin's `Shortcut` parser, which
+// is strict about codes for letter keys.
+
+pub const DEFAULT_SUMMON_SHORTCUT: &str = "Ctrl+Shift+Alt+P";
 
 // ── User config file (%APPDATA%/pixiis/config.toml) ──────────────────
 //
@@ -302,6 +315,166 @@ pub async fn app_set_onboarded(app: AppHandle, value: bool) -> AppResult<()> {
     Ok(())
 }
 
+/// Read `daemon.summon_shortcut` from the merged config (user override
+/// then bundled default). Returns `None` if the key is absent or
+/// non-string. An empty string is preserved (means "disabled") so the
+/// caller can distinguish "user cleared it" from "never set".
+pub fn read_summon_shortcut_string<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
+    let path = user_config_path_runtime(app).ok()?;
+    let doc = if path.exists() {
+        std::fs::read_to_string(&path).ok()?.parse::<Document>().ok()?
+    } else {
+        read_default_config_text()?.parse::<Document>().ok()?
+    };
+    doc.as_table()
+        .get("daemon")
+        .and_then(|d| d.as_table())
+        .and_then(|t| t.get("summon_shortcut"))
+        .and_then(|i| i.as_str())
+        .map(|s| s.to_string())
+}
+
+fn user_config_path_runtime<R: Runtime>(app: &AppHandle<R>) -> AppResult<PathBuf> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(format!("app_data_dir unavailable: {e}")))?;
+    Ok(dir.join("config.toml"))
+}
+
+/// Translate a user-friendly shortcut string into a `Shortcut`.
+///
+/// Accepts shapes the Settings UI emits:
+///   `"Ctrl+Shift+Alt+P"`  →  `Ctrl+Shift+Alt+KeyP`
+///   `"CommandOrControl+K"` →  `CommandOrControl+KeyK`
+///
+/// The plugin's parser also accepts `KeyP` directly, so we leave
+/// already-prefixed key codes alone. Single-character digit/letter
+/// terminals are rewritten because the parser rejects bare `P` /  `7`.
+pub fn parse_summon_shortcut(input: &str) -> Result<Shortcut, String> {
+    let normalised = normalise_shortcut(input);
+    Shortcut::from_str(&normalised).map_err(|e| format!("{e}"))
+}
+
+fn normalise_shortcut(input: &str) -> String {
+    let parts: Vec<&str> = input.split('+').map(|p| p.trim()).filter(|p| !p.is_empty()).collect();
+    if parts.is_empty() {
+        return String::new();
+    }
+    let (last, mods) = parts.split_last().expect("non-empty");
+    let key = normalise_key(last);
+    let mut out = String::new();
+    for m in mods {
+        out.push_str(m);
+        out.push('+');
+    }
+    out.push_str(&key);
+    out
+}
+
+fn normalise_key(key: &str) -> String {
+    // Already a KeyboardEvent.code? Pass through.
+    if key.starts_with("Key")
+        || key.starts_with("Digit")
+        || key.starts_with("Numpad")
+        || key.starts_with('F')
+            && key.len() >= 2
+            && key[1..].chars().all(|c| c.is_ascii_digit())
+        || matches!(
+            key,
+            "Space"
+                | "Enter"
+                | "Escape"
+                | "Tab"
+                | "Backspace"
+                | "Delete"
+                | "Insert"
+                | "Home"
+                | "End"
+                | "PageUp"
+                | "PageDown"
+                | "ArrowUp"
+                | "ArrowDown"
+                | "ArrowLeft"
+                | "ArrowRight"
+                | "Minus"
+                | "Equal"
+                | "Comma"
+                | "Period"
+                | "Slash"
+                | "Backslash"
+                | "Semicolon"
+                | "Quote"
+                | "BracketLeft"
+                | "BracketRight"
+                | "Backquote"
+        )
+    {
+        return key.to_string();
+    }
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() == 1 {
+        let c = chars[0];
+        if c.is_ascii_alphabetic() {
+            return format!("Key{}", c.to_ascii_uppercase());
+        }
+        if c.is_ascii_digit() {
+            return format!("Digit{c}");
+        }
+    }
+    // Unknown — let the plugin parser surface the error.
+    key.to_string()
+}
+
+#[tauri::command]
+pub async fn app_get_summon_shortcut(app: AppHandle) -> AppResult<String> {
+    Ok(read_summon_shortcut_string(&app).unwrap_or_else(|| DEFAULT_SUMMON_SHORTCUT.to_string()))
+}
+
+/// Update + persist the global summon hotkey.
+///
+/// `shortcut = Some("")` disables the hotkey (writes empty string,
+/// unregisters all). `None` is treated the same as `Some("")` for
+/// callers that prefer that ergonomic. Persistence happens before
+/// registration so a parse error in a fresh value still gets stored —
+/// the user can correct it in the Settings UI without losing what they
+/// typed. Returns the persisted string so the caller can reflect it.
+#[tauri::command]
+pub async fn app_set_summon_shortcut(
+    app: AppHandle,
+    shortcut: Option<String>,
+) -> AppResult<String> {
+    let value = shortcut.unwrap_or_default();
+    // Persist into config.toml under [daemon].summon_shortcut.
+    let path = user_config_path(&app)?;
+    let mut doc = load_document(&app)?;
+    {
+        let table = doc.as_table_mut();
+        let entry = table.entry("daemon").or_insert(Item::Table(Table::new()));
+        if !entry.is_table() {
+            *entry = Item::Table(Table::new());
+        }
+        let sub = entry
+            .as_table_mut()
+            .expect("just-inserted table should be a table");
+        sub.insert("summon_shortcut", toml_edit::value(value.clone()));
+    }
+    write_document(&path, &doc)?;
+
+    // Re-register: clear any prior binding, then register the new one
+    // (unless the caller asked to disable it).
+    let manager = app.global_shortcut();
+    let _ = manager.unregister_all();
+    if !value.is_empty() {
+        let parsed = parse_summon_shortcut(&value)
+            .map_err(|e| AppError::InvalidArg(format!("invalid shortcut '{value}': {e}")))?;
+        manager
+            .register(parsed)
+            .map_err(|e| AppError::Other(format!("failed to register shortcut: {e}")))?;
+    }
+    Ok(value)
+}
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -408,5 +581,35 @@ providers = ["steam", "xbox"]
                 .map(|a| a.len()),
             Some(2)
         );
+    }
+
+    #[test]
+    fn normalise_letter_keys_to_keyboard_code() {
+        assert_eq!(normalise_shortcut("Ctrl+Shift+Alt+P"), "Ctrl+Shift+Alt+KeyP");
+        assert_eq!(normalise_shortcut("CommandOrControl+K"), "CommandOrControl+KeyK");
+    }
+
+    #[test]
+    fn normalise_digits_to_digit_code() {
+        assert_eq!(normalise_shortcut("Ctrl+5"), "Ctrl+Digit5");
+    }
+
+    #[test]
+    fn normalise_passes_through_full_codes() {
+        // Already in W3C code form — leave alone.
+        assert_eq!(
+            normalise_shortcut("Ctrl+Shift+KeyP"),
+            "Ctrl+Shift+KeyP"
+        );
+        assert_eq!(normalise_shortcut("Alt+Space"), "Alt+Space");
+        assert_eq!(normalise_shortcut("Ctrl+F12"), "Ctrl+F12");
+    }
+
+    #[test]
+    fn parse_default_summon_shortcut_succeeds() {
+        // The compiled-in default must always parse — guard against typos
+        // creeping into DEFAULT_SUMMON_SHORTCUT.
+        parse_summon_shortcut(DEFAULT_SUMMON_SHORTCUT)
+            .expect("default summon shortcut should parse");
     }
 }

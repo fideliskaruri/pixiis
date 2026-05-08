@@ -15,7 +15,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { scanLibrary, voiceStart } from '../api/bridge';
+import {
+  getSummonShortcut,
+  scanLibrary,
+  setSummonShortcut,
+  voiceStart,
+} from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
@@ -828,7 +833,266 @@ function ControllerSection({ state, update }: SectionProps) {
           ))}
         </select>
       </Field>
+
+      <Field
+        label="Global summon hotkey"
+        hint="Press from anywhere — even mid-game — to pull Pixiis to the front."
+      >
+        <SummonShortcutField />
+      </Field>
     </>
+  );
+}
+
+// ── Section: Controller / Summon shortcut ────────────────────────────
+//
+// Standalone from the page-level Apply: editing the hotkey writes
+// `daemon.summon_shortcut` and re-registers the OS-level binding via a
+// dedicated command, so changes take effect the moment the user
+// confirms — no second click required.
+
+const DEFAULT_SUMMON_SHORTCUT = 'Ctrl+Shift+Alt+P';
+const MOD_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta', 'OS']);
+
+interface CapturedShortcut {
+  ctrl: boolean;
+  shift: boolean;
+  alt: boolean;
+  meta: boolean;
+  key: string; // user-facing terminal — e.g. "P", "F12", "Space"
+}
+
+/**
+ * Render the captured key combo as a human-readable string. We keep
+ * the order Ctrl → Shift → Alt → Meta + key so the UI doesn't shift
+ * mid-capture as the user adds modifiers in any order.
+ */
+function shortcutToString(c: CapturedShortcut): string {
+  const parts: string[] = [];
+  if (c.ctrl) parts.push('Ctrl');
+  if (c.shift) parts.push('Shift');
+  if (c.alt) parts.push('Alt');
+  if (c.meta) parts.push('Meta');
+  if (c.key !== '') parts.push(c.key);
+  return parts.join('+');
+}
+
+/**
+ * Map a `KeyboardEvent` to the user-facing terminal key.
+ * Letters: uppercase. Digits: '0'..'9'. Function keys + named keys
+ * pass through as-is. Modifier-only events return an empty string so
+ * the caller knows the chord isn't complete.
+ */
+function pickTerminalKey(e: KeyboardEvent): string {
+  if (MOD_KEYS.has(e.key)) return '';
+  // Letters: e.code is "KeyA".."KeyZ" — strip prefix, uppercase. We
+  // intentionally use `code` not `key` so Shift+A doesn't render as
+  // just "A" with no shift, and so layouts that swap A/Q don't lie
+  // about the physical key.
+  if (e.code.startsWith('Key')) return e.code.slice(3);
+  if (e.code.startsWith('Digit')) return e.code.slice(5);
+  if (/^F\d{1,2}$/.test(e.code)) return e.code;
+  // Named non-letter keys we accept verbatim (matches the Rust
+  // normaliser's allowlist).
+  const named = new Set([
+    'Space',
+    'Enter',
+    'Escape',
+    'Tab',
+    'Backspace',
+    'Delete',
+    'Insert',
+    'Home',
+    'End',
+    'PageUp',
+    'PageDown',
+    'ArrowUp',
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+  ]);
+  if (named.has(e.code)) return e.code;
+  return '';
+}
+
+function SummonShortcutField() {
+  const [value, setValue] = useState<string>('');
+  const [loaded, setLoaded] = useState(false);
+  const [capturing, setCapturing] = useState(false);
+  const [draft, setDraft] = useState<CapturedShortcut | null>(null);
+  const [saveError, setSaveError] = useState<string>('');
+  const { toast } = useToast();
+
+  // Load the persisted value on mount.
+  useEffect(() => {
+    let cancelled = false;
+    void getSummonShortcut().then(
+      (s) => {
+        if (cancelled) return;
+        setValue(s);
+        setLoaded(true);
+      },
+      () => {
+        if (cancelled) return;
+        setValue(DEFAULT_SUMMON_SHORTCUT);
+        setLoaded(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const persist = useCallback(
+    async (next: string) => {
+      setSaveError('');
+      try {
+        const saved = await setSummonShortcut(next);
+        setValue(saved);
+        setDraft(null);
+        toast(saved === '' ? 'Summon hotkey disabled' : `Summon hotkey: ${saved}`, 'success');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setSaveError(msg);
+        toast(`Couldn’t set hotkey: ${msg}`, 'error');
+      }
+    },
+    [toast],
+  );
+
+  // Capture-mode key listener. Esc cancels; a non-modifier key plus
+  // any modifier(s) commits.
+  useEffect(() => {
+    if (!capturing) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        setCapturing(false);
+        setDraft(null);
+        return;
+      }
+      const next: CapturedShortcut = {
+        ctrl: e.ctrlKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        meta: e.metaKey,
+        key: pickTerminalKey(e),
+      };
+      setDraft(next);
+      // Commit only when we have a non-modifier terminal key. A bare
+      // letter with no modifiers is allowed but discouraged — we still
+      // commit it so the user gets visible feedback; they can rebind
+      // immediately if they wanted modifiers.
+      if (next.key !== '') {
+        const str = shortcutToString(next);
+        setCapturing(false);
+        void persist(str);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [capturing, persist]);
+
+  const startCapture = useCallback(() => {
+    setSaveError('');
+    setDraft(null);
+    setCapturing(true);
+  }, []);
+
+  const cancelCapture = useCallback(() => {
+    setCapturing(false);
+    setDraft(null);
+  }, []);
+
+  const onDisable = useCallback(() => {
+    void persist('');
+  }, [persist]);
+
+  const onResetDefault = useCallback(() => {
+    void persist(DEFAULT_SUMMON_SHORTCUT);
+  }, [persist]);
+
+  const display = capturing
+    ? draft !== null
+      ? shortcutToString(draft)
+      : 'Press a key combination…'
+    : value === ''
+      ? 'Disabled'
+      : value;
+
+  // Render the shortcut as styled key-cap chips. Splitting on '+' is
+  // safe because the persisted format never includes a '+' inside a
+  // single key name (they're always Code-shaped names like "F12").
+  const chips = !capturing && value !== '' ? value.split('+') : [];
+
+  return (
+    <div className="settings__hotkey">
+      <div className="settings__hotkey-display" aria-live="polite">
+        {capturing ? (
+          <span className="settings__hotkey-prompt">{display}</span>
+        ) : value === '' ? (
+          <span className="settings__hotkey-disabled">Disabled</span>
+        ) : (
+          chips.map((part, i) => (
+            <kbd key={`${part}-${i}`} className="settings__kbd">
+              {part}
+            </kbd>
+          )).reduce<React.ReactNode[]>((acc, node, i) => {
+            if (i > 0) acc.push(<span key={`sep-${i}`} className="settings__hotkey-sep">+</span>);
+            acc.push(node);
+            return acc;
+          }, [])
+        )}
+      </div>
+      <div className="settings__hotkey-actions">
+        {!capturing ? (
+          <button
+            type="button"
+            className="settings__btn"
+            onClick={startCapture}
+            disabled={!loaded}
+            data-focusable
+          >
+            Change…
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="settings__btn"
+            onClick={cancelCapture}
+            data-focusable
+          >
+            Cancel (Esc)
+          </button>
+        )}
+        <button
+          type="button"
+          className="settings__link-btn"
+          onClick={onDisable}
+          disabled={!loaded || value === '' || capturing}
+          data-focusable
+        >
+          Disable
+        </button>
+        <button
+          type="button"
+          className="settings__link-btn"
+          onClick={onResetDefault}
+          disabled={!loaded || value === DEFAULT_SUMMON_SHORTCUT || capturing}
+          data-focusable
+        >
+          Reset to default
+        </button>
+      </div>
+      {saveError !== '' && (
+        <p className="settings__notice settings__notice--warn" role="alert">
+          {saveError}
+        </p>
+      )}
+    </div>
   );
 }
 

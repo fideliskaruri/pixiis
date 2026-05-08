@@ -188,6 +188,25 @@ export function setOnboarded(value: boolean): Promise<void> {
   return invoke('app_set_onboarded', { value });
 }
 
+// ── Global summon hotkey ─────────────────────────────────────────────
+
+/**
+ * Read the currently configured global summon hotkey
+ * (default: `Ctrl+Shift+Alt+P`). Empty string means "disabled".
+ */
+export function getSummonShortcut(): Promise<string> {
+  return invoke<string>('app_get_summon_shortcut');
+}
+
+/**
+ * Persist + re-register the global summon hotkey. Pass an empty string
+ * to disable. Returns the persisted value (round-tripped from Rust so
+ * callers can reflect "what we actually saved").
+ */
+export function setSummonShortcut(shortcut: string): Promise<string> {
+  return invoke<string>('app_set_summon_shortcut', { shortcut });
+}
+
 // ── Image proxy ──────────────────────────────────────────────────────
 
 /**

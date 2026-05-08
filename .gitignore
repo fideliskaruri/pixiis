@@ -62,3 +62,9 @@ node_modules/
 *.vsidx
 *.suo
 *.wsuo
+
+# Bundle: Whisper STT model (~57 MB) is committed so the installer ships
+# voice-ready. Silero VAD ONNX is feature-gated and not bundled by default;
+# the negation is kept for the day someone enables silero-vad in releases.
+!resources/models/whisper/*.bin
+!resources/models/silero/*.onnx

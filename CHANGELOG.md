@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] — Unreleased
+
+### Changed
+
+- Bundle `ggml-base.en-q5_1.bin` (~57 MB) into the installer so voice
+  search works on first launch without a manual model download. The
+  Wave 2 brief targeted `q5_0` but that quantisation is no longer
+  mirrored on Hugging Face for `base.en`; `q5_1` is the closest
+  available variant of the same checkpoint.
+- Voice model resolution now consults Tauri's `app.path().resource_dir()`
+  in addition to the heuristic exe-relative search, so the bundled
+  Whisper file is found reliably across NSIS install layouts.
+
 ## [0.2.0] — 2026-05-07
 
 ### Changed

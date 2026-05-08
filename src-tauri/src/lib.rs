@@ -88,15 +88,23 @@ pub fn run() {
             app.manage(Arc::new(library));
 
             // Voice STT subsystem (Pane 1 / Wave 2). Loads the bundled
-            // Whisper model from `resources/models/whisper/ggml-base.en-q5_0.bin`,
+            // Whisper model from `resources/models/whisper/ggml-base.en-q5_1.bin`,
             // copies it into `%APPDATA%/pixiis/models/whisper/` on first
             // run, and brings up the Silero VAD when the `silero-vad`
             // feature is on (otherwise EnergyVad fallback). If the model
             // can't be found we still register the commands but they all
             // return a clean error instead of panicking the app.
-            let voice_slot = match voice::model::ensure_default_whisper_model() {
+            // Tauri exposes the bundle's resource directory through
+            // `app.path().resource_dir()`. We pass it into the model
+            // resolver so the lookup works regardless of how NSIS lays
+            // out the install (some Tauri 2 layouts flatten the tree).
+            let resource_dir = app.path().resource_dir().ok();
+            let voice_slot = match voice::model::ensure_default_whisper_model_with(
+                resource_dir.clone(),
+            ) {
                 Some(model_path) => {
-                    let silero_path = voice::model::ensure_silero_model();
+                    let silero_path =
+                        voice::model::ensure_silero_model_with(resource_dir);
                     match voice::VoiceService::new(
                         app.handle().clone(),
                         model_path,

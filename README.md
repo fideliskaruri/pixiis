@@ -130,7 +130,7 @@ Configuration lives in `%APPDATA%\pixiis\` on Windows:
 ├── library_overlay.json    favorites + playtime cache
 ├── images\                 RAWG cover-art LRU cache
 ├── models\
-│   ├── whisper\            ggml-base.en-q5_0.bin (first-run copy from bundle)
+│   ├── whisper\            ggml-base.en-q5_1.bin (first-run copy from bundle)
 │   └── silero\             silero_vad.onnx (when feature is enabled)
 └── .onboarded              one-shot first-run marker
 ```

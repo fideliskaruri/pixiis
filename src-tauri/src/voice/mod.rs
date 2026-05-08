@@ -10,7 +10,7 @@
 //!   command.
 //! - [`text_injection::inject`] — for the `voice_inject_text` command.
 //! - [`model::ensure_default_whisper_model`] — first-run copy of the
-//!   bundled `ggml-base.en-q5_0.bin` to the user's `%APPDATA%`.
+//!   bundled `ggml-base.en-q5_1.bin` to the user's `%APPDATA%`.
 
 pub mod audio_capture;
 pub mod model;

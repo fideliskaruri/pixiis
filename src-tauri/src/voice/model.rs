@@ -15,7 +15,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-pub const DEFAULT_WHISPER_FILENAME: &str = "ggml-base.en-q5_0.bin";
+pub const DEFAULT_WHISPER_FILENAME: &str = "ggml-base.en-q5_1.bin";
 pub const SILERO_FILENAME: &str = "silero_vad.onnx";
 
 /// Returns the user-data directory the voice subsystem writes models to.
@@ -31,13 +31,23 @@ pub fn user_models_dir() -> PathBuf {
 /// data dir on first run. Returns `None` if neither location has it (the
 /// installer is broken or someone removed the file by hand).
 pub fn ensure_default_whisper_model() -> Option<PathBuf> {
+    ensure_default_whisper_model_with(None)
+}
+
+/// Same as [`ensure_default_whisper_model`] but lets the caller supply
+/// Tauri's `app.path().resource_dir()` so we can resolve the bundled
+/// model on platforms / install layouts where the heuristic exe-relative
+/// search misses (e.g. Tauri 2's NSIS layout puts resources alongside
+/// the exe but installs into a versioned subdirectory).
+pub fn ensure_default_whisper_model_with(resource_dir: Option<PathBuf>) -> Option<PathBuf> {
     let user_dir = user_models_dir().join("whisper");
     let user_path = user_dir.join(DEFAULT_WHISPER_FILENAME);
     if user_path.exists() {
         return Some(user_path);
     }
 
-    if let Some(bundled) = find_bundled("whisper", DEFAULT_WHISPER_FILENAME) {
+    if let Some(bundled) = find_bundled("whisper", DEFAULT_WHISPER_FILENAME, resource_dir.as_ref())
+    {
         if let Err(e) = fs::create_dir_all(&user_dir) {
             eprintln!(
                 "[voice/model] could not create {}: {e}",
@@ -66,12 +76,17 @@ pub fn ensure_default_whisper_model() -> Option<PathBuf> {
 /// Locate the Silero VAD model. Same lookup pattern, optional return —
 /// callers fall back to [`crate::voice::vad::EnergyVad`].
 pub fn ensure_silero_model() -> Option<PathBuf> {
+    ensure_silero_model_with(None)
+}
+
+/// Resource-dir aware variant — see [`ensure_default_whisper_model_with`].
+pub fn ensure_silero_model_with(resource_dir: Option<PathBuf>) -> Option<PathBuf> {
     let user_dir = user_models_dir().join("silero");
     let user_path = user_dir.join(SILERO_FILENAME);
     if user_path.exists() {
         return Some(user_path);
     }
-    let bundled = find_bundled("silero", SILERO_FILENAME)?;
+    let bundled = find_bundled("silero", SILERO_FILENAME, resource_dir.as_ref())?;
     if fs::create_dir_all(&user_dir).is_ok() {
         let _ = fs::copy(&bundled, &user_path);
         if user_path.exists() {
@@ -82,10 +97,28 @@ pub fn ensure_silero_model() -> Option<PathBuf> {
 }
 
 /// Look for a model file in any of the standard "shipped next to the exe"
-/// or "in the dev source tree" locations.
-fn find_bundled(subdir: &str, filename: &str) -> Option<PathBuf> {
+/// or "in the dev source tree" locations. When `resource_dir` is provided
+/// (Tauri's `app.path().resource_dir()`), it's tried first — it's the
+/// authoritative bundle root on a real install.
+fn find_bundled(
+    subdir: &str,
+    filename: &str,
+    resource_dir: Option<&PathBuf>,
+) -> Option<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
 
+    // 1. Tauri's own resource_dir — most reliable on a real install.
+    if let Some(rd) = resource_dir {
+        // bundle.resources keeps the source tree's layout, so the file
+        // lands at `<resource_dir>/resources/models/<subdir>/<filename>`.
+        roots.push(rd.join("resources").join("models"));
+        // Some Tauri 2 NSIS layouts flatten one level — try that too.
+        roots.push(rd.join("models"));
+    }
+
+    // 2. Heuristic exe-relative paths for cases where the caller didn't
+    //    pass a resource dir (tests, describe_model_paths, …) or it
+    //    points somewhere unexpected.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             // NSIS / production layout.
@@ -97,7 +130,7 @@ fn find_bundled(subdir: &str, filename: &str) -> Option<PathBuf> {
         }
     }
 
-    // Dev / `cargo run` from src-tauri/.
+    // 3. Dev / `cargo run` from src-tauri/.
     roots.push(PathBuf::from("../resources/models"));
     roots.push(PathBuf::from("resources/models"));
 

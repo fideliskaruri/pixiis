@@ -39,34 +39,36 @@ Install once. Total ~5 GB.
 
 ## Model files
 
-Voice STT and (optionally) Silero VAD need model weights that are
-**not bundled with the installer** and **not committed to git**.
-They're not listed in `tauri.conf.json::bundle.resources` because (a)
-they'd add tens of MB to the installer and (b) Tauri's bundler errors
-on globs that match nothing, which would break the build for anyone
-who hadn't staged weights.
+| Model              | Bundled?                | Size   | Notes                                                                 |
+|--------------------|-------------------------|--------|-----------------------------------------------------------------------|
+| Whisper STT        | **Yes** (since v0.2.1)  | ~57 MB | `resources/models/whisper/ggml-base.en-q5_1.bin` is committed to git. |
+| Kokoro TTS         | No                      | —      | TTS removed from the build.                                           |
+| Silero VAD         | No                      | ~2 MB  | Feature-gated (`silero-vad`); not enabled by default.                 |
 
-The build succeeds without any model files. Voice commands return a
-clean `NotFound` error at runtime until the user drops the weights in.
-The runtime looks at `%APPDATA%\pixiis\models\<kind>\` first, so this
-is where users put downloaded models.
+The Whisper model ships with the installer, so voice search works on
+first launch with no manual download step. On first run the runtime
+copies it from `<install>\resources\models\whisper\` into
+`%APPDATA%\pixiis\models\whisper\` so subsequent launches load from a
+writable location.
+
+If the file ever goes missing or you want to replace it (e.g. with a
+larger checkpoint), drop a fresh copy at the same path and rebuild:
 
 ```powershell
-# Whisper STT (~31 MB, required for voice search)
-curl.exe -L -o "$env:APPDATA\pixiis\models\whisper\ggml-base.en-q5_0.bin" `
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_0.bin
-
-# Silero VAD (~2 MB, only needed when the silero-vad feature is on)
-curl.exe -L -o "$env:APPDATA\pixiis\models\silero\silero_vad.onnx" `
-  https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx
+curl.exe -L -o "resources\models\whisper\ggml-base.en-q5_1.bin" `
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin
 ```
 
-(Create the `whisper\` and `silero\` subdirectories first if PowerShell
-complains.)
+### Optional: Silero VAD
 
-To **bundle** the models into a release installer, drop them into the
-matching `resources/models/<kind>/` directory in the repo before
-building, then add globs back to `tauri.conf.json::bundle.resources`:
+Only relevant when building with `--features silero-vad` (off by
+default). Drop the ONNX file into `resources/models/silero/` and add a
+glob to `tauri.conf.json::bundle.resources`:
+
+```powershell
+curl.exe -L -o "resources\models\silero\silero_vad.onnx" `
+  https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx
+```
 
 ```jsonc
 "resources": [
@@ -76,8 +78,8 @@ building, then add globs back to `tauri.conf.json::bundle.resources`:
 ]
 ```
 
-On first launch the runtime copies bundled models into
-`%APPDATA%\pixiis\models\` so the installer files become read-only.
+(The energy-RMS fallback (`EnergyVad`) is always available and is the
+default when this feature is off, so most builds don't need this.)
 
 ## Build
 

@@ -51,7 +51,8 @@
       "signCommand": null
     },
     "resources": [
-      "../resources/default_config.toml"
+      "../resources/default_config.toml",
+      "../resources/models/whisper/*.bin"
     ]
   }
 }

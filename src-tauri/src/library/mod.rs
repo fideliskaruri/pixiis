@@ -218,10 +218,19 @@ impl LibraryService {
         s.entries = by_id;
         drop(s);
 
-        ScanReport {
+        let report = ScanReport {
             entries: self.list(),
             providers: reports,
+        };
+
+        // Tell the frontend to refetch the library. LibraryContext listens
+        // for this event so Home + Library auto-update after any scan, no
+        // matter who triggered it (Settings, Onboarding, FileManager).
+        if let Some(handle) = app {
+            let _ = handle.emit("library:scan:done", report.entries.len());
         }
+
+        report
     }
 
     /// Look up an entry by id (with overlay merged).

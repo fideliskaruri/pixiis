@@ -16,6 +16,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getLibrary, type AppEntry } from './bridge';
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
@@ -59,6 +60,19 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(() => {
     setReloadKey((n) => n + 1);
+  }, []);
+
+  // Auto-refresh whenever any scan completes, no matter who triggered it.
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    void listen('library:scan:done', () => {
+      setReloadKey((n) => n + 1);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const idIndex = useMemo(() => {

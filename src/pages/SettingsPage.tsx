@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { scanLibrary, voiceStart } from '../api/bridge';
+import { useLibrary } from '../api/LibraryContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
 import type { ControllerState } from '../api/types/ControllerState';
 import type { TranscriptionEvent } from '../api/types/TranscriptionEvent';
@@ -342,6 +343,7 @@ interface SectionProps {
 }
 
 function LibrarySection({ state, update }: SectionProps) {
+  const { refresh: libraryRefresh } = useLibrary();
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'done' | 'error'>('idle');
   const [scanError, setScanError] = useState<string>('');
   const [scanLine, setScanLine] = useState<string>('');
@@ -377,11 +379,15 @@ function LibrarySection({ state, update }: SectionProps) {
       setFoundCount(games.length);
       setScanLine(`Found ${games.length} ${games.length === 1 ? 'entry' : 'entries'}.`);
       setScanState('done');
+      // Belt-and-suspenders: LibraryContext also auto-refreshes on the
+      // backend's `library:scan:done` event, but call refresh() directly
+      // here so Home/Library update even if the event listener missed.
+      libraryRefresh();
     } catch (err: unknown) {
       setScanError(err instanceof Error ? err.message : String(err));
       setScanState('error');
     }
-  }, []);
+  }, [libraryRefresh]);
 
   return (
     <>

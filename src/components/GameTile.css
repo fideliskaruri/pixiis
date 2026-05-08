@@ -107,5 +107,20 @@
   color: var(--text-dim);
 }
 
+/* PLAYING badge — same shape as NOT INSTALLED but coral text + a soft
+   accent ring so it reads as the live state. The dot uses a font glyph
+   instead of a coloured circle so it doesn't fight with the editorial
+   typography on the rest of the tile. */
+.game-tile__playing {
+  position: absolute;
+  top: var(--s-sm);
+  left: var(--s-sm);
+  padding: var(--s-xs) var(--s-sm);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  letter-spacing: var(--tracking-label);
+}
+
 .game-tile--uninstalled .game-tile__img,
 .game-tile--uninstalled .game-tile__placeholder { opacity: 0.55; }

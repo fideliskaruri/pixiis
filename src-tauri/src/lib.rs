@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Emitter, Listener, Manager,
 };
 
 use crate::controller::mapping::MapperConfig;
@@ -80,12 +80,39 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| std::env::temp_dir().join("pixiis"));
-            let library = library::LibraryService::new(
+            let library = Arc::new(library::LibraryService::new(
                 Arc::new(library::EmptyConfig::default()),
                 app_data_dir,
                 Vec::new(),
-            );
-            app.manage(Arc::new(library));
+            ));
+            app.manage(library.clone());
+
+            // Running-game tracker — polls sysinfo every 5 s, resolves
+            // URL-style launches into actual game PIDs, accrues playtime
+            // when a process exits, and exposes library_running /
+            // library_stop. Shares the LibraryService's overlay so
+            // playtime persists through the same JSON file.
+            let tracker = Arc::new(library::process::ProcessTracker::new(
+                library.cache_path().to_path_buf(),
+                library.overlay_handle(),
+            ));
+            // Rehydrate against any pre-existing scan so a Pixiis restart
+            // while a game is running re-attaches to the live PID.
+            tracker.rehydrate(&library.list());
+            app.manage(tracker.clone());
+            library::process::spawn_watcher(app.handle().clone(), tracker.clone());
+
+            // Re-rehydrate after the next library scan so a fresh
+            // `library_scan` picks up running games we couldn't see at
+            // boot (the persisted list was empty / first launch). We
+            // intentionally don't unsubscribe — the listener lives for
+            // the lifetime of the app, same as the tracker itself.
+            let tracker_for_listener = tracker.clone();
+            let library_for_listener = library.clone();
+            let _entries_listener =
+                app.handle().listen("library:entries:changed", move |_| {
+                    tracker_for_listener.rehydrate(&library_for_listener.list());
+                });
 
             // Voice STT subsystem (Pane 1 / Wave 2). Loads the bundled
             // Whisper model from `resources/models/whisper/ggml-base.en-q5_1.bin`,
@@ -194,6 +221,8 @@ pub fn run() {
             commands::library::library_get_all,
             commands::library::library_scan,
             commands::library::library_launch,
+            commands::library::library_running,
+            commands::library::library_stop,
             commands::library::library_toggle_favorite,
             commands::library::library_search,
             commands::library::library_get_icon,

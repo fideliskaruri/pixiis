@@ -4,10 +4,11 @@ use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::{Map, Value};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
+use crate::library::process::{ProcessTracker, RunningGame};
 use crate::library::{LibraryService, ProviderReport};
 use crate::types::{AppEntry, Playtime};
 
@@ -51,10 +52,39 @@ pub async fn library_scan(
 
 #[tauri::command]
 pub async fn library_launch(
+    app: AppHandle,
     svc: State<'_, Arc<LibraryService>>,
+    tracker: State<'_, Arc<ProcessTracker>>,
     id: String,
 ) -> AppResult<()> {
-    svc.launch(&id)
+    let (entry, pid) = svc.launch_with_pid(&id)?;
+    tracker.track_launch(&entry, pid);
+    // Tell the UI immediately so the Now-Playing pill mounts even before
+    // the watcher's first tick — it'll flip from "launching" to
+    // "running" once a real PID resolves.
+    let _ = app.emit("library:running:changed", tracker.list());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn library_running(
+    tracker: State<'_, Arc<ProcessTracker>>,
+) -> AppResult<Vec<RunningGame>> {
+    Ok(tracker.list())
+}
+
+#[tauri::command]
+pub async fn library_stop(
+    app: AppHandle,
+    tracker: State<'_, Arc<ProcessTracker>>,
+    id: String,
+) -> AppResult<()> {
+    tracker.stop(&id)?;
+    // Don't wait on the watcher's poll cycle — emit immediately so the
+    // pill disappears as soon as the kill signal goes out. The watcher
+    // will reconcile playtime on its next tick.
+    let _ = app.emit("library:running:changed", tracker.list());
+    Ok(())
 }
 
 #[tauri::command]

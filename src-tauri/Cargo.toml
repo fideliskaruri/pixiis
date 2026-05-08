@@ -70,6 +70,13 @@ ndarray = { version = "0.16", optional = true }
 crossbeam-channel = "0.5"
 dirs = "5"
 
+# Cross-platform process enumeration for the running-game tracker.
+# We use it to resolve URL-based launches (Steam / Epic / Xbox) into the
+# actual game PID by walking the process tree and matching cmdline / cwd
+# against the entry's `exe_path` install dir, then to terminate the
+# tracked process when the user clicks STOP from inside the app.
+sysinfo = "0.31"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_UI_Input_XboxController",

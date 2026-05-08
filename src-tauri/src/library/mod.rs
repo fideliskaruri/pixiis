@@ -15,11 +15,16 @@ pub mod steam;
 pub mod xbox;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::panic::AssertUnwindSafe;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use parking_lot::RwLock;
+use serde::Serialize;
 use serde_json::{json, Map, Value};
+use tauri::{AppHandle, Emitter};
+use ts_rs::TS;
 
 use crate::error::{AppError, AppResult};
 use crate::types::{AppEntry, AppSource};
@@ -31,9 +36,40 @@ pub trait Provider: Send + Sync {
     fn scan(&self) -> Vec<AppEntry>;
 }
 
+/// Per-provider outcome from a single scan pass. Emitted as a
+/// `library:scan:progress` event and also returned in [`ScanReport`] so
+/// the frontend can render a final summary even when it missed events.
+#[derive(Serialize, TS, Clone, Debug)]
+#[ts(export, export_to = "../src/api/types/")]
+pub struct ProviderReport {
+    /// Provider key — matches `Provider::name()` (e.g. `"steam"`).
+    pub provider: String,
+    pub state: ProviderState,
+    pub count: usize,
+    pub error: Option<String>,
+    pub elapsed_ms: u64,
+}
+
+#[derive(Serialize, TS, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+#[ts(export, export_to = "../src/api/types/")]
+pub enum ProviderState {
+    Scanning,
+    Done,
+    Unavailable,
+    Error,
+}
+
+/// Aggregate result of [`LibraryService::scan_with_progress`].
+pub struct ScanReport {
+    pub entries: Vec<AppEntry>,
+    pub providers: Vec<ProviderReport>,
+}
+
 pub struct LibraryService {
     inner: RwLock<State>,
     cache_path: PathBuf,
+    log_path: PathBuf,
     providers: Vec<Box<dyn Provider>>,
 }
 
@@ -55,6 +91,7 @@ impl LibraryService {
         extra_folder_paths: Vec<PathBuf>,
     ) -> Self {
         let cache_path = cache_dir.join("library_overlay.json");
+        let log_path = cache_dir.join("scan_debug.log");
         let overlay = cache::load(&cache_path).unwrap_or_default();
         let providers = build_providers(config, extra_folder_paths);
         Self {
@@ -63,6 +100,7 @@ impl LibraryService {
                 overlay,
             }),
             cache_path,
+            log_path,
             providers,
         }
     }
@@ -80,24 +118,110 @@ impl LibraryService {
         out
     }
 
-    /// Run every available provider's scan, dedupe by id, replace state.
+    /// Backwards-compatible thin wrapper around [`Self::scan_with_progress`]
+    /// for callers (tests, future schedulers) that have no `AppHandle`.
     pub fn scan(&self) -> Vec<AppEntry> {
+        self.scan_with_progress(None).entries
+    }
+
+    /// Run every provider's scan in isolation, dedupe entries by id, replace
+    /// state, and return a per-provider report. Each provider is wrapped in
+    /// `catch_unwind` so a single misbehaving scanner can no longer collapse
+    /// the whole pass — the panic is recorded as `ProviderState::Error` with
+    /// the panic message and execution continues with the remaining
+    /// providers.
+    ///
+    /// When `app` is `Some`, three things happen for each provider:
+    /// 1. A `library:scan:progress` event with `state = "scanning"` fires
+    ///    before the call.
+    /// 2. A second event fires after the call with the terminal state
+    ///    (`done` / `unavailable` / `error`) and the entry count or error
+    ///    message.
+    /// 3. The same record is appended to `<app_data_dir>/scan_debug.log`
+    ///    (rotated at ~1 MB, keeping the most recent ~100 KB) so the user
+    ///    can paste it for triage.
+    pub fn scan_with_progress(&self, app: Option<&AppHandle>) -> ScanReport {
         let mut by_id: HashMap<String, AppEntry> = HashMap::new();
+        let mut reports: Vec<ProviderReport> = Vec::with_capacity(self.providers.len());
+
         for p in &self.providers {
+            let name = p.name().to_string();
+
             if !p.is_available() {
+                let r = ProviderReport {
+                    provider: name.clone(),
+                    state: ProviderState::Unavailable,
+                    count: 0,
+                    error: None,
+                    elapsed_ms: 0,
+                };
+                emit_progress(app, &r);
+                append_scan_log(&self.log_path, &r);
+                reports.push(r);
                 continue;
             }
-            for entry in p.scan() {
-                // First-write-wins so storefront entries take precedence
-                // over the catch-all folder scanner if the same exe shows up
-                // under both.
-                by_id.entry(entry.id.clone()).or_insert(entry);
-            }
+
+            // Tell the UI the provider is starting so it can show a spinner.
+            emit_progress(
+                app,
+                &ProviderReport {
+                    provider: name.clone(),
+                    state: ProviderState::Scanning,
+                    count: 0,
+                    error: None,
+                    elapsed_ms: 0,
+                },
+            );
+
+            let started = Instant::now();
+            // `Provider` only requires Send + Sync; AssertUnwindSafe lets us
+            // catch panics without imposing UnwindSafe on every provider impl.
+            let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| p.scan()));
+            let elapsed_ms = started.elapsed().as_millis() as u64;
+
+            let r = match outcome {
+                Ok(entries) => {
+                    let count = entries.len();
+                    for entry in entries {
+                        // First-write-wins so storefront entries take
+                        // precedence over the catch-all folder scanner if the
+                        // same exe shows up under both.
+                        by_id.entry(entry.id.clone()).or_insert(entry);
+                    }
+                    ProviderReport {
+                        provider: name,
+                        state: ProviderState::Done,
+                        count,
+                        error: None,
+                        elapsed_ms,
+                    }
+                }
+                Err(payload) => {
+                    let msg = panic_message(payload);
+                    eprintln!("[library] provider '{}' panicked: {msg}", p.name());
+                    ProviderReport {
+                        provider: name,
+                        state: ProviderState::Error,
+                        count: 0,
+                        error: Some(msg),
+                        elapsed_ms,
+                    }
+                }
+            };
+
+            emit_progress(app, &r);
+            append_scan_log(&self.log_path, &r);
+            reports.push(r);
         }
+
         let mut s = self.inner.write();
         s.entries = by_id;
         drop(s);
-        self.list()
+
+        ScanReport {
+            entries: self.list(),
+            providers: reports,
+        }
     }
 
     /// Look up an entry by id (with overlay merged).
@@ -306,4 +430,126 @@ impl AppSource {
             AppSource::Manual => "folder",
         }
     }
+}
+
+// ── Scan progress plumbing ───────────────────────────────────────────
+
+const SCAN_PROGRESS_EVENT: &str = "library:scan:progress";
+const SCAN_LOG_MAX_BYTES: u64 = 1024 * 1024;
+const SCAN_LOG_KEEP_BYTES: u64 = 100 * 1024;
+
+fn emit_progress(app: Option<&AppHandle>, report: &ProviderReport) {
+    if let Some(handle) = app {
+        let _ = handle.emit(SCAN_PROGRESS_EVENT, report);
+    }
+}
+
+/// Best-effort extraction of a human-readable message from a `catch_unwind`
+/// payload. Falls back to a placeholder when the payload isn't a string.
+fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&'static str>() {
+        return (*s).to_string();
+    }
+    if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    "panic with non-string payload".to_string()
+}
+
+/// Append one line per provider outcome to `scan_debug.log`. Keeps the file
+/// from growing unbounded by truncating to the most recent ~100 KB once it
+/// crosses ~1 MB. Failures are swallowed because logging is strictly
+/// best-effort — we never want logging issues to mask scan output.
+fn append_scan_log(path: &Path, report: &ProviderReport) {
+    let line = format_log_line(report);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    rotate_if_needed(path);
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        use std::io::Write;
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+fn format_log_line(r: &ProviderReport) -> String {
+    let state = match r.state {
+        ProviderState::Scanning => "scanning",
+        ProviderState::Done => "done",
+        ProviderState::Unavailable => "unavailable",
+        ProviderState::Error => "error",
+    };
+    let suffix = match &r.error {
+        Some(e) => format!("  {e}"),
+        None => String::new(),
+    };
+    format!(
+        "{ts}  {provider:<12} {state:<12} {count:>3} entries   ({elapsed:>4}ms){suffix}\n",
+        ts = iso_utc_now(),
+        provider = r.provider,
+        state = state,
+        count = r.count,
+        elapsed = r.elapsed_ms,
+    )
+}
+
+fn rotate_if_needed(path: &Path) {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return;
+    };
+    if meta.len() <= SCAN_LOG_MAX_BYTES {
+        return;
+    }
+    // Read the trailing window, truncate, write it back. This is the
+    // simplest rotation that avoids losing the most recent context — we
+    // don't need a rolling-file scheme for a single-user diag log.
+    let Ok(mut bytes) = std::fs::read(path) else {
+        return;
+    };
+    let keep = SCAN_LOG_KEEP_BYTES as usize;
+    if bytes.len() > keep {
+        let drop = bytes.len() - keep;
+        bytes.drain(..drop);
+        // Skip the partial first line so we don't leave a torn entry.
+        if let Some(nl) = bytes.iter().position(|&b| b == b'\n') {
+            bytes.drain(..=nl);
+        }
+    }
+    let _ = std::fs::write(path, bytes);
+}
+
+/// Format `SystemTime::now()` as `YYYY-MM-DDTHH:MM:SSZ` without pulling in
+/// `chrono`. Uses Howard Hinnant's days-from-civil algorithm.
+fn iso_utc_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = (secs / 86_400) as i64;
+    let tod = (secs % 86_400) as u32;
+    let hour = tod / 3600;
+    let min = (tod % 3600) / 60;
+    let sec = tod % 60;
+    let (y, m, d) = civil_from_days(days);
+    format!("{y:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}Z")
+}
+
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let z_floor = if z >= 0 { z } else { z - 146_096 };
+    let era = z_floor / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m_u64: u64 = if mp < 10 { mp + 3 } else { mp - 9 };
+    let m = m_u64 as u32;
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
 }

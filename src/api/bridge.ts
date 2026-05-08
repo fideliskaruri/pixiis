@@ -11,7 +11,11 @@
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import type { AppEntry as WireAppEntry } from './types/AppEntry';
 import type { AppSource } from './types/AppSource';
+import type { ProviderReport } from './types/ProviderReport';
 import type { RawgGameData } from './types/RawgGameData';
+
+export type { ProviderReport };
+export type { ProviderState } from './types/ProviderState';
 
 // Public, enriched shape used by every React component. `extends` the
 // generated wire type so any new field (or change to AppSource) becomes
@@ -66,8 +70,30 @@ export async function getLibrary(): Promise<AppEntry[]> {
   return enrichAll(await invoke<WireAppEntry[]>('library_get_all'));
 }
 
+interface ScanResultWire {
+  entries: WireAppEntry[];
+  providers: ProviderReport[];
+}
+
 export async function scanLibrary(): Promise<AppEntry[]> {
-  return enrichAll(await invoke<WireAppEntry[]>('library_scan'));
+  const result = await invoke<ScanResultWire>('library_scan');
+  // Dev-visibility: per-provider summary lands in the console even when
+  // the live `library:scan:progress` events were missed (e.g. Settings
+  // page kicked off the scan after navigating away from Onboarding).
+  // The same data lives in `%APPDATA%\pixiis\scan_debug.log`.
+  console.log('[scan]', result.providers);
+  return enrichAll(result.entries);
+}
+
+/// Variant returning the raw per-provider report alongside enriched
+/// entries — for surfaces that want to render storefront-by-storefront
+/// stats (e.g. a Settings panel "Found 43 from Steam, 0 from Xbox").
+export async function scanLibraryWithReport(): Promise<{
+  entries: AppEntry[];
+  providers: ProviderReport[];
+}> {
+  const result = await invoke<ScanResultWire>('library_scan');
+  return { entries: enrichAll(result.entries), providers: result.providers };
 }
 
 export function launchGame(id: string): Promise<void> {

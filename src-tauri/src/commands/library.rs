@@ -2,11 +2,13 @@
 
 use std::sync::Arc;
 
+use serde::Serialize;
 use serde_json::{Map, Value};
-use tauri::State;
+use tauri::{AppHandle, State};
+use ts_rs::TS;
 
-use crate::error::AppResult;
-use crate::library::LibraryService;
+use crate::error::{AppError, AppResult};
+use crate::library::{LibraryService, ProviderReport};
 use crate::types::{AppEntry, Playtime};
 
 #[tauri::command]
@@ -14,13 +16,37 @@ pub async fn library_get_all(svc: State<'_, Arc<LibraryService>>) -> AppResult<V
     Ok(svc.list())
 }
 
+/// Wire shape returned by `library_scan` — entries plus the per-provider
+/// report so the frontend can render what actually ran (and what failed)
+/// even when the live `library:scan:progress` event stream was missed.
+#[derive(Serialize, TS)]
+#[ts(export, export_to = "../src/api/types/")]
+pub struct ScanResult {
+    pub entries: Vec<AppEntry>,
+    pub providers: Vec<ProviderReport>,
+}
+
 #[tauri::command]
-pub async fn library_scan(svc: State<'_, Arc<LibraryService>>) -> AppResult<Vec<AppEntry>> {
+pub async fn library_scan(
+    app: AppHandle,
+    svc: State<'_, Arc<LibraryService>>,
+) -> AppResult<ScanResult> {
     let svc = svc.inner().clone();
+    let app_for_task = app.clone();
     // Scanning hits the disk; offload it from the async runtime thread.
-    Ok(tokio::task::spawn_blocking(move || svc.scan())
-        .await
-        .unwrap_or_default())
+    // scan_with_progress catches per-provider panics internally, so the
+    // only way spawn_blocking's JoinHandle fails is a defect in the
+    // scheduler itself — surface that as an explicit error rather than
+    // silently returning an empty list (the bug this command had before).
+    let report = tokio::task::spawn_blocking(move || {
+        svc.scan_with_progress(Some(&app_for_task))
+    })
+    .await
+    .map_err(|e| AppError::Other(format!("scan task failed: {e}")))?;
+    Ok(ScanResult {
+        entries: report.entries,
+        providers: report.providers,
+    })
 }
 
 #[tauri::command]

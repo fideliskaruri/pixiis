@@ -38,12 +38,24 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  // Latch — flips true after the first auto-scan attempt so we never
-  // re-trigger it on subsequent fetches (e.g. after the user filters
-  // the library down to zero rows). Outlives reloadKey on purpose.
-  const autoScanAttempted = useRef(false);
+  // Auto-scan is rate-limited rather than one-shot: a transient first
+  // failure (network, cold storefront cache) shouldn't permanently
+  // disable the silent first-launch scan. We allow up to MAX_AUTO_SCAN
+  // attempts, only counting an attempt when it actually fired (and
+  // counting on success too, so subsequent loads don't re-scan).
+  const autoScanCount = useRef(0);
+  const MAX_AUTO_SCAN = 3;
 
   useEffect(() => {
+    // First-launch auto-scan is owned by /onboarding's LibraryScanStep —
+    // the provider must not race it with a parallel scan, otherwise the
+    // backend serialises them and one report displaces the other. The
+    // provider still fetches the persisted list so the post-onboarding
+    // navigation lands on a populated Home.
+    const onOnboarding =
+      typeof window !== 'undefined' &&
+      window.location.pathname === '/onboarding';
+
     let cancelled = false;
     setStatus('loading');
     setError('');
@@ -51,17 +63,25 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       .then((entries) => {
         if (cancelled) return;
         setGames(entries);
-        // Auto-scan once on first launch when the persisted library is
-        // empty — otherwise Home stays blank until the user discovers
-        // the Settings → Scan button.
-        if (entries.length === 0 && !autoScanAttempted.current) {
-          autoScanAttempted.current = true;
+        // Auto-scan when the persisted library is empty — otherwise Home
+        // stays blank until the user discovers the Settings → Scan
+        // button. Skip while onboarding owns the scan flow.
+        if (
+          entries.length === 0 &&
+          !onOnboarding &&
+          autoScanCount.current < MAX_AUTO_SCAN
+        ) {
+          autoScanCount.current += 1;
           setStatus('loading');
           scanLibrary()
             .then((scanned) => {
               if (cancelled) return;
               setGames(scanned);
               setStatus('ready');
+              // Successful scan — pin the counter at the cap so we don't
+              // try again on later refresh()es that happen to land on an
+              // empty list (e.g. user uninstalled everything).
+              autoScanCount.current = MAX_AUTO_SCAN;
             })
             .catch((err: unknown) => {
               if (cancelled) return;

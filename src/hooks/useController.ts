@@ -40,7 +40,7 @@ export function useController(
   onButtonPress?: ButtonHandler,
   onDirection?: DirectionHandler,
 ) {
-  const prevState = useRef<Record<ControllerButton, boolean>>({} as any);
+  const prevState = useRef<Partial<Record<ControllerButton, boolean>>>({});
   const prevDir = useRef<Direction>(null);
   const animFrame = useRef<number>(0);
 

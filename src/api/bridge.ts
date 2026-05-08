@@ -13,6 +13,7 @@ import type { AppEntry as WireAppEntry } from './types/AppEntry';
 import type { AppSource } from './types/AppSource';
 import type { ProviderReport } from './types/ProviderReport';
 import type { RawgGameData } from './types/RawgGameData';
+import type { TranscriptionEvent } from './types/TranscriptionEvent';
 
 export type { ProviderReport };
 export type { ProviderState } from './types/ProviderState';
@@ -101,11 +102,9 @@ interface ScanResultWire {
 
 export async function scanLibrary(): Promise<AppEntry[]> {
   const result = await invoke<ScanResultWire>('library_scan');
-  // Dev-visibility: per-provider summary lands in the console even when
-  // the live `library:scan:progress` events were missed (e.g. Settings
-  // page kicked off the scan after navigating away from Onboarding).
-  // The same data lives in `%APPDATA%\pixiis\scan_debug.log`.
-  console.log('[scan]', result.providers);
+  // Per-provider report is persisted to `%APPDATA%\pixiis\scan_debug.log`
+  // by the backend; UI surfaces (SettingsPage, Onboarding) consume the
+  // same data via `scanLibraryWithReport` rather than the console.
   return enrichAll(result.entries);
 }
 
@@ -154,11 +153,16 @@ export function voiceStart(): Promise<void> {
   return invoke('voice_start');
 }
 
-export async function voiceStop(): Promise<{ text: string }> {
-  // Backend returns the transcribed text; wrap it so existing callers
-  // that destructure `{ text }` keep working.
-  const text = await invoke<string>('voice_stop');
-  return { text };
+export async function voiceStop(): Promise<TranscriptionEvent> {
+  // Backend returns the full TranscriptionEvent struct ({ text, is_final,
+  // timestamp }) — older versions returned a bare string. We unwrap a
+  // string just in case a stub build is wired in, but the typed shape is
+  // the source of truth. Callers that only need the text destructure it.
+  const result = await invoke<TranscriptionEvent | string>('voice_stop');
+  if (typeof result === 'string') {
+    return { text: result, is_final: true, timestamp: Date.now() / 1000 };
+  }
+  return result;
 }
 
 // ── Config ───────────────────────────────────────────────────────────

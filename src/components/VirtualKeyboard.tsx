@@ -172,6 +172,29 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
     aboveInput: false,
   });
 
+  // ── Close on input blur ────────────────────────────────────────────
+  // The keyboard's whole point is to drive the focused input; if focus
+  // moves elsewhere (user clicked another control, navigated away, the
+  // input was unmounted) the panel should retire. We delay one tick so
+  // a click on the keyboard itself — which momentarily blurs the input
+  // before WriteValue refocuses it — doesn't tear us down.
+  useEffect(() => {
+    const onBlur = (): void => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        if (active === target) return;
+        // If focus moved into the keyboard panel itself, keep the panel
+        // open — the click handlers refocus the target on their own.
+        if (panelRef.current !== null && panelRef.current.contains(active)) return;
+        onClose();
+      }, 0);
+    };
+    target.addEventListener('blur', onBlur);
+    return () => {
+      target.removeEventListener('blur', onBlur);
+    };
+  }, [target, onClose]);
+
   // ── Position the panel below (or above) the target input ──────────
   useEffect(() => {
     const compute = (): void => {

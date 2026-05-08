@@ -24,6 +24,7 @@ import {
   scanLibrary,
   type Config,
 } from '../api/bridge';
+import { useToast } from '../api/ToastContext';
 import './FileManagerPage.css';
 
 interface ManualEntry {
@@ -94,6 +95,7 @@ async function pathExists(path: string): Promise<boolean | null> {
 // ── Page ───────────────────────────────────────────────────────────────
 
 export function FileManagerPage() {
+  const { toast } = useToast();
   const [entries, setEntries] = useState<ManualEntry[]>([]);
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [loadError, setLoadError] = useState('');
@@ -231,9 +233,12 @@ export function FileManagerPage() {
         /* ignore — user can re-scan */
       }
       setEntries(next);
+      toast(isNewEntry ? `Added ${cleaned.name}` : `Updated ${cleaned.name}`, 'success');
       cancelForm();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(msg);
+      toast(`Save failed: ${msg}`, 'error');
     } finally {
       setSaving(false);
     }
@@ -254,14 +259,26 @@ export function FileManagerPage() {
         /* ignore — user can re-scan */
       }
       setEntries(next);
+      toast(`Removed ${target.name}`, 'success');
       if (selectedIndex === index) {
         cancelForm();
       } else if (selectedIndex !== null && selectedIndex > index) {
         setSelectedIndex(selectedIndex - 1);
       }
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(msg);
+      toast(`Delete failed: ${msg}`, 'error');
     }
+  };
+
+  // The Tauri dialog plugin returns `null` when the user dismisses the
+  // file/folder picker, so the caller naturally no-ops. We still wrap in
+  // try/catch in case a future plugin version surfaces cancellation as a
+  // thrown string — `isCancellation()` keeps quiet errors out of the UI.
+  const isCancellation = (err: unknown): boolean => {
+    const msg = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
+    return msg.includes('cancel') || msg.includes('dismiss');
   };
 
   const pickFile = async (
@@ -280,7 +297,10 @@ export function FileManagerPage() {
         updateField(key, result);
       }
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      if (isCancellation(err)) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(msg);
+      toast(`File picker failed: ${msg}`, 'error');
     }
   };
 
@@ -295,7 +315,10 @@ export function FileManagerPage() {
         updateField(key, result);
       }
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      if (isCancellation(err)) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      setFormError(msg);
+      toast(`File picker failed: ${msg}`, 'error');
     }
   };
 

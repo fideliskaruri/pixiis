@@ -155,12 +155,20 @@ export function HomePage() {
             <p className="home__empty-title">
               {search !== '' ? 'No matches' : 'No games yet'}
             </p>
-            {search === '' && (
+            {search === '' ? (
               <p className="home__empty-body">
                 Pixiis scans Steam and your common game folders on launch.
                 Click <em>Scan Library</em> from the tray, or add an extra
                 folder under Settings → Library.
               </p>
+            ) : (
+              <button
+                className="home__retry"
+                onClick={() => setSearch('')}
+                data-focusable
+              >
+                Clear search
+              </button>
             )}
           </div>
         ) : (

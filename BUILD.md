@@ -1,7 +1,7 @@
 # Building Pixiis
 
 End-to-end: from a clean Windows machine to a clickable
-**`Pixiis_0.1.0_x64-setup.exe`**.
+**`Pixiis_0.2.0_x64-setup.exe`**.
 
 ## Prereqs
 
@@ -24,38 +24,68 @@ Install once. Total ~5 GB.
 4. **CMake** — `winget install Kitware.CMake`
 5. **NSIS** — `winget install NSIS.NSIS` (Tauri shells out to it for
    the installer step)
+6. **LLVM / libclang** — `winget install LLVM.LLVM`. `whisper-rs-sys`'s
+   `bindgen` step needs `libclang.dll`. After install, restart the
+   shell *and* set the env var explicitly because bindgen sometimes
+   misses it even when it's on PATH:
+   ```powershell
+   [System.Environment]::SetEnvironmentVariable(
+     "LIBCLANG_PATH", "C:\Program Files\LLVM\bin", "User")
+   ```
+   If you already have VS 2026's *C++ Clang tools* component, point
+   `LIBCLANG_PATH` at
+   `C:\Program Files\Microsoft Visual Studio\2026\<Edition>\VC\Tools\Llvm\x64\bin`
+   instead.
 
-## Bundled model files (optional but recommended)
+## Model files
 
-Voice STT, TTS, and (optionally) Silero VAD ship with model weights
-that are **not committed to git** — they're too large. The build
-succeeds without them; voice / TTS just return a clean `NotFound`
-error at runtime until the files are dropped in. To bake them into
-the installer, fetch each before running `./build.sh`:
+Voice STT, TTS, and (optionally) Silero VAD need model weights that
+are **not bundled with the installer** and **not committed to git**.
+They're not listed in `tauri.conf.json::bundle.resources` because (a)
+they'd add 350+ MB to the installer and (b) Tauri's bundler errors
+on globs that match nothing, which would break the build for anyone
+who hadn't staged weights.
 
-```bash
-# Whisper STT (~31 MB, required for voice)
-curl -L -o resources/models/whisper/ggml-base.en-q5_0.bin \
+The build succeeds without any model files. Voice / TTS commands
+return a clean `NotFound` error at runtime until the user drops the
+weights in. The runtime looks at `%APPDATA%\pixiis\models\<kind>\`
+first, so this is where users put downloaded models.
+
+```powershell
+# Whisper STT (~31 MB, required for voice search)
+curl.exe -L -o "$env:APPDATA\pixiis\models\whisper\ggml-base.en-q5_0.bin" `
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_0.bin
 
 # Kokoro TTS (~325 MB + ~26 MB, required for voice_speak)
-curl -L -o resources/models/kokoro/kokoro-v1.0.onnx \
+curl.exe -L -o "$env:APPDATA\pixiis\models\kokoro\kokoro-v1.0.onnx" `
   https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-curl -L -o resources/models/kokoro/voices-v1.0.bin \
+curl.exe -L -o "$env:APPDATA\pixiis\models\kokoro\voices-v1.0.bin" `
   https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 
 # Silero VAD (~2 MB, only needed when the silero-vad feature is on)
-curl -L -o resources/models/silero/silero_vad.onnx \
+curl.exe -L -o "$env:APPDATA\pixiis\models\silero\silero_vad.onnx" `
   https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx
 ```
 
-Per-file detail and rationale lives in `resources/models/*/README.md`.
+(Create the `kokoro\`, `whisper\`, `silero\` subdirectories first if
+PowerShell complains.)
+
+To **bundle** the models into a release installer, drop them into the
+matching `resources/models/<kind>/` directory in the repo before
+building, then add globs back to `tauri.conf.json::bundle.resources`:
+
+```jsonc
+"resources": [
+  "../resources/default_config.toml",
+  "../resources/models/whisper/*.bin",
+  "../resources/models/kokoro/*.onnx",
+  "../resources/models/kokoro/*.bin",
+  "../resources/models/silero/*.onnx"
+]
+```
+
 On first launch the runtime copies bundled models into
 `%APPDATA%\pixiis\models\` so the installer files become read-only.
-Note that the Kokoro entries are not yet listed in
-`tauri.conf.json::bundle.resources` — TTS users currently drop those
-two files into `%APPDATA%\pixiis\models\kokoro\` by hand. See the
-"Out of scope" note in `agents/STATUS.md`'s `wave2-pane2-tts` entry.
 
 ## Build
 
@@ -87,7 +117,7 @@ incremental and finish in 30–60 s.
 The installer ends up at:
 
 ```
-src-tauri/target/release/bundle/nsis/Pixiis_0.1.0_x64-setup.exe
+src-tauri/target/release/bundle/nsis/Pixiis_0.2.0_x64-setup.exe
 ```
 
 Double-click to install. Pixiis lands in
@@ -132,6 +162,14 @@ machine running `voice_speak`.
   not a hang. That step alone takes 4–6 minutes on a cold cache.
 - **Type bindings out of sync** after editing `src-tauri/src/types.rs` —
   re-emit them with `cd src-tauri && cargo test --bins`.
+- **`Unable to find libclang`** — install LLVM (`winget install
+  LLVM.LLVM`), restart the shell, and ensure `LIBCLANG_PATH` is set
+  to the directory containing `libclang.dll` (typically
+  `C:\Program Files\LLVM\bin`). See prereq #6.
+- **`glob pattern ../resources/models/.../* path not found`** — Tauri
+  errors when a `bundle.resources` glob matches nothing. Either drop
+  model files into the matching `resources/models/<kind>/` directory
+  or remove the glob from `tauri.conf.json::bundle.resources`.
 
 ## Code signing (release builds)
 

@@ -360,8 +360,14 @@ impl ProcessTracker {
 
 /// Spawn the polling task. Fires `library:running:changed` whenever the
 /// live list mutates so the frontend can refresh without polling itself.
+///
+/// Uses `tauri::async_runtime::spawn` rather than `tokio::spawn` because
+/// Tauri's `setup` callback runs synchronously on the main thread before
+/// the async runtime is established for direct `tokio::spawn` use; we
+/// have to go through Tauri's runtime handle. `spawn_blocking` inside
+/// the task body is fine since by then we're on a tokio worker.
 pub fn spawn_watcher(app: AppHandle, tracker: Arc<ProcessTracker>) {
-    tokio::task::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let mut sys = System::new();
         let mut interval = tokio::time::interval(POLL_INTERVAL);
         loop {
@@ -369,7 +375,7 @@ pub fn spawn_watcher(app: AppHandle, tracker: Arc<ProcessTracker>) {
             // Off-load the sysinfo refresh + match loop to the blocking
             // pool — `process_iter` does syscalls that aren't async.
             let tracker_for_tick = tracker.clone();
-            let (sys_back, changed) = tokio::task::spawn_blocking(move || {
+            let (sys_back, changed) = tauri::async_runtime::spawn_blocking(move || {
                 let mut sys = sys;
                 let changed = tracker_for_tick.tick(&mut sys);
                 (sys, changed)

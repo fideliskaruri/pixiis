@@ -10,6 +10,7 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
 import { GameDetailPage } from './pages/GameDetailPage';
@@ -30,6 +31,20 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const [checkedOnboarded, setCheckedOnboarded] = useState(false);
+
+  // F11 toggles fullscreen anywhere in the app — standard Windows
+  // convention. Window-level keys don't depend on focus, so a single
+  // window listener handles every page.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'F11') return;
+      e.preventDefault();
+      const win = getCurrentWindow();
+      void win.isFullscreen().then((fs) => win.setFullscreen(!fs));
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // First-launch redirect: route to /onboarding when the marker is
   // absent. We only check once per app load; the onboarding page writes

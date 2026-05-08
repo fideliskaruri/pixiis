@@ -7,6 +7,7 @@
  * lives in `src-tauri/capabilities/default.json`.
  */
 
+import type { MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -48,8 +49,21 @@ export function NavBar() {
     void win.close();
   };
 
+  // Double-click on the NavBar (but not on a button or tab) toggles
+  // fullscreen — matches the PySide6 build's frameless-window convention.
+  // Maximize is a separate state and is NOT touched here.
+  const onDoubleClick = (e: MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a')) return;
+    void win.isFullscreen().then((fs) => win.setFullscreen(!fs));
+  };
+
   return (
-    <nav className="navbar" data-tauri-drag-region>
+    <nav
+      className="navbar"
+      data-tauri-drag-region
+      onDoubleClick={onDoubleClick}
+    >
       <div className="navbar__logo" data-tauri-drag-region="false">
         PIXIIS
       </div>

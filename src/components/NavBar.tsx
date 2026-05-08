@@ -11,6 +11,7 @@ import type { MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useWindowFullscreen } from '../hooks/useBigPicture';
 import './NavBar.css';
 
 const NAV_ITEMS = [
@@ -22,6 +23,9 @@ const NAV_ITEMS = [
 export function NavBar() {
   const win = getCurrentWindow();
   const [maximized, setMaximized] = useState(false);
+  // Fullscreen owns the screen — minimize/maximize/close lose all
+  // meaning and the drag region is moot. Hide the cluster entirely.
+  const fullscreen = useWindowFullscreen();
 
   useEffect(() => {
     let cancelled = false;
@@ -70,13 +74,17 @@ export function NavBar() {
 
       <div className="navbar__tabs" data-tauri-drag-region="false">
         {NAV_ITEMS.map((item) => (
+          // D-pad navigation is reserved for in-page content; page
+          // switching happens via the LB/RB bumpers. Mark these tabs
+          // with `data-no-spatial` so useSpatialNav skips them — they
+          // remain mouse-clickable and reachable via Tab.
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
               `navbar__tab ${isActive ? 'navbar__tab--active' : ''}`
             }
-            data-focusable
+            data-no-spatial
           >
             {item.label}
           </NavLink>
@@ -85,35 +93,37 @@ export function NavBar() {
 
       <div className="navbar__spacer" />
 
-      <div className="navbar__controls" data-tauri-drag-region="false">
-        <button
-          className="navbar__btn"
-          aria-label="Minimize"
-          title="Minimize"
-          onClick={onMinimize}
-          data-focusable
-        >
-          ─
-        </button>
-        <button
-          className="navbar__btn"
-          aria-label={maximized ? 'Restore' : 'Maximize'}
-          title={maximized ? 'Restore' : 'Maximize'}
-          onClick={onToggleMaximize}
-          data-focusable
-        >
-          {maximized ? '❐' : '□'}
-        </button>
-        <button
-          className="navbar__btn navbar__btn--close"
-          aria-label="Close"
-          title="Close"
-          onClick={onClose}
-          data-focusable
-        >
-          ✕
-        </button>
-      </div>
+      {!fullscreen && (
+        <div className="navbar__controls" data-tauri-drag-region="false">
+          <button
+            className="navbar__btn"
+            aria-label="Minimize"
+            title="Minimize"
+            onClick={onMinimize}
+            data-focusable
+          >
+            ─
+          </button>
+          <button
+            className="navbar__btn"
+            aria-label={maximized ? 'Restore' : 'Maximize'}
+            title={maximized ? 'Restore' : 'Maximize'}
+            onClick={onToggleMaximize}
+            data-focusable
+          >
+            {maximized ? '❐' : '□'}
+          </button>
+          <button
+            className="navbar__btn navbar__btn--close"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+            data-focusable
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

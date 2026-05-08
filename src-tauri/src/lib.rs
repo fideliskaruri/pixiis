@@ -72,7 +72,7 @@ pub fn run() {
                 .app_cache_dir()
                 .map(|p| p.join("images"))
                 .unwrap_or_else(|_| std::env::temp_dir().join("pixiis-images"));
-            let services = services::ServicesContainer::new(services_cfg, cache_dir.clone())?;
+            let services = services::ServicesContainer::new(services_cfg, cache_dir)?;
             app.manage(Arc::new(services));
 
             // Library service — scans Steam + Xbox/UWP + folders, persists favorites.
@@ -82,7 +82,7 @@ pub fn run() {
                 .unwrap_or_else(|_| std::env::temp_dir().join("pixiis"));
             let library = library::LibraryService::new(
                 Arc::new(library::EmptyConfig::default()),
-                app_data_dir.clone(),
+                app_data_dir,
                 Vec::new(),
             );
             app.manage(Arc::new(library));
@@ -232,12 +232,14 @@ fn load_default_macros() -> Option<toml::value::Table> {
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.join("resources/default_config.toml"))),
-        // Dev fallback: source-tree default config.
+        // Dev fallback: `cargo run` from src-tauri/ — file lives one up.
         Some(std::path::PathBuf::from(
             "../resources/default_config.toml",
         )),
+        // Dev fallback: `cargo run --manifest-path src-tauri/Cargo.toml` from
+        // the project root — file lives in CWD.
         Some(std::path::PathBuf::from(
-            "../resources/default_config.toml",
+            "resources/default_config.toml",
         )),
     ];
     for path in candidates.into_iter().flatten() {

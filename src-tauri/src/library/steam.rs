@@ -110,7 +110,11 @@ fn parse_library_folders(steam_path: &Path) -> Vec<PathBuf> {
             continue;
         }
         // line is: "path"  "C:\\Path\\..."
-        let mut parts = line.splitn(2, '"');
+        // splitn(3, '"') yields ["", "path", "  \"C:\\Path\\...\""].
+        // The previous splitn(2, '"') only produced two pieces, so the
+        // assignment to `rest` always ended up empty — which silently
+        // dropped every additional Steam library folder. (#wave3-audit)
+        let mut parts = line.splitn(3, '"');
         // skip the leading ""
         parts.next();
         // first " path"

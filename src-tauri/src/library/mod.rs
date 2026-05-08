@@ -306,7 +306,7 @@ fn build_providers(
     // dedup over the catch-all folder + start-menu scanners.
     let candidates: Vec<Box<dyn Provider>> = vec![
         Box::new(steam::SteamProvider::new(config.clone())),
-        Box::new(xbox::XboxProvider::new()),
+        Box::new(xbox::XboxProvider::new(config.clone())),
         Box::new(epic::EpicProvider::new()),
         Box::new(gog::GogProvider::new()),
         Box::new(ea::EaProvider::new()),

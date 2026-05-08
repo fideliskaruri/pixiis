@@ -41,6 +41,7 @@ interface SettingsState {
   // Library
   providers: Record<string, boolean>;
   scan_interval_minutes: number;
+  xbox_treat_all_as_games: boolean;
 
   // Voice
   voice_model: string;
@@ -74,6 +75,7 @@ const DEFAULTS: SettingsState = {
     folder: true,
   },
   scan_interval_minutes: 60,
+  xbox_treat_all_as_games: false,
   voice_model: 'large-v3',
   voice_device: 'auto',
   voice_mic_id: '',
@@ -146,6 +148,10 @@ function fromConfig(cfg: ConfigMap): SettingsState {
   return {
     providers,
     scan_interval_minutes: asNumber(readDotted(cfg, 'library.scan_interval_minutes'), DEFAULTS.scan_interval_minutes),
+    xbox_treat_all_as_games: asBool(
+      readDotted(cfg, 'library.xbox.treat_all_as_games'),
+      DEFAULTS.xbox_treat_all_as_games,
+    ),
     voice_model: asString(readDotted(cfg, 'voice.model'), DEFAULTS.voice_model),
     voice_device: ((): SettingsState['voice_device'] => {
       const v = asString(readDotted(cfg, 'voice.device'), DEFAULTS.voice_device);
@@ -173,6 +179,9 @@ function toPatch(s: SettingsState): ConfigMap {
     library: {
       providers,
       scan_interval_minutes: Math.round(s.scan_interval_minutes),
+      xbox: {
+        treat_all_as_games: s.xbox_treat_all_as_games,
+      },
     },
     voice: {
       model: s.voice_model,
@@ -459,6 +468,22 @@ function LibrarySection({ state, update }: SectionProps) {
             {state.scan_interval_minutes} min
           </span>
         </div>
+      </Field>
+
+      <Field
+        label="Show all Xbox apps as games"
+        hint="Treat all detected Xbox / UWP packages as games. Useful if some of your Game Pass titles are missing."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.xbox_treat_all_as_games}
+            onChange={(e) => update('xbox_treat_all_as_games', e.target.checked)}
+          />
+          <span>
+            {state.xbox_treat_all_as_games ? 'Enabled' : 'Disabled'}
+          </span>
+        </label>
       </Field>
 
       <Field label="Scan now" hint="Trigger an immediate scan across enabled providers.">

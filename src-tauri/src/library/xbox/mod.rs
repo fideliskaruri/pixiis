@@ -11,10 +11,11 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use serde_json::{Map, Value};
 
-use super::Provider;
+use super::{ConfigLookup, EmptyConfig, Provider};
 use crate::types::{AppEntry, AppSource};
 
 mod manifest;
@@ -25,6 +26,94 @@ mod winrt;
 
 #[cfg(target_os = "windows")]
 pub use winrt::WinRtEnumerator;
+
+/// File extensions the executable-presence heuristic accepts as "real"
+/// game binaries. Excludes installers / updater / launcher shims.
+const EXE_EXTENSIONS: &[&str] = &["exe"];
+
+/// Lower-cased file-name fragments that look like a launcher / updater /
+/// helper rather than the real game. If the only `.exe` we can find
+/// matches one of these, the executable-presence heuristic does NOT fire.
+const LAUNCHER_EXE_HINTS: &[&str] = &[
+    "gamelaunchhelper",
+    "launcher",
+    "launch",
+    "setup",
+    "install",
+    "update",
+    "updater",
+    "uninstall",
+    "vc_redist",
+    "vcredist",
+    "directx",
+    "dxsetup",
+    "crashreport",
+    "crashpad",
+    "easyanticheat",
+    "anticheat",
+    "redistributable",
+    "helper",
+];
+
+/// Lower-cased capability-name fragments that imply gaming. We match
+/// case-insensitively because the manifest casing varies (`xboxLive` vs
+/// `XboxLive` etc.) and we already lower-case capabilities at parse time.
+const GAMING_CAPABILITY_HINTS: &[&str] = &[
+    "xbox",
+    "gamebarservices",
+    "gameservices",
+    "gamemonitor",
+    "gameaccessory",
+    "gamechat",
+    "gamingdevice",
+    "broadcastservices",
+];
+
+/// Family / package-name prefixes published by known game studios. The
+/// list is conservative — we only add entries we've seen empirically
+/// publishing UWP titles. Match is case-insensitive on the prefix.
+const GAME_PUBLISHER_PREFIXES: &[&str] = &[
+    "Microsoft.Xbox",
+    "Microsoft.GamingApp",
+    "Microsoft.MinecraftUWP",
+    "Microsoft.Minecraft",
+    "Microsoft.MicrosoftSolitaireCollection",
+    "Microsoft.MicrosoftMahjong",
+    "Microsoft.MicrosoftSudoku",
+    "Microsoft.MicrosoftJackpot",
+    "Microsoft.MicrosoftTreasureHunt",
+    "Microsoft.MicrosoftBingo",
+    "Microsoft.MicrosoftUltimateWordGames",
+    "Microsoft.624F8B84B80",   // Forza Horizon 5
+    "Microsoft.GameApps",
+    "MojangStudios.",
+    "Mojang.",
+    "KingDigitalEntertainment.",
+    "EAInc.",
+    "ElectronicArts.",
+    "TakeTwoInteractive.",
+    "2K.",
+    "2KGames.",
+    "BethesdaSoftworks.",
+    "BethesdaGameStudios.",
+    "Ubisoft.",
+    "UbisoftEntertainment.",
+    "SquareEnix.",
+    "Sega.",
+    "SEGAofAmericaInc.",
+    "BandaiNamco.",
+    "BandaiNamcoEntertainment.",
+    "Capcom.",
+    "Activision.",
+    "ActivisionPublishingInc.",
+    "Blizzard.",
+    "BlizzardEntertainment.",
+    "RiotGames.",
+    "ZeniMaxOnline.",
+    "InnerSloth.",
+    "ObsidianEntertainment.",
+    "FromSoftware.",
+];
 
 /// Raw package shape produced by `PackageEnumerator`.
 ///
@@ -52,32 +141,54 @@ pub trait PackageEnumerator: Send + Sync {
 
 pub struct XboxProvider {
     enumerator: Box<dyn PackageEnumerator>,
+    config: Arc<dyn ConfigLookup>,
 }
 
 impl XboxProvider {
     /// Construct the provider with the platform-default enumerator
     /// (real `PackageManager` on Windows, an always-empty stub elsewhere).
-    pub fn new() -> Self {
+    pub fn new(config: Arc<dyn ConfigLookup>) -> Self {
         #[cfg(target_os = "windows")]
         {
-            Self { enumerator: Box::new(WinRtEnumerator::new()) }
+            Self {
+                enumerator: Box::new(WinRtEnumerator::new()),
+                config,
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
-            Self { enumerator: Box::new(NullEnumerator) }
+            Self {
+                enumerator: Box::new(NullEnumerator),
+                config,
+            }
         }
     }
 
-    /// Test/DI hook — pass a `PackageEnumerator` directly.
+    /// Test/DI hook — pass a `PackageEnumerator` directly. Uses the
+    /// no-op `EmptyConfig` so callers don't have to construct one.
     #[allow(dead_code)]
     pub fn with_enumerator(enumerator: Box<dyn PackageEnumerator>) -> Self {
-        Self { enumerator }
+        Self {
+            enumerator,
+            config: Arc::new(EmptyConfig),
+        }
+    }
+
+    /// Test/DI hook — like [`Self::with_enumerator`] but lets the test
+    /// pass a config lookup so it can exercise the
+    /// `library.xbox.treat_all_as_games` override path.
+    #[allow(dead_code)]
+    pub fn with_enumerator_and_config(
+        enumerator: Box<dyn PackageEnumerator>,
+        config: Arc<dyn ConfigLookup>,
+    ) -> Self {
+        Self { enumerator, config }
     }
 }
 
 impl Default for XboxProvider {
     fn default() -> Self {
-        Self::new()
+        Self::new(Arc::new(EmptyConfig))
     }
 }
 
@@ -91,7 +202,39 @@ impl Provider for XboxProvider {
     }
 
     fn scan(&self) -> Vec<AppEntry> {
-        scan_with(&*self.enumerator)
+        let opts = ScanOptions {
+            treat_all_as_games: parse_bool(
+                self.config.get_str("library.xbox.treat_all_as_games"),
+            ),
+        };
+        scan_with_options(&*self.enumerator, opts)
+    }
+}
+
+/// Scan-time switches sourced from `ConfigLookup`. Bundled into a
+/// single struct so the test entry points (`scan_with` / `scan_with_options`)
+/// don't grow new positional arguments every time we add a knob.
+#[derive(Default, Debug, Clone, Copy)]
+struct ScanOptions {
+    /// `library.xbox.treat_all_as_games` — when true, every package
+    /// that survived the skip-list / framework / display-name filters
+    /// is reported with `is_xbox_game = true`. Last-resort override
+    /// for users whose Game Pass titles still slip through the
+    /// layered heuristic below.
+    treat_all_as_games: bool,
+}
+
+/// Parse `"true"` / `"1"` / `"yes"` (case-insensitive) into `true`,
+/// everything else into `false`. The config service stores booleans
+/// as JSON natives, but the dotted-path `ConfigLookup` is `String`-shaped
+/// — we accept the common stringified forms so users can hand-edit.
+fn parse_bool(v: Option<String>) -> bool {
+    match v {
+        None => false,
+        Some(s) => matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes" | "on",
+        ),
     }
 }
 
@@ -109,10 +252,21 @@ impl PackageEnumerator for NullEnumerator {
     }
 }
 
+/// Test wrapper — runs the scan loop with default options. Production
+/// flow goes through [`Provider::scan`] / [`scan_with_options`] so the
+/// `library.xbox.treat_all_as_games` flag is honoured.
+#[cfg(test)]
+fn scan_with(enumerator: &dyn PackageEnumerator) -> Vec<AppEntry> {
+    scan_with_options(enumerator, ScanOptions::default())
+}
+
 /// Pure-Rust scan loop — no Windows API, no I/O beyond reading the
 /// manifest files referenced by `RawPackage::install_location`. This is
 /// the function the unit tests exercise.
-fn scan_with(enumerator: &dyn PackageEnumerator) -> Vec<AppEntry> {
+fn scan_with_options(
+    enumerator: &dyn PackageEnumerator,
+    opts: ScanOptions,
+) -> Vec<AppEntry> {
     let mut out: Vec<AppEntry> = Vec::new();
     // Dedup by display name — matches xbox.py's `seen` set so a package
     // with multiple <Application> entries (e.g. MSTeams) collapses to one
@@ -139,8 +293,8 @@ fn scan_with(enumerator: &dyn PackageEnumerator) -> Vec<AppEntry> {
         let Ok(manifest_xml) = std::fs::read_to_string(&manifest_path) else {
             continue;
         };
-        let apps = match manifest::parse_manifest(&manifest_xml) {
-            Ok(a) => a,
+        let (apps, summary) = match manifest::parse_manifest_full(&manifest_xml) {
+            Ok(parsed) => parsed,
             Err(_) => continue,
         };
         if apps.is_empty() {
@@ -148,14 +302,24 @@ fn scan_with(enumerator: &dyn PackageEnumerator) -> Vec<AppEntry> {
         }
 
         let game_config_path = pkg.install_location.join("MicrosoftGame.Config");
-        let is_game = game_config_path.is_file();
-        let game_config_exe = if is_game {
+        let game_config_exists = game_config_path.is_file();
+        let game_config_exe = if game_config_exists {
             std::fs::read_to_string(&game_config_path)
                 .ok()
                 .and_then(|t| manifest::parse_microsoft_game_config(&t))
         } else {
             None
         };
+
+        // Layered gaming heuristic — any one positive signal is enough.
+        // Order matters only for the cheapness of the check (filesystem
+        // scan is last because it's the most expensive). All four
+        // signals are documented in `agents/wave3-xbox-fix.md`.
+        let is_game = game_config_exists
+            || has_gaming_capability(&summary)
+            || matches_game_publisher(&pkg.package_name, &pkg.family_name)
+            || has_significant_exe(&pkg.install_location)
+            || opts.treat_all_as_games;
 
         for app in apps {
             // Resolve exe — Game Pass titles store `GameLaunchHelper.exe`
@@ -215,6 +379,63 @@ fn scan_with(enumerator: &dyn PackageEnumerator) -> Vec<AppEntry> {
     }
 
     out
+}
+
+/// True when the manifest declared at least one capability whose
+/// (already lower-cased) name contains a [`GAMING_CAPABILITY_HINTS`]
+/// fragment. Substring match is intentional — `xboxLive`,
+/// `xboxAccessoryManagement` and the dozen other Xbox-prefixed
+/// capabilities all collapse to the same `xbox` hit.
+fn has_gaming_capability(summary: &manifest::ManifestSummary) -> bool {
+    summary
+        .capabilities
+        .iter()
+        .any(|c| GAMING_CAPABILITY_HINTS.iter().any(|h| c.contains(h)))
+}
+
+/// True when the package or family name starts with one of the known
+/// game-publisher prefixes. Match is case-insensitive: package family
+/// names are technically case-sensitive but the publisher tokens we
+/// care about (`Microsoft.Xbox*`, `MojangStudios.*`, …) are stable.
+fn matches_game_publisher(package_name: &str, family_name: &str) -> bool {
+    let pn = package_name.to_ascii_lowercase();
+    let fn_ = family_name.to_ascii_lowercase();
+    GAME_PUBLISHER_PREFIXES.iter().any(|p| {
+        let lp = p.to_ascii_lowercase();
+        pn.starts_with(&lp) || fn_.starts_with(&lp)
+    })
+}
+
+/// Heuristic: does the install dir contain at least one `.exe` whose
+/// file-name doesn't look like a launcher / updater / installer? Real
+/// Xbox PC games ship a `*.exe` (or several); pure system / utility
+/// UWP apps tend to ship only AppX-side activations and no native exe,
+/// or only a launcher shim.
+///
+/// Walks at most ~64 entries one level deep to stay cheap on packages
+/// whose install dir holds thousands of asset files.
+fn has_significant_exe(install_dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(install_dir) else {
+        return false;
+    };
+    for entry in entries.flatten().take(64) {
+        let path = entry.path();
+        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        if !EXE_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)) {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let lower = stem.to_ascii_lowercase();
+        if LAUNCHER_EXE_HINTS.iter().any(|h| lower.contains(h)) {
+            continue;
+        }
+        return true;
+    }
+    false
 }
 
 /// Try the literal manifest-relative logo path, then the standard
@@ -324,6 +545,18 @@ mod tests {
             "Microsoft.WebpImageExtension",
             "InputApp",
             "Microsoft.LockApp",
+            // ── Wave 3: extended skip-list catches these UWP utilities
+            // before the loosened gaming heuristic mis-classifies them.
+            "Microsoft.MicrosoftEdge.Stable",
+            "Microsoft.Office.Desktop",
+            "Microsoft.OneDrive",
+            "Microsoft.WindowsTerminal",
+            "Microsoft.WindowsCalculator",
+            "Microsoft.MicrosoftStickyNotes",
+            "Microsoft.Photos",
+            "Microsoft.PowerToys",
+            "MSTeams",
+            "Microsoft.VisualStudio.Code",
         ] {
             assert!(
                 skip_list::is_skipped(name),
@@ -336,7 +569,9 @@ mod tests {
             "Microsoft.GamingApp",
             "78F8E0F2.ForzaHorizon5",
             "Mojang.Minecraft",
-            "Microsoft.PowerToys",
+            "BethesdaSoftworks.Starfield",
+            "KingDigitalEntertainment.CandyCrushSaga",
+            "EAInc.EAappinstaller",
         ] {
             assert!(
                 !skip_list::is_skipped(name),
@@ -384,20 +619,22 @@ mod tests {
     #[test]
     fn normal_package_emits_app_entry() {
         let tmp = TempDir::new().unwrap();
-        write_simple_manifest(tmp.path(), "App", "Calculator.exe", "Assets/Logo.png");
-        // Make the exe + logo real files so resolve_logo_path + exe_path
-        // return Some.
-        fs::write(tmp.path().join("Calculator.exe"), b"MZ").unwrap();
+        // Launcher-shaped exe name + non-publisher package family, so
+        // none of the layered gaming heuristics fire and the entry
+        // still lands with `is_xbox_game = false`. This is the
+        // canonical "UWP utility" shape — surfaces in the library list
+        // but not on the Home grid.
+        write_simple_manifest(tmp.path(), "App", "AppLauncher.exe", "Assets/Logo.png");
+        fs::write(tmp.path().join("AppLauncher.exe"), b"MZ").unwrap();
         fs::create_dir_all(tmp.path().join("Assets")).unwrap();
         fs::write(tmp.path().join("Assets/Logo.png"), b"\x89PNG").unwrap();
 
         let pkg = RawPackage {
-            // Anything starting with `Microsoft.Windows` is in the
-            // skip-list by design (matches xbox.py:81); use a real
-            // package name that lives outside it.
-            package_name: "Microsoft.PowerToys".into(),
-            family_name: "Microsoft.PowerToys_8wekyb3d8bbwe".into(),
-            display_name: "Calculator".into(),
+            // `Microsoft.Windows*` is in the skip-list; pick a name
+            // outside that prefix and outside our publisher list.
+            package_name: "ContosoUtility.AppX".into(),
+            family_name: "ContosoUtility.AppX_8wekyb3d8bbwe".into(),
+            display_name: "Contoso Utility".into(),
             install_location: tmp.path().to_path_buf(),
             is_framework: false,
         };
@@ -407,20 +644,21 @@ mod tests {
         });
         assert_eq!(entries.len(), 1);
         let e = &entries[0];
-        assert_eq!(e.name, "Calculator");
-        assert_eq!(e.id, "Microsoft.PowerToys_8wekyb3d8bbwe");
+        assert_eq!(e.name, "Contoso Utility");
+        assert_eq!(e.id, "ContosoUtility.AppX_8wekyb3d8bbwe");
         assert!(matches!(e.source, AppSource::Xbox));
         assert_eq!(
             e.launch_command,
-            "shell:appsFolder\\Microsoft.PowerToys_8wekyb3d8bbwe!App"
+            "shell:appsFolder\\ContosoUtility.AppX_8wekyb3d8bbwe!App"
         );
         assert_eq!(
             e.metadata.get("aumid").and_then(Value::as_str),
-            Some("Microsoft.PowerToys_8wekyb3d8bbwe!App"),
+            Some("ContosoUtility.AppX_8wekyb3d8bbwe!App"),
         );
         assert_eq!(
             e.metadata.get("is_xbox_game").and_then(Value::as_bool),
             Some(false),
+            "no MicrosoftGame.Config + no gaming capability + non-publisher name + only a launcher-shaped exe → not a game",
         );
         assert!(e.exe_path.is_some());
         assert!(e.icon_path.is_some());
@@ -462,10 +700,14 @@ mod tests {
     fn multi_application_package_dedupes_by_display_name() {
         let tmp = TempDir::new().unwrap();
         write_multi_app_manifest(tmp.path());
+        // Pre-Wave-3 this test used `MSTeams`, which now lives in the
+        // extended skip-list. Switch to a vendor name outside both the
+        // skip-list and the publisher list so the dedup behaviour is
+        // what's under test.
         let pkg = RawPackage {
-            package_name: "MSTeams".into(),
-            family_name: "MSTeams_8wekyb3d8bbwe".into(),
-            display_name: "Microsoft Teams".into(),
+            package_name: "Contoso.MultiApp".into(),
+            family_name: "Contoso.MultiApp_8wekyb3d8bbwe".into(),
+            display_name: "Contoso Multi App".into(),
             install_location: tmp.path().to_path_buf(),
             is_framework: false,
         };
@@ -478,7 +720,7 @@ mod tests {
         // First app wins: id="App".
         assert!(entries[0]
             .launch_command
-            .ends_with("MSTeams_8wekyb3d8bbwe!App"));
+            .ends_with("Contoso.MultiApp_8wekyb3d8bbwe!App"));
     }
 
     #[test]
@@ -544,5 +786,202 @@ mod tests {
             icon.ends_with("Tile.scale-200.png"),
             "expected scale variant fallback, got {icon:?}",
         );
+    }
+
+    // ── Layered gaming heuristic ─────────────────────────────────────
+
+    /// Gaming capability declared in the manifest flips `is_xbox_game`
+    /// to true even when there's no MicrosoftGame.Config — covers the
+    /// Game Pass titles the spike found ship one but not the other.
+    fn write_manifest_with_capability(dir: &Path, capability: &str) {
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+  <Applications>
+    <Application Id="App" Executable="GameLauncher.exe">
+      <uap:VisualElements Square150x150Logo="Logo.png" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="{capability}" />
+  </Capabilities>
+</Package>"#,
+        );
+        fs::write(dir.join("AppxManifest.xml"), xml).unwrap();
+    }
+
+    #[test]
+    fn xbox_capability_marks_package_as_game() {
+        let tmp = TempDir::new().unwrap();
+        write_manifest_with_capability(tmp.path(), "xboxAccessoryManagement");
+        // Launcher-shaped exe so has_significant_exe doesn't fire and
+        // we know the *capability* is what flipped the flag.
+        fs::write(tmp.path().join("GameLauncher.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            package_name: "ContosoStudios.SomeTitle".into(),
+            family_name: "ContosoStudios.SomeTitle_x".into(),
+            display_name: "Some Title".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+            "xboxAccessoryManagement capability is the gaming signal",
+        );
+    }
+
+    #[test]
+    fn known_publisher_prefix_marks_package_as_game() {
+        // Mojang.Minecraft has no MicrosoftGame.Config in the wild and
+        // doesn't always declare an Xbox capability; the publisher
+        // prefix is what saves it.
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "GameLauncher.exe", "Logo.png");
+        fs::write(tmp.path().join("GameLauncher.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            package_name: "Mojang.MinecraftDungeons".into(),
+            family_name: "Mojang.MinecraftDungeons_8wekyb3d8bbwe".into(),
+            display_name: "Minecraft Dungeons".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+        );
+    }
+
+    #[test]
+    fn significant_exe_marks_package_as_game() {
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "ContosoRPG.exe", "Logo.png");
+        fs::write(tmp.path().join("ContosoRPG.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            package_name: "Contoso.IndieGame".into(),
+            family_name: "Contoso.IndieGame_x".into(),
+            display_name: "Contoso RPG".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+            "non-launcher exe in install dir is enough on its own",
+        );
+    }
+
+    #[test]
+    fn launcher_only_install_dir_is_not_a_game() {
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "Updater.exe", "Logo.png");
+        fs::write(tmp.path().join("Updater.exe"), b"MZ").unwrap();
+        fs::write(tmp.path().join("Setup.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            package_name: "Contoso.WindowsTool".into(),
+            family_name: "Contoso.WindowsTool_x".into(),
+            display_name: "Contoso Tool".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(false),
+            "only launcher-shaped exes → no significant-exe signal",
+        );
+    }
+
+    /// `library.xbox.treat_all_as_games` flips every surviving package
+    /// (skip-list / framework / display-name filters still run) into
+    /// a game. Last-resort override.
+    #[test]
+    fn treat_all_as_games_override_flips_non_game_uwp() {
+        struct YesConfig;
+        impl ConfigLookup for YesConfig {
+            fn get_str(&self, key: &str) -> Option<String> {
+                if key == "library.xbox.treat_all_as_games" {
+                    Some("true".into())
+                } else {
+                    None
+                }
+            }
+        }
+
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "AppLauncher.exe", "Logo.png");
+        fs::write(tmp.path().join("AppLauncher.exe"), b"MZ").unwrap();
+
+        let pkg = RawPackage {
+            package_name: "Contoso.NotAGame".into(),
+            family_name: "Contoso.NotAGame_x".into(),
+            display_name: "Not A Game".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+
+        let provider = XboxProvider::with_enumerator_and_config(
+            Box::new(MockEnumerator {
+                packages: vec![pkg],
+                available: true,
+            }),
+            Arc::new(YesConfig),
+        );
+        let entries = provider.scan();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+            "override forces is_xbox_game=true regardless of heuristics",
+        );
+    }
+
+    #[test]
+    fn parse_bool_accepts_common_truthy_strings() {
+        assert!(parse_bool(Some("true".into())));
+        assert!(parse_bool(Some("TRUE".into())));
+        assert!(parse_bool(Some(" yes ".into())));
+        assert!(parse_bool(Some("1".into())));
+        assert!(parse_bool(Some("on".into())));
+        assert!(!parse_bool(None));
+        assert!(!parse_bool(Some("false".into())));
+        assert!(!parse_bool(Some("0".into())));
+        assert!(!parse_bool(Some("nope".into())));
     }
 }

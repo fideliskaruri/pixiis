@@ -19,6 +19,18 @@ pub struct ManifestApp {
     pub logo: Option<String>,
 }
 
+/// Subset of the manifest the gaming heuristic cares about. Returned
+/// alongside the per-`<Application>` rows so we don't re-walk the XML.
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct ManifestSummary {
+    /// Names of every `<Capability>` / `<rescap:Capability>` /
+    /// `<DeviceCapability>` declared in the manifest, lowercased.
+    /// We only inspect the local-name (the prefix is stripped) so the
+    /// caller can match against e.g. `gameservices` regardless of the
+    /// `uap`, `rescap`, `iot`, … namespace it appears in.
+    pub capabilities: Vec<String>,
+}
+
 #[derive(Debug)]
 pub enum ParseError {
     Xml(String),
@@ -41,11 +53,21 @@ fn local_name_str(bytes: &[u8]) -> &str {
 /// Walk the manifest and return one `ManifestApp` per `<Application>`
 /// element. Self-closing `<Application/>` is handled (rare but legal).
 pub fn parse_manifest(xml: &str) -> Result<Vec<ManifestApp>, ParseError> {
+    parse_manifest_full(xml).map(|(apps, _)| apps)
+}
+
+/// Like [`parse_manifest`] but also returns a [`ManifestSummary`] of
+/// the package-level signals (capabilities, …) the gaming heuristic
+/// in `mod.rs` consumes.
+pub fn parse_manifest_full(
+    xml: &str,
+) -> Result<(Vec<ManifestApp>, ManifestSummary), ParseError> {
     let mut reader = Reader::from_str(xml);
     reader.trim_text(true);
 
     let mut apps: Vec<ManifestApp> = Vec::new();
     let mut current: Option<ManifestApp> = None;
+    let mut summary = ManifestSummary::default();
     let mut buf = Vec::new();
 
     loop {
@@ -73,6 +95,13 @@ pub fn parse_manifest(xml: &str) -> Result<Vec<ManifestApp>, ParseError> {
                     && current.is_some()
                 {
                     capture_logo(&e.attributes().flatten().collect::<Vec<_>>(), &mut current);
+                } else if name == "Capability"
+                    || name == "DeviceCapability"
+                    || name == "CustomCapability"
+                {
+                    if let Some(c) = read_name_attr(e.attributes()) {
+                        summary.capabilities.push(c.to_lowercase());
+                    }
                 }
             }
             Ok(Event::Empty(e)) => {
@@ -99,6 +128,13 @@ pub fn parse_manifest(xml: &str) -> Result<Vec<ManifestApp>, ParseError> {
                     && current.is_some()
                 {
                     capture_logo(&e.attributes().flatten().collect::<Vec<_>>(), &mut current);
+                } else if name == "Capability"
+                    || name == "DeviceCapability"
+                    || name == "CustomCapability"
+                {
+                    if let Some(c) = read_name_attr(e.attributes()) {
+                        summary.capabilities.push(c.to_lowercase());
+                    }
                 }
             }
             Ok(Event::End(e)) => {
@@ -117,7 +153,7 @@ pub fn parse_manifest(xml: &str) -> Result<Vec<ManifestApp>, ParseError> {
         buf.clear();
     }
 
-    Ok(apps)
+    Ok((apps, summary))
 }
 
 fn capture_logo(
@@ -292,5 +328,37 @@ mod tests {
     fn microsoft_game_config_without_executable_list_returns_none() {
         let xml = r#"<?xml version="1.0"?><Game configVersion="1"/>"#;
         assert_eq!(parse_microsoft_game_config(xml), None);
+    }
+
+    #[test]
+    fn manifest_summary_collects_capabilities_across_namespaces() {
+        // Real-world Xbox / Game Pass manifests scatter gaming signals
+        // across the `uap`, `rescap`, and `iot` namespaces. The walker
+        // only inspects the local-name, so any of them lands in the
+        // capability list lower-cased.
+        let xml = r#"<?xml version="1.0"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+  <Applications>
+    <Application Id="App" Executable="Game.exe">
+      <uap:VisualElements Square150x150Logo="Logo.png" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="xboxAccessoryManagement" />
+    <DeviceCapability Name="microphone" />
+    <Capability Name="gameBarServices" />
+  </Capabilities>
+</Package>"#;
+        let (apps, summary) = parse_manifest_full(xml).unwrap();
+        assert_eq!(apps.len(), 1);
+        assert!(summary
+            .capabilities
+            .iter()
+            .any(|c| c == "xboxaccessorymanagement"));
+        assert!(summary.capabilities.iter().any(|c| c == "gamebarservices"));
+        assert!(summary.capabilities.iter().any(|c| c == "microphone"));
     }
 }

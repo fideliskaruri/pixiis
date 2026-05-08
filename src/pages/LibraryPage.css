@@ -1,0 +1,186 @@
+/* ═══════════════════════════════════════════════════════════════════
+   LibraryPage — Editorial table-of-contents.
+   Display-serif masthead, hairline rule, chip row, sort dropdown,
+   tile grid. No glass, single-accent (focus rings only), no springs.
+   Tokens-only — see styles/PALETTE.md for the canonical palette.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.library {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--s-xl) clamp(var(--s-lg), 6vw, var(--s-2xl)) var(--s-2xl);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Masthead ─────────────────────────────────────────────────────── */
+
+.library__masthead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-lg);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-md);
+}
+
+.library__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.library__subhead {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.library__rule { margin: var(--s-md) 0 var(--s-lg); }
+
+/* ── Toolbar (search + sort) ──────────────────────────────────────── */
+
+.library__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-md);
+}
+
+.library__toolbar .search-bar {
+  flex: 1 1 320px;
+  min-width: 240px;
+  max-width: 480px;
+}
+
+.library__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-sm);
+}
+.library__sort-label { color: var(--text-dim); }
+
+.library__sort-select {
+  /* Hand-styled <select>: square edges + rule border, accent only on
+     focus ring. Native chevron is suppressed — we draw our own with a
+     background SVG so it inherits --text-dim consistently. */
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--bg-elev);
+  color: var(--text);
+  border: 1px solid var(--rule);
+  padding: var(--s-xs) calc(var(--s-md) + 16px) var(--s-xs) var(--s-md);
+  height: 32px;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  cursor: pointer;
+  transition: border-color var(--t-base) var(--easing);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%238A8478' stroke-width='1.5'><path d='M1 1.5l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right var(--s-md) center;
+  background-size: 10px 7px;
+}
+.library__sort-select:hover         { border-color: var(--text-dim); }
+.library__sort-select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.library__sort-select option        { background: var(--bg-elev); color: var(--text); }
+
+/* ── Filter chips ─────────────────────────────────────────────────── */
+
+.library__chips {
+  display: flex;
+  align-items: center;
+  gap: var(--s-xs);
+  flex-wrap: wrap;
+  margin: 0 0 var(--s-lg);
+  padding-bottom: var(--s-md);
+  border-bottom: 1px solid var(--rule);
+}
+
+.library__chip {
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--text-dim);
+  padding: var(--s-xs) var(--s-md);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color var(--t-base) var(--easing),
+              border-color var(--t-base) var(--easing);
+}
+.library__chip:hover                 { color: var(--text); }
+.library__chip--active               { color: var(--text); border-color: var(--text-dim); }
+.library__chip:focus-visible         { outline: 2px solid var(--focus); outline-offset: 4px; }
+
+/* Vertical hairline between the kind chips and the source chips —
+   visually separates "what kind" from "from where" without adding a
+   wrapping element to the markup. */
+.library__chip-divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--rule);
+  margin: 0 var(--s-xs);
+}
+
+.library__count {
+  margin-left: auto;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  color: var(--text-dim);
+}
+
+/* ── Grid ─────────────────────────────────────────────────────────── */
+
+.library__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-lg) var(--s-md);
+}
+
+/* ── Empty / error state ──────────────────────────────────────────── */
+
+.library__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-md);
+  max-width: 540px;
+  padding: var(--s-2xl) 0;
+}
+.library__empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-headline);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.1;
+  color: var(--text);
+}
+.library__empty-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.library__retry {
+  margin-top: var(--s-md);
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--text-dim);
+  padding: var(--s-sm) var(--s-lg);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  cursor: pointer;
+  transition: border-color var(--t-base) var(--easing);
+}
+.library__retry:hover         { border-color: var(--text); }
+.library__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }

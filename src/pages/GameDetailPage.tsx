@@ -18,6 +18,7 @@ import {
   type RawgGameData,
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
+import { useToast } from '../api/ToastContext';
 import './GameDetailPage.css';
 
 type LaunchState = 'idle' | 'launching' | 'launched' | 'error';
@@ -39,6 +40,7 @@ export function GameDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { byId, status: libraryStatus, error: libraryError } = useLibrary();
+  const { toast } = useToast();
 
   const game = byId(id);
 
@@ -92,6 +94,7 @@ export function GameDetailPage() {
     try {
       await launchGame(game.id);
       setLaunchState('launched');
+      toast(`Launching ${game.name}`, 'success');
       if (launchedTimer.current !== null) {
         window.clearTimeout(launchedTimer.current);
       }
@@ -100,8 +103,10 @@ export function GameDetailPage() {
         launchedTimer.current = null;
       }, 1500);
     } catch (err: unknown) {
-      setLaunchError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setLaunchError(msg);
       setLaunchState('error');
+      toast(`Failed to launch: ${msg}`, 'error');
     }
   };
 

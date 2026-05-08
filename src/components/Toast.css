@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Toast — Editorial pill notification.
+   Bottom-center stack, thin pill on --bg-elev, accent only on error.
+   In/out animation comes from .toast-in / .toast-out in animations.css.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.toast-stack {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s-xl);
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--s-sm);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-sm);
+  max-width: 480px;
+  padding: var(--s-sm) var(--s-lg);
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    border-color var(--t-base) var(--easing),
+    color var(--t-base) var(--easing);
+}
+
+.toast:hover         { border-color: var(--text-mute); }
+.toast:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Variants — kind-specific surface tweaks. The single-accent rule
+   means only `error` gets a chromatic mark; success is signalled by
+   message content alone. */
+.toast--info    { /* default styling */ }
+.toast--success { border-color: rgba(237, 233, 221, 0.16); }
+.toast--error   { border-color: var(--accent); }
+
+.toast__mark {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.toast__msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

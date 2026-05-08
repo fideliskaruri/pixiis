@@ -19,6 +19,10 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { FileManagerPage } from './pages/FileManagerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LibraryProvider } from './api/LibraryContext';
+import { ToastProvider } from './api/ToastContext';
+import { QuickResume } from './components/QuickResume';
+import { VoiceOverlay } from './components/VoiceOverlay';
+import { VirtualKeyboardProvider } from './components/VirtualKeyboard';
 import { useSpatialNav } from './hooks/useSpatialNav';
 import { getOnboarded } from './api/bridge';
 
@@ -107,11 +111,22 @@ function AppContent() {
 }
 
 export default function App() {
+  // Mount order matters: ToastProvider sits outside everything else so
+  // any hook (including QuickResume's launch handler) can fire toasts;
+  // QuickResume needs Library + Toast + Router; VirtualKeyboardProvider
+  // wraps the routes so any focused input can request the keyboard.
   return (
     <BrowserRouter>
-      <LibraryProvider>
-        <AppContent />
-      </LibraryProvider>
+      <ToastProvider>
+        <LibraryProvider>
+          <VirtualKeyboardProvider>
+            <QuickResume>
+              <AppContent />
+              <VoiceOverlay />
+            </QuickResume>
+          </VirtualKeyboardProvider>
+        </LibraryProvider>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

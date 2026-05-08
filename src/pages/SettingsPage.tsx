@@ -17,6 +17,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { scanLibrary, voiceStart } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
+import { useToast } from '../api/ToastContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
 import type { ControllerState } from '../api/types/ControllerState';
 import type { TranscriptionEvent } from '../api/types/TranscriptionEvent';
@@ -203,6 +204,7 @@ export function SettingsPage() {
   const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [applyError, setApplyError] = useState<string>('');
   const savedTimer = useRef<number | null>(null);
+  const { toast } = useToast();
 
   // Load config once on mount.
   useEffect(() => {
@@ -246,23 +248,27 @@ export function SettingsPage() {
          * captured the user's intent. */
       }
       setApplyState('saved');
+      toast('Settings saved', 'success');
       if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
       savedTimer.current = window.setTimeout(() => {
         setApplyState('idle');
         savedTimer.current = null;
       }, 2000);
     } catch (err: unknown) {
-      setApplyError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setApplyError(msg);
       setApplyState('error');
+      toast(`Settings save failed: ${msg}`, 'error');
     }
-  }, [state]);
+  }, [state, toast]);
 
   const update = useCallback(<K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
     setState((s) => ({ ...s, [key]: value }));
   }, []);
 
-  const applyLabel =
-    applyState === 'saving' ? 'Saving…' : applyState === 'saved' ? 'Saved ✓' : 'Apply';
+  // "Saved" confirmation is surfaced by the global toast; the button
+  // label flips back to Apply as soon as the save resolves.
+  const applyLabel = applyState === 'saving' ? 'Saving…' : 'Apply';
 
   return (
     <div className="settings fade-in">

@@ -3,6 +3,7 @@
  */
 
 import { useState, useRef } from 'react';
+import { useVirtualKeyboard } from './VirtualKeyboard';
 import './SearchBar.css';
 
 interface Props {
@@ -22,11 +23,19 @@ export function SearchBar({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
+  const vkbd = useVirtualKeyboard();
 
   // The list itself is filtered downstream; the input just forwards each
   // keystroke. (A previous version queued a debounced no-op alongside.)
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     onChange(e.target.value);
+  };
+
+  const handleFocus = (): void => {
+    setFocused(true);
+    // Hand the input to the on-screen keyboard provider — it decides
+    // whether to actually open based on recent gamepad activity.
+    if (inputRef.current !== null) vkbd.onInputFocus(inputRef.current);
   };
 
   return (
@@ -43,7 +52,7 @@ export function SearchBar({
         type="text"
         value={value}
         onChange={handleChange}
-        onFocus={() => setFocused(true)}
+        onFocus={handleFocus}
         onBlur={() => setFocused(false)}
         placeholder={isMicActive ? 'Listening...' : placeholder}
         data-focusable

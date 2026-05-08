@@ -15,9 +15,25 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+use crate::commands::config::{
+    parse_summon_shortcut, read_summon_shortcut_string, DEFAULT_SUMMON_SHORTCUT,
+};
 use crate::controller::mapping::MapperConfig;
 use crate::controller::ControllerService;
+
+/// Bring the main window to the foreground from any code path
+/// (tray click, single-instance, global shortcut). Calls `show`,
+/// `unminimize`, and `set_focus` — Windows needs all three to reliably
+/// raise from the tray + focus mid-game.
+fn raise_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,13 +46,11 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(controller_service.clone())
-        // Single instance: focus the existing window if a second copy launches.
+        // Single instance: raise the existing window if a second copy launches.
+        // Important: show + unminimize + set_focus all three — show alone won't
+        // pull a minimised window forward over a running game.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
+            raise_main_window(app);
         }))
         // Autostart is scaffolded but disabled by default — toggled via app_set_autostart.
         .plugin(tauri_plugin_autostart::init(
@@ -46,6 +60,19 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        // Global summon hotkey: pressing it from anywhere — game, browser,
+        // desktop — raises Pixiis. Default is Ctrl+Shift+Alt+P; the actual
+        // shortcut comes from `daemon.summon_shortcut` and is registered in
+        // setup() below.
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        raise_main_window(app);
+                    }
+                })
+                .build(),
+        )
         .setup(move |app| {
             // Spawn the always-on controller poller. Reads gilrs at ~60Hz,
             // updates connection state, and fires macros only when the
@@ -163,13 +190,7 @@ pub fn run() {
             }
             let _tray = tray_builder
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.unminimize();
-                            let _ = w.set_focus();
-                        }
-                    }
+                    "open" => raise_main_window(app),
                     "scan" => {
                         // Frontend listens for this event and calls library_scan.
                         let _ = app.emit("tray://scan", ());
@@ -179,24 +200,46 @@ pub fn run() {
                     }
                     _ => {}
                 })
-                // Left-click the tray icon to raise the window — matches the
-                // Windows convention for minimised-to-tray launchers.
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
+                // Single-click + double-click both raise the window. Windows
+                // launchers often special-case double-click (Steam, Discord);
+                // single-click is friendlier and we keep both so muscle memory
+                // from either camp works.
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.unminimize();
-                            let _ = w.set_focus();
-                        }
                     }
+                    | TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    } => {
+                        raise_main_window(tray.app_handle());
+                    }
+                    _ => {}
                 })
                 .build(app)?;
+
+            // Register the configured global summon hotkey. Reads
+            // `daemon.summon_shortcut` from config.toml, falls back to the
+            // default. Logs and continues on failure — a bad shortcut must
+            // never block app boot.
+            let shortcut_str = read_summon_shortcut_string(app.handle())
+                .unwrap_or_else(|| DEFAULT_SUMMON_SHORTCUT.to_string());
+            if !shortcut_str.is_empty() {
+                match parse_summon_shortcut(&shortcut_str) {
+                    Ok(sc) => {
+                        if let Err(e) = app.global_shortcut().register(sc) {
+                            eprintln!(
+                                "[summon] failed to register {shortcut_str}: {e}"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[summon] invalid shortcut {shortcut_str}: {e}");
+                    }
+                }
+            }
 
             Ok(())
         })
@@ -236,6 +279,8 @@ pub fn run() {
             commands::config::app_set_autostart,
             commands::config::app_get_onboarded,
             commands::config::app_set_onboarded,
+            commands::config::app_set_summon_shortcut,
+            commands::config::app_get_summon_shortcut,
             // system power
             commands::system::system_sleep,
             commands::system::system_lock,

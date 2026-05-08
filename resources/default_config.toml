@@ -85,3 +85,8 @@ access_token = ""
 
 [daemon]
 autostart = false
+# Global summon hotkey — pressed from anywhere on Windows brings Pixiis
+# to the foreground (Steam Big Picture-style). Empty string disables.
+# Format: modifiers + key, '+'-separated. Letter keys are auto-mapped
+# to KeyboardEvent.code (e.g. P → KeyP).
+summon_shortcut = "Ctrl+Shift+Alt+P"

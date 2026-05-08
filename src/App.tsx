@@ -13,6 +13,7 @@ import {
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { NavBar } from './components/NavBar';
 import { HomePage } from './pages/HomePage';
+import { LibraryPage } from './pages/LibraryPage';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { FileManagerPage } from './pages/FileManagerPage';
@@ -93,7 +94,7 @@ function AppContent() {
         {checkedOnboarded && (
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/library" element={<Placeholder label="Library" />} />
+            <Route path="/library" element={<LibraryPage />} />
             <Route path="/game/:id" element={<GameDetailPage />} />
             <Route path="/files" element={<FileManagerPage />} />
             <Route path="/settings" element={<SettingsPage />} />
@@ -101,25 +102,6 @@ function AppContent() {
           </Routes>
         )}
       </main>
-    </div>
-  );
-}
-
-function Placeholder({ label }: { label: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'var(--text-mute)',
-        fontFamily: 'var(--font-body)',
-        fontSize: 'var(--t-title)',
-        fontWeight: 500,
-      }}
-    >
-      {label} — coming soon
     </div>
   );
 }

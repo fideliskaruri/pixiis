@@ -89,10 +89,19 @@ export function useSpatialNav() {
         // Activate the focused element
         active.click();
         break;
-      case 'b':
-        // Navigate back
+      case 'b': {
+        // Navigate back — but skip when a modal is open. QuickResume,
+        // VirtualKeyboard, and Lightbox each install their own B-button
+        // handler to dismiss themselves; if the global handler also
+        // fires, the user pops a route at the same time and lands two
+        // surfaces deep in one press.
+        const modalOpen = document.querySelector(
+          '[role="dialog"][aria-modal="true"], [aria-modal="true"]',
+        );
+        if (modalOpen !== null) return;
         window.history.back();
         break;
+      }
     }
   }, []);
 

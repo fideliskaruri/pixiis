@@ -36,12 +36,13 @@ export function OnboardingPage() {
   }, []);
 
   const finish = useCallback(
-    async (markComplete: boolean) => {
+    async () => {
       if (exiting) return;
       setExiting(true);
       try {
-        if (markComplete) await setOnboarded(true);
-        else await setOnboarded(true); // skip also marks the user as onboarded
+        // Skip and Done both mark the user as onboarded — Skip is just
+        // "don't show me this again", not "rewind state".
+        await setOnboarded(true);
       } catch {
         // Marker write failed — still navigate so the user isn't stuck;
         // they'll just see onboarding again on next launch.
@@ -56,7 +57,7 @@ export function OnboardingPage() {
       <button
         type="button"
         className="onboarding__skip"
-        onClick={() => void finish(false)}
+        onClick={() => void finish()}
         data-focusable
         aria-label="Skip setup"
       >
@@ -68,7 +69,7 @@ export function OnboardingPage() {
         {step === 1 && <LibraryScanStep onNext={advance} />}
         {step === 2 && <VoiceMicStep onNext={advance} />}
         {step === 3 && <ControllerStep onNext={advance} />}
-        {step === 4 && <DoneStep onFinish={() => void finish(true)} />}
+        {step === 4 && <DoneStep onFinish={() => void finish()} />}
       </div>
 
       <p className="onboarding__indicator label">
@@ -465,6 +466,17 @@ function ControllerStep({ onNext }: { onNext: () => void }) {
     () => new Set(),
   );
   const [anyPress, setAnyPress] = useState(false);
+  // Track outstanding fade timers so we can clear them on unmount —
+  // otherwise a button held when the user advances queues setState()s
+  // against an unmounted component.
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      for (const id of timers.current) window.clearTimeout(id);
+      timers.current = [];
+    };
+  }, []);
 
   const onButton = useCallback((b: ControllerButton) => {
     setAnyPress(true);
@@ -473,13 +485,15 @@ function ControllerStep({ onNext }: { onNext: () => void }) {
       next.add(b);
       return next;
     });
-    window.setTimeout(() => {
+    const id = window.setTimeout(() => {
       setPressed((prev) => {
         const next = new Set(prev);
         next.delete(b);
         return next;
       });
+      timers.current = timers.current.filter((t) => t !== id);
     }, 320);
+    timers.current.push(id);
   }, []);
 
   useController(onButton);

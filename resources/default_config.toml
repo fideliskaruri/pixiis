@@ -59,8 +59,8 @@ extra_paths = []
 [ui]
 tile_size = "large"             # "small", "medium", "large"
 animations = true
-fullscreen = true
-scale = 1.0                     # UI scale factor (1.0 = desktop, 1.5 = couch/TV)
+fullscreen = false              # apply window.set_fullscreen(true) on startup
+scale = 1.0                     # UI scale factor (1.0 = desktop, 1.25/1.5 = couch/TV)
 
 [ui.colors]
 primary = "#1a1a2e"

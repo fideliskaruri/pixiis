@@ -15,9 +15,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { scanLibrary, voiceStart } from '../api/bridge';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ask, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
+import {
+  getLibrary,
+  scanLibrary,
+  systemLock,
+  systemRestart,
+  systemSleep,
+  voiceStart,
+} from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
+import { notifyUiPrefsChanged } from '../api/UiPrefsContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
 import type { ControllerState } from '../api/types/ControllerState';
 import type { TranscriptionEvent } from '../api/types/TranscriptionEvent';
@@ -60,8 +71,19 @@ interface SettingsState {
   youtube_key: string;
   twitch_connected: boolean;
 
-  // About
+  // About / Display (Big Picture)
   autostart: boolean;
+  ui_fullscreen: boolean;
+  ui_scale: number;
+
+  // Home discoverable features (each disable-able from one place).
+  greeting_enabled: boolean;
+  recently_added_enabled: boolean;
+  surprise_me_enabled: boolean;
+  weather_enabled: boolean;
+  weather_latitude: string; // raw text — parsed on apply
+  weather_longitude: string;
+  display_name: string;
 }
 
 const DEFAULTS: SettingsState = {
@@ -88,6 +110,15 @@ const DEFAULTS: SettingsState = {
   youtube_key: '',
   twitch_connected: false,
   autostart: false,
+  ui_fullscreen: false,
+  ui_scale: 1.0,
+  greeting_enabled: true,
+  recently_added_enabled: true,
+  surprise_me_enabled: true,
+  weather_enabled: false,
+  weather_latitude: '',
+  weather_longitude: '',
+  display_name: '',
 };
 
 const PROVIDERS: { key: string; label: string }[] = [
@@ -170,6 +201,27 @@ function fromConfig(cfg: ConfigMap): SettingsState {
     youtube_key: asString(readDotted(cfg, 'services.youtube.api_key'), DEFAULTS.youtube_key),
     twitch_connected: asString(readDotted(cfg, 'services.twitch.access_token'), '') !== '',
     autostart: asBool(readDotted(cfg, 'daemon.autostart'), DEFAULTS.autostart),
+    ui_fullscreen: asBool(readDotted(cfg, 'ui.fullscreen'), DEFAULTS.ui_fullscreen),
+    ui_scale: asNumber(readDotted(cfg, 'ui.scale'), DEFAULTS.ui_scale),
+    greeting_enabled: asBool(readDotted(cfg, 'ui.home.greeting'), DEFAULTS.greeting_enabled),
+    recently_added_enabled: asBool(
+      readDotted(cfg, 'ui.home.recently_added'),
+      DEFAULTS.recently_added_enabled,
+    ),
+    surprise_me_enabled: asBool(
+      readDotted(cfg, 'ui.home.surprise_me'),
+      DEFAULTS.surprise_me_enabled,
+    ),
+    weather_enabled: asBool(readDotted(cfg, 'ui.home.weather'), DEFAULTS.weather_enabled),
+    weather_latitude: asString(
+      readDotted(cfg, 'ui.home.weather_latitude'),
+      DEFAULTS.weather_latitude,
+    ),
+    weather_longitude: asString(
+      readDotted(cfg, 'ui.home.weather_longitude'),
+      DEFAULTS.weather_longitude,
+    ),
+    display_name: asString(readDotted(cfg, 'ui.home.display_name'), DEFAULTS.display_name),
   };
 }
 
@@ -200,6 +252,19 @@ function toPatch(s: SettingsState): ConfigMap {
       youtube: { api_key: s.youtube_key.trim() },
     },
     daemon: { autostart: s.autostart },
+    ui: {
+      fullscreen: s.ui_fullscreen,
+      scale: s.ui_scale,
+      home: {
+        greeting: s.greeting_enabled,
+        recently_added: s.recently_added_enabled,
+        surprise_me: s.surprise_me_enabled,
+        weather: s.weather_enabled,
+        weather_latitude: s.weather_latitude.trim(),
+        weather_longitude: s.weather_longitude.trim(),
+        display_name: s.display_name.trim(),
+      },
+    },
   };
 }
 
@@ -267,6 +332,24 @@ export function SettingsPage() {
         /* autostart command may not be wired in this build — config still
          * captured the user's intent. */
       }
+      // Apply Big Picture toggles live so the user sees the effect of
+      // their change without needing to relaunch. Fullscreen flips
+      // immediately; ui.scale pushes a CSS variable used by the
+      // body.is-fullscreen tile-size rules.
+      try {
+        const win = getCurrentWindow();
+        const isFs = await win.isFullscreen();
+        if (isFs !== state.ui_fullscreen) {
+          await win.setFullscreen(state.ui_fullscreen);
+        }
+      } catch {
+        /* permission missing — ignore, user can still F11 */
+      }
+      document.documentElement.style.setProperty('--ui-scale', String(state.ui_scale));
+      // Home greeting / recently-added / surprise-me toggles flow
+      // through UiPrefsContext — bumping its in-memory snapshot avoids
+      // an app remount on every save.
+      notifyUiPrefsChanged();
       setApplyState('saved');
       toast('Settings saved', 'success');
       if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
@@ -944,6 +1027,80 @@ const LICENSE = 'MIT';
 const REPO_URL = 'https://github.com/anthropics/pixiis';
 
 function AboutSection({ state, update }: SectionProps) {
+  const { toast } = useToast();
+  const [exporting, setExporting] = useState(false);
+  const [restartConfirming, setRestartConfirming] = useState(false);
+
+  const onExportLibrary = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const path = await saveDialog({
+        title: 'Export library',
+        defaultPath: `pixiis-library-${new Date()
+          .toISOString()
+          .slice(0, 10)}.json`,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (path === null) {
+        setExporting(false);
+        return;
+      }
+      const games = await getLibrary();
+      const payload = {
+        exported_at: new Date().toISOString(),
+        version: APP_VERSION,
+        count: games.length,
+        games,
+      };
+      await writeTextFile(path, JSON.stringify(payload, null, 2));
+      toast(`Exported ${games.length} entries`, 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Export failed: ${msg}`, 'error');
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, toast]);
+
+  const onSleep = useCallback(async () => {
+    try {
+      await systemSleep();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Sleep failed: ${msg}`, 'error');
+    }
+  }, [toast]);
+
+  const onLock = useCallback(async () => {
+    try {
+      await systemLock();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Lock failed: ${msg}`, 'error');
+    }
+  }, [toast]);
+
+  const onRestart = useCallback(async () => {
+    if (restartConfirming) return;
+    setRestartConfirming(true);
+    try {
+      const confirmed = await ask(
+        'Restart your PC now? Pixiis will close immediately along with any open apps.',
+        { title: 'Restart PC', kind: 'warning' },
+      );
+      if (!confirmed) {
+        setRestartConfirming(false);
+        return;
+      }
+      await systemRestart();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(`Restart failed: ${msg}`, 'error');
+      setRestartConfirming(false);
+    }
+  }, [restartConfirming, toast]);
+
   return (
     <>
       <header className="settings__head">
@@ -981,6 +1138,199 @@ function AboutSection({ state, update }: SectionProps) {
           />
           <span>Autostart</span>
         </label>
+      </Field>
+
+      {/* ── Display (Big Picture) ─────────────────────────────────── */}
+      <Field
+        label="Fullscreen on launch"
+        hint="Open Pixiis in fullscreen, like Steam Big Picture. Toggle anytime with F11."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.ui_fullscreen}
+            onChange={(e) => update('ui_fullscreen', e.target.checked)}
+          />
+          <span>{state.ui_fullscreen ? 'Enabled' : 'Disabled'}</span>
+        </label>
+      </Field>
+
+      <Field
+        label="UI scale"
+        hint="Bump up for couch / TV viewing — bigger tiles, larger hit targets."
+      >
+        <div className="settings__slider-row">
+          <input
+            type="range"
+            min={100}
+            max={200}
+            step={5}
+            value={Math.round(state.ui_scale * 100)}
+            onChange={(e) => update('ui_scale', Number(e.target.value) / 100)}
+            data-focusable
+            className="settings__slider"
+          />
+          <span className="settings__slider-value">{state.ui_scale.toFixed(2)}×</span>
+        </div>
+      </Field>
+
+      {/* ── Home surfaces ─────────────────────────────────────────── */}
+      <Field
+        label="Display name"
+        hint="Used in the Home greeting (“Good evening, …”). Leave empty to hide."
+      >
+        <input
+          type="text"
+          className="settings__input"
+          value={state.display_name}
+          onChange={(e) => update('display_name', e.target.value)}
+          placeholder="player"
+          data-focusable
+          spellCheck={false}
+          autoComplete="off"
+        />
+      </Field>
+
+      <Field
+        label="Home greeting"
+        hint="Top-left badge with the time and your name."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.greeting_enabled}
+            onChange={(e) => update('greeting_enabled', e.target.checked)}
+          />
+          <span>{state.greeting_enabled ? 'Visible' : 'Hidden'}</span>
+        </label>
+      </Field>
+
+      <Field
+        label="Recently Added rail"
+        hint="Carousel between Continue Playing and the main grid. Hides automatically with little data."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.recently_added_enabled}
+            onChange={(e) =>
+              update('recently_added_enabled', e.target.checked)
+            }
+          />
+          <span>{state.recently_added_enabled ? 'Visible' : 'Hidden'}</span>
+        </label>
+      </Field>
+
+      <Field
+        label="Surprise me"
+        hint="Pill on Home that picks a random game and opens its detail page."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.surprise_me_enabled}
+            onChange={(e) => update('surprise_me_enabled', e.target.checked)}
+          />
+          <span>{state.surprise_me_enabled ? 'Visible' : 'Hidden'}</span>
+        </label>
+      </Field>
+
+      <Field
+        label="Weather in greeting"
+        hint="Open-Meteo fetches one current-weather sample on Home load. Needs your latitude / longitude."
+      >
+        <label className="settings__check" data-focusable>
+          <input
+            type="checkbox"
+            checked={state.weather_enabled}
+            onChange={(e) => update('weather_enabled', e.target.checked)}
+          />
+          <span>{state.weather_enabled ? 'Enabled' : 'Disabled'}</span>
+        </label>
+      </Field>
+
+      {state.weather_enabled && (
+        <Field
+          label="Coordinates"
+          hint="Two decimals is plenty (e.g. 47.61, -122.33)."
+        >
+          <div className="settings__weather-coords">
+            <input
+              type="text"
+              className="settings__input"
+              value={state.weather_latitude}
+              onChange={(e) => update('weather_latitude', e.target.value)}
+              placeholder="latitude"
+              data-focusable
+              spellCheck={false}
+              autoComplete="off"
+              inputMode="decimal"
+              aria-label="Latitude"
+            />
+            <input
+              type="text"
+              className="settings__input"
+              value={state.weather_longitude}
+              onChange={(e) => update('weather_longitude', e.target.value)}
+              placeholder="longitude"
+              data-focusable
+              spellCheck={false}
+              autoComplete="off"
+              inputMode="decimal"
+              aria-label="Longitude"
+            />
+          </div>
+        </Field>
+      )}
+
+      {/* ── Library export ────────────────────────────────────────── */}
+      <Field
+        label="Export library"
+        hint="Save every detected entry (with metadata) as JSON for backup or sharing."
+      >
+        <button
+          type="button"
+          className="settings__btn"
+          onClick={onExportLibrary}
+          disabled={exporting}
+          data-focusable
+        >
+          {exporting ? 'Exporting…' : 'Export as JSON'}
+        </button>
+      </Field>
+
+      {/* ── System power ──────────────────────────────────────────── */}
+      <Field
+        label="System power"
+        hint="Sleep / lock the workstation, or restart (with confirmation)."
+      >
+        <div className="settings__power">
+          <button
+            type="button"
+            className="settings__btn"
+            onClick={onSleep}
+            data-focusable
+          >
+            Sleep PC
+          </button>
+          <button
+            type="button"
+            className="settings__btn"
+            onClick={onLock}
+            data-focusable
+          >
+            Lock PC
+          </button>
+          <button
+            type="button"
+            className="settings__btn settings__btn--danger"
+            onClick={onRestart}
+            disabled={restartConfirming}
+            data-focusable
+          >
+            {restartConfirming ? 'Confirming…' : 'Restart PC'}
+          </button>
+        </div>
       </Field>
     </>
   );

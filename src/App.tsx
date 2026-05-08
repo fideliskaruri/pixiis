@@ -20,10 +20,14 @@ import { FileManagerPage } from './pages/FileManagerPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LibraryProvider } from './api/LibraryContext';
 import { ToastProvider } from './api/ToastContext';
+import { UiPrefsProvider } from './api/UiPrefsContext';
 import { QuickResume } from './components/QuickResume';
+import { QuickSearchProvider } from './components/QuickSearch';
+import { ShortcutsCheatsProvider } from './components/ShortcutsCheatSheet';
 import { VoiceOverlay } from './components/VoiceOverlay';
 import { VirtualKeyboardProvider } from './components/VirtualKeyboard';
 import { useSpatialNav } from './hooks/useSpatialNav';
+import { useBigPicture } from './hooks/useBigPicture';
 import { getOnboarded } from './api/bridge';
 
 // styles/tokens.css is loaded via index.css; theme.css is the legacy
@@ -33,6 +37,7 @@ import './styles/animations.css';
 
 function AppContent() {
   useSpatialNav();
+  useBigPicture();
   const location = useLocation();
   const navigate = useNavigate();
   const [checkedOnboarded, setCheckedOnboarded] = useState(false);
@@ -118,14 +123,20 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+        <UiPrefsProvider>
         <LibraryProvider>
           <VirtualKeyboardProvider>
             <QuickResume>
-              <AppContent />
-              <VoiceOverlay />
+              <QuickSearchProvider>
+                <ShortcutsCheatsProvider>
+                  <AppContent />
+                  <VoiceOverlay />
+                </ShortcutsCheatsProvider>
+              </QuickSearchProvider>
             </QuickResume>
           </VirtualKeyboardProvider>
         </LibraryProvider>
+        </UiPrefsProvider>
       </ToastProvider>
     </BrowserRouter>
   );

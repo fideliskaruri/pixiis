@@ -30,6 +30,7 @@ import {
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
+import { useAutoFocus } from '../hooks/useAutoFocus';
 import { notifyUiPrefsChanged } from '../api/UiPrefsContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
 import type { ControllerState } from '../api/types/ControllerState';
@@ -374,6 +375,13 @@ export function SettingsPage() {
   // "Saved" confirmation is surfaced by the global toast; the button
   // label flips back to Apply as soon as the save resolves.
   const applyLabel = applyState === 'saving' ? 'Saving…' : 'Apply';
+
+  // Auto-focus the first section button (LIBRARY) on mount so a
+  // controller user lands on something actionable. Re-runs when the
+  // active section flips so cross-fading between sections re-anchors
+  // focus inside the new section instead of leaving it on a tab the
+  // user just moved away from.
+  useAutoFocus('.settings__nav-item', [section, loaded]);
 
   return (
     <div className="settings fade-in">

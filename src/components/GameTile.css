@@ -124,3 +124,34 @@
 
 .game-tile--uninstalled .game-tile__img,
 .game-tile--uninstalled .game-tile__placeholder { opacity: 0.55; }
+
+/* ── Focus indicator ──────────────────────────────────────────────────
+   The .tile-focus primitive in animations.css owns the border thicken
+   + restrained scale. This rule layers on a brighter, unmistakable
+   accent ring + drop-shadow glow so a controller user can see at a
+   glance which tile they've landed on — the original 1px → 2px border
+   alone wasn't reading at TV-couch distance.
+
+   Three selectors:
+     - :focus           — keyboard / programmatic focus
+     - :focus-visible   — modern UA "show the ring" signal
+     - .tile-focused    — JS-managed class for the spatial-nav target
+                          (reserved for future use when a tile should
+                          look focused without owning DOM activeElement)
+   ─────────────────────────────────────────────────────────────────── */
+
+.game-tile:focus,
+.game-tile:focus-visible,
+.game-tile.tile-focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  transform: scale(1.03);
+  z-index: 10;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 8px 24px color-mix(in srgb, var(--accent) 25%, transparent);
+  transition:
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    outline-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}

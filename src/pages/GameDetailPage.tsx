@@ -21,6 +21,7 @@ import {
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
+import { useAutoFocus } from '../hooks/useAutoFocus';
 import './GameDetailPage.css';
 
 type LaunchState = 'idle' | 'launching' | 'launched' | 'stopping' | 'error';
@@ -89,6 +90,13 @@ export function GameDetailPage() {
       }
     };
   }, []);
+
+  // Auto-focus the PLAY button on mount so a controller user can press
+  // A immediately. Re-runs when the route's id changes (back-and-forth
+  // between detail pages) so the button is always pre-focused on
+  // re-entry. Falls back to the back button if the page is in a
+  // not-found / error state and PLAY isn't rendered.
+  useAutoFocus('.detail__play, .detail__back', [id]);
 
 
   const onPlay = async (): Promise<void> => {

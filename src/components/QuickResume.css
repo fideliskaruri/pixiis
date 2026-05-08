@@ -8,7 +8,9 @@
   position: fixed;
   inset: 0;
   z-index: 980;
-  background: rgba(15, 14, 12, 0.8);
+  /* Token-derived scrim — slightly heavier than --scrim-md (0.7) so the
+     modal reads cleanly over busy backgrounds. */
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -13,11 +13,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { getLibrary, type AppEntry } from './bridge';
+import { getLibrary, scanLibrary, type AppEntry } from './bridge';
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -37,6 +38,10 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  // Latch — flips true after the first auto-scan attempt so we never
+  // re-trigger it on subsequent fetches (e.g. after the user filters
+  // the library down to zero rows). Outlives reloadKey on purpose.
+  const autoScanAttempted = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +51,25 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       .then((entries) => {
         if (cancelled) return;
         setGames(entries);
+        // Auto-scan once on first launch when the persisted library is
+        // empty — otherwise Home stays blank until the user discovers
+        // the Settings → Scan button.
+        if (entries.length === 0 && !autoScanAttempted.current) {
+          autoScanAttempted.current = true;
+          setStatus('loading');
+          scanLibrary()
+            .then((scanned) => {
+              if (cancelled) return;
+              setGames(scanned);
+              setStatus('ready');
+            })
+            .catch((err: unknown) => {
+              if (cancelled) return;
+              setError(err instanceof Error ? err.message : String(err));
+              setStatus('error');
+            });
+          return;
+        }
         setStatus('ready');
       })
       .catch((err: unknown) => {

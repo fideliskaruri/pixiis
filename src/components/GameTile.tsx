@@ -29,6 +29,7 @@ const SOURCE_LABELS: Record<AppEntry['source'], string> = {
   ea: 'EA',
   startmenu: 'PC',
   manual: 'CUSTOM',
+  folder: 'PC',
 };
 
 export function GameTile({

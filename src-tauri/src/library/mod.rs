@@ -10,6 +10,7 @@ pub mod ea;
 pub mod epic;
 pub mod folder;
 pub mod gog;
+pub mod manual;
 pub mod startmenu;
 pub mod steam;
 pub mod xbox;
@@ -309,6 +310,10 @@ fn build_providers(
         Box::new(epic::EpicProvider::new()),
         Box::new(gog::GogProvider::new()),
         Box::new(ea::EaProvider::new()),
+        // User-curated entries from `library.manual.apps`. The provider
+        // is registered unconditionally; once the config service starts
+        // delivering structured lists, the entries will flow in here.
+        Box::new(manual::ManualProvider::new(Vec::new())),
         Box::new(folder::FolderProvider::new(extra_folder_paths)),
         Box::new(startmenu::StartMenuProvider::new()),
     ];
@@ -436,7 +441,8 @@ impl AppSource {
             AppSource::Gog => "gog",
             AppSource::Ea => "ea",
             AppSource::Startmenu => "sm",
-            AppSource::Manual => "folder",
+            AppSource::Manual => "manual",
+            AppSource::Folder => "folder",
         }
     }
 }

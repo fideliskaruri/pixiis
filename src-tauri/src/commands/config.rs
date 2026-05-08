@@ -241,6 +241,32 @@ pub async fn config_get(app: AppHandle) -> AppResult<Map<String, Value>> {
     Ok(table_to_json(doc.as_table()))
 }
 
+/// Look up a dotted-path string value from the merged user/default
+/// config. Used at startup to seed `ServicesContainer` with the API
+/// keys the user persisted via Settings (the `config_set` command
+/// writes them to `%APPDATA%/pixiis/config.toml`). Returns `None` when
+/// the path is missing, the value isn't a string, or the value is
+/// empty. An env-var fallback (e.g. `PIXIIS_YT_API_KEY`) is layered on
+/// top by the caller — this helper is just the file source.
+pub fn lookup_config_string<R: Runtime>(app: &AppHandle<R>, dotted: &str) -> Option<String> {
+    let path = user_config_path_runtime(app).ok()?;
+    let doc = if path.exists() {
+        std::fs::read_to_string(&path).ok()?.parse::<Document>().ok()?
+    } else {
+        read_default_config_text()?.parse::<Document>().ok()?
+    };
+
+    let mut segments = dotted.split('.');
+    let first = segments.next()?;
+    let mut item: &Item = doc.as_table().get(first)?;
+    for segment in segments {
+        let table = item.as_table()?;
+        item = table.get(segment)?;
+    }
+    let s = item.as_str()?.trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
 #[tauri::command]
 pub async fn config_set(app: AppHandle, patch: Map<String, Value>) -> AppResult<()> {
     let path = user_config_path(&app)?;

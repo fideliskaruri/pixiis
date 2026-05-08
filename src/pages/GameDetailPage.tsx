@@ -2,14 +2,23 @@
  * GameDetailPage — Editorial detail view for a single game.
  *
  * Reads the entry from the library context (single fetch lives in
- * LibraryProvider). On mount, fires a background RAWG metadata lookup
- * and renders the description / screenshots / genres / Metacritic /
- * release date when they arrive — page is fully usable before then.
+ * LibraryProvider). On mount, fires three background lookups in
+ * parallel:
+ *   - RAWG metadata (description / screenshots / genres / Metacritic).
+ *   - YouTube top trailer (rendered as a nocookie iframe embed).
+ *   - Twitch top live streams for the game's category.
+ * Each section renders only when its lookup returns content, so the
+ * page is fully usable before any of them resolve. When BOTH the
+ * trailer AND streams come back empty (e.g. the user hasn't saved a
+ * YouTube / Twitch credential in Settings yet) we surface a quiet
+ * hint pointing them at Settings.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  getTwitchStreams,
+  getYouTubeTrailer,
   imageUrl,
   launchGame,
   lookupRawg,
@@ -18,6 +27,8 @@ import {
   useRunningGames,
   type AppEntry,
   type RawgGameData,
+  type TwitchStream,
+  type YouTubeTrailer,
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
@@ -55,6 +66,9 @@ export function GameDetailPage() {
   const [launchError, setLaunchError] = useState('');
 
   const [rawg, setRawg] = useState<RawgGameData | null>(null);
+  const [trailer, setTrailer] = useState<YouTubeTrailer | null>(null);
+  const [streams, setStreams] = useState<TwitchStream[]>([]);
+  const [mediaProbed, setMediaProbed] = useState<boolean>(false);
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   const launchedTimer = useRef<number | null>(null);
@@ -75,6 +89,31 @@ export function GameDetailPage() {
     let cancelled = false;
     void lookupRawg(gameName).then((data) => {
       if (!cancelled) setRawg(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId, gameName]);
+
+  // Background YouTube trailer + Twitch live-streams lookup. Both fail
+  // soft (null / empty) when the key isn't set — the empty-state hint
+  // in the JSX nudges the user toward Settings if BOTH come back empty.
+  // `mediaProbed` flips true once the first fetch settles so we don't
+  // flash the empty-state hint while the page is still warming up.
+  useEffect(() => {
+    if (gameId === undefined || gameName === undefined) return;
+    let cancelled = false;
+    setMediaProbed(false);
+    setTrailer(null);
+    setStreams([]);
+    const yt = getYouTubeTrailer(gameName).then((t) => {
+      if (!cancelled) setTrailer(t);
+    });
+    const tw = getTwitchStreams(gameName).then((s) => {
+      if (!cancelled) setStreams(s);
+    });
+    void Promise.allSettled([yt, tw]).then(() => {
+      if (!cancelled) setMediaProbed(true);
     });
     return () => {
       cancelled = true;
@@ -352,6 +391,69 @@ export function GameDetailPage() {
           )}
         </section>
       </div>
+
+      {trailer !== null && (
+        <section className="detail__trailer" aria-labelledby="detail-trailer-head">
+          <h2 id="detail-trailer-head" className="label">TRAILER</h2>
+          <div className="detail__trailer-frame">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${trailer.video_id}?modestbranding=1&rel=0`}
+              title={trailer.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        </section>
+      )}
+
+      {streams.length > 0 && (
+        <section className="detail__streams" aria-labelledby="detail-streams-head">
+          <h2 id="detail-streams-head" className="label">
+            LIVE NOW · {streams.length}
+          </h2>
+          <ul className="detail__streams-list">
+            {streams.map((s) => (
+              <li key={s.user_name} className="detail__stream-card">
+                <a
+                  href={s.stream_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-focusable
+                  aria-label={`Open ${s.user_name} on Twitch`}
+                >
+                  {s.thumbnail_url !== '' && (
+                    <img
+                      src={s.thumbnail_url
+                        .replace('{width}', '320')
+                        .replace('{height}', '180')}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                  <div className="detail__stream-info">
+                    <p className="display detail__stream-name">{s.user_name}</p>
+                    <p className="label detail__stream-viewers">
+                      {s.viewer_count.toLocaleString()} VIEWERS
+                    </p>
+                    <p className="detail__stream-title">{s.title}</p>
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {mediaProbed && trailer === null && streams.length === 0 && (
+        <section className="detail__media-empty" aria-live="polite">
+          <p className="label">NO TRAILER OR LIVE STREAMS</p>
+          <p className="detail__media-empty-body">
+            Add or check your YouTube and Twitch keys in Settings to surface trailers and live channels here.
+          </p>
+        </section>
+      )}
 
       {screenshots.length > 0 && (
         <section className="detail__screens" aria-labelledby="detail-screens-head">

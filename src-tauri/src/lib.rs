@@ -93,17 +93,29 @@ pub fn run() {
             }
 
             // Services container: shared HTTP client + caches for RAWG /
-            // Twitch / YouTube / image loader. Pane 9 owns this; the real
-            // config plumbing arrives with the config module — for now we
-            // read the env vars `PIXIIS_RAWG_API_KEY`, `PIXIIS_YT_API_KEY`,
-            // `PIXIIS_TWITCH_CLIENT_ID`, etc., as a stand-in.
-            let services_cfg = services::ServicesConfig::from_lookup(|key| match key {
-                "services.rawg.api_key" => std::env::var("PIXIIS_RAWG_API_KEY").ok(),
-                "services.youtube.api_key" => std::env::var("PIXIIS_YT_API_KEY").ok(),
-                "services.twitch.client_id" => std::env::var("PIXIIS_TWITCH_CLIENT_ID").ok(),
-                "services.twitch.client_secret" => std::env::var("PIXIIS_TWITCH_CLIENT_SECRET").ok(),
-                "services.twitch.access_token" => std::env::var("PIXIIS_TWITCH_TOKEN").ok(),
-                _ => None,
+            // Twitch / YouTube / image loader. Keys come from the user's
+            // persisted `config.toml` (written by SettingsPage via
+            // `config_set`), with env-var overrides for dev so a build
+            // without a saved Settings page can still hit the live APIs.
+            // Without this lookup the Game Detail trailer + LIVE NOW
+            // sections would always render empty even after the user
+            // saved their YouTube / Twitch credentials.
+            let app_handle_for_keys = app.handle().clone();
+            let services_cfg = services::ServicesConfig::from_lookup(|key| {
+                let env_key = match key {
+                    "services.rawg.api_key" => "PIXIIS_RAWG_API_KEY",
+                    "services.youtube.api_key" => "PIXIIS_YT_API_KEY",
+                    "services.twitch.client_id" => "PIXIIS_TWITCH_CLIENT_ID",
+                    "services.twitch.client_secret" => "PIXIIS_TWITCH_CLIENT_SECRET",
+                    "services.twitch.access_token" => "PIXIIS_TWITCH_TOKEN",
+                    _ => return None,
+                };
+                if let Ok(v) = std::env::var(env_key) {
+                    if !v.trim().is_empty() {
+                        return Some(v);
+                    }
+                }
+                commands::config::lookup_config_string(&app_handle_for_keys, key)
             });
             let cache_dir = app
                 .path()

@@ -17,8 +17,10 @@ import type { ProviderReport } from './types/ProviderReport';
 import type { RawgGameData } from './types/RawgGameData';
 import type { RunningGame } from './types/RunningGame';
 import type { TranscriptionEvent } from './types/TranscriptionEvent';
+import type { TwitchStream } from './types/TwitchStream';
+import type { YouTubeTrailer } from './types/YouTubeTrailer';
 
-export type { ProviderReport, RunningGame };
+export type { ProviderReport, RunningGame, TwitchStream, YouTubeTrailer };
 export type { ProviderState } from './types/ProviderState';
 
 // Public, enriched shape used by every React component. `extends` the
@@ -221,6 +223,38 @@ export async function lookupRawg(gameName: string): Promise<RawgGameData | null>
     return await invoke<RawgGameData | null>('services_rawg_lookup', { gameName });
   } catch {
     return null;
+  }
+}
+
+// ── YouTube + Twitch (Game Detail page) ──────────────────────────────
+
+/**
+ * Fetch the top YouTube trailer match for a game by its display name.
+ * Returns `null` when no API key is configured, when YouTube returns no
+ * match, or when the IPC call rejects — never throws into the UI. The
+ * Game Detail page renders the trailer iframe only when this resolves
+ * with a non-null trailer.
+ */
+export async function getYouTubeTrailer(gameName: string): Promise<YouTubeTrailer | null> {
+  try {
+    return await invoke<YouTubeTrailer | null>('services_youtube_trailer', { gameName });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch the top live Twitch streams for a game by its display name.
+ * Returns an empty array when not configured, when Twitch returns no
+ * matching category, or when the IPC call rejects — never throws into
+ * the UI. The Game Detail page renders the LIVE NOW section only when
+ * the array is non-empty.
+ */
+export async function getTwitchStreams(gameName: string): Promise<TwitchStream[]> {
+  try {
+    return await invoke<TwitchStream[]>('services_twitch_streams', { gameName });
+  } catch {
+    return [];
   }
 }
 

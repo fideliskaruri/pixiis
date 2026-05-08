@@ -255,6 +255,123 @@
   color: var(--text);
 }
 
+/* ── Trailer (YouTube) ─────────────────────────────────────────────── */
+
+.detail__trailer {
+  margin-top: var(--s-xl);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--rule);
+}
+
+.detail__trailer-frame {
+  margin-top: var(--s-md);
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+
+.detail__trailer-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ── Live streams (Twitch) ─────────────────────────────────────────── */
+
+.detail__streams {
+  margin-top: var(--s-xl);
+  padding-top: var(--s-lg);
+  border-top: 1px solid var(--rule);
+}
+
+.detail__streams-list {
+  list-style: none;
+  margin: var(--s-md) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--s-md);
+}
+
+.detail__stream-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+  transition: border-color var(--t-base) var(--easing);
+}
+.detail__stream-card:hover { border-color: var(--text-dim); }
+
+.detail__stream-card a {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+}
+.detail__stream-card a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.detail__stream-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--bg);
+}
+
+.detail__stream-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  padding: var(--s-md);
+}
+
+.detail__stream-name {
+  margin: 0;
+  font-size: var(--t-body);
+}
+
+.detail__stream-viewers {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.detail__stream-title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Empty media hint (both YouTube + Twitch returned nothing) ─────── */
+
+.detail__media-empty {
+  margin-top: var(--s-xl);
+  padding: var(--s-lg);
+  border: 1px dashed var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+}
+
+.detail__media-empty-body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+  color: var(--text-dim);
+}
+
 /* ── Screenshots ───────────────────────────────────────────────────── */
 
 .detail__screens {

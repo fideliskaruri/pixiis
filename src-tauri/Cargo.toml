@@ -33,6 +33,10 @@ gilrs = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "net"] }
 parking_lot = "0.12"
 toml = "0.8"
+# toml_edit preserves comments + ordering when we round-trip the user's
+# `%APPDATA%/pixiis/config.toml` through `config_set`. Pinned to 0.20 to
+# match the version `toml 0.8.2` already pulls in transitively.
+toml_edit = "0.20"
 
 # Services layer (Pane 9)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }

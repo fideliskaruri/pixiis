@@ -259,12 +259,30 @@ export function LibraryPage() {
       ) : filtered.length === 0 ? (
         <div className="library__empty">
           <p className="library__empty-title">
-            No games match the current filter
+            {games.length === 0
+              ? 'No entries on file'
+              : 'No games match the current filter'}
           </p>
           <p className="library__empty-body">
-            Try a different filter, clear the search, or trigger a fresh
-            scan from Settings → Library.
+            {games.length === 0
+              ? 'Run a scan from Settings → Library, or add a manual entry from Files.'
+              : 'Try a different filter, clear the search, or trigger a fresh scan from Settings → Library.'}
           </p>
+          {games.length > 0 && (kind !== 'all' || source !== null || search !== '') && (
+            <button
+              type="button"
+              className="library__retry"
+              onClick={() => {
+                setKind('all');
+                setSource(null);
+                setSearchInput('');
+                setSearch('');
+              }}
+              data-focusable
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="library__grid">

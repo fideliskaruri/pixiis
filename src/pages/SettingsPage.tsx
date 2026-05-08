@@ -201,12 +201,17 @@ export function SettingsPage() {
   const [state, setState] = useState<SettingsState>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string>('');
+  // Bumping `reloadKey` re-runs the config_get effect — used by the
+  // Retry button when the initial load failed.
+  const [reloadKey, setReloadKey] = useState(0);
   const [applyState, setApplyState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [applyError, setApplyError] = useState<string>('');
   const savedTimer = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Load config once on mount.
+  // Load config — initially on mount, and again whenever Retry bumps
+  // `reloadKey`. The retry handler resets `loaded` and `loadError`
+  // before bumping so we don't have to setState inside the effect body.
   useEffect(() => {
     let cancelled = false;
     void invoke<ConfigMap>('config_get').then(
@@ -224,6 +229,12 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
+  }, [reloadKey]);
+
+  const retryLoad = useCallback(() => {
+    setLoaded(false);
+    setLoadError('');
+    setReloadKey((n) => n + 1);
   }, []);
 
   useEffect(() => {
@@ -315,9 +326,19 @@ export function SettingsPage() {
         ) : (
           <div className="settings__section fade-in" key={section}>
             {loadError !== '' && (
-              <p className="settings__notice settings__notice--warn" role="alert">
-                Couldn’t load saved config — showing defaults. {loadError}
-              </p>
+              <div className="settings__notice settings__notice--warn" role="alert">
+                <p>
+                  Couldn’t load saved config — showing defaults. {loadError}
+                </p>
+                <button
+                  type="button"
+                  className="settings__btn settings__notice-retry"
+                  onClick={retryLoad}
+                  data-focusable
+                >
+                  Retry
+                </button>
+              </div>
             )}
             {section === 'library' && (
               <LibrarySection state={state} update={update} />

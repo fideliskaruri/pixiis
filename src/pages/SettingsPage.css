@@ -536,6 +536,10 @@
   color: var(--text);
 }
 
+.settings__notice-retry {
+  margin-top: var(--s-sm);
+}
+
 /* ── Narrow viewport: stack the columns ───────────────────────────── */
 
 @media (max-width: 720px) {

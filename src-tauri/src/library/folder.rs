@@ -150,7 +150,7 @@ fn scan_directory(
                 out.push(AppEntry {
                     id,
                     name: name.to_string(),
-                    source: AppSource::Manual,
+                    source: AppSource::Folder,
                     launch_command: main_exe.to_string_lossy().into_owned(),
                     exe_path: Some(main_exe),
                     icon_path: None,

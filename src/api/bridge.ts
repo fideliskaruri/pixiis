@@ -55,9 +55,10 @@ function enrich(raw: WireAppEntry): AppEntry {
     // Mirrors Rust AppEntry::is_game() exactly. Storefront entries
     // (Steam / Epic / GOG / EA) are always games. Xbox checks the
     // MicrosoftGame.Config probe (`is_xbox_game` set by xbox.rs).
-    // Start Menu shortcuts and folder-scanned executables are NOT
-    // games — Home should hide them. Manual entries opt-in by setting
-    // `is_game: true` in their config or metadata.
+    // Manual entries (user added them via FileManagerPage) carry
+    // `is_game: true` in metadata by default — see manual.rs.
+    // Folder-scanned and start-menu shortcuts are NOT games — Home
+    // should hide them.
     is_game: ((): boolean => {
       switch (raw.source) {
         case 'steam':
@@ -69,6 +70,8 @@ function enrich(raw: WireAppEntry): AppEntry {
           return m.is_xbox_game === true;
         case 'manual':
           return m.is_game === true;
+        case 'folder':
+          return false;
         case 'startmenu':
         default:
           return false;

@@ -30,6 +30,7 @@ const SOURCE_LABELS: Partial<Record<AppEntry['source'], string>> = {
   ea: 'EA',
   startmenu: 'PC',
   manual: 'CUSTOM',
+  folder: 'PC',
 };
 
 const MAX_SCREENSHOTS = 6;

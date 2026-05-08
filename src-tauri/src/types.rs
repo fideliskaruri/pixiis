@@ -27,6 +27,7 @@ pub enum AppSource {
     Ea,
     Startmenu,
     Manual,
+    Folder,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
@@ -95,7 +96,9 @@ impl AppEntry {
     /// True if this entry is likely a game (vs. a regular app).
     ///
     /// Steam/Epic/GOG/EA always game; Xbox only if `metadata.is_xbox_game`;
-    /// startmenu/manual default to false.
+    /// Manual entries opt in via `metadata.is_game` (the manual provider
+    /// sets this to `true` by default — the user added them on purpose);
+    /// folder-scanned and start-menu entries default to false.
     pub fn is_game(&self) -> bool {
         match self.source {
             AppSource::Steam | AppSource::Epic | AppSource::Gog | AppSource::Ea => true,
@@ -104,7 +107,12 @@ impl AppEntry {
                 .get("is_xbox_game")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
-            _ => false,
+            AppSource::Manual => self
+                .metadata
+                .get("is_game")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            AppSource::Folder | AppSource::Startmenu => false,
         }
     }
 

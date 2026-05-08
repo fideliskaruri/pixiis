@@ -258,6 +258,35 @@
   background: var(--bg-elev);
 }
 
+/* Destructive action — Restart PC. Border picks up --accent on hover so
+ * the button still reads as quiet by default but signals risk on focus. */
+.settings__btn--danger {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+.settings__btn--danger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.settings__btn--danger:focus-visible {
+  border-color: var(--accent);
+}
+
+/* ── System power row + weather coord pair ───────────────────────────── */
+
+.settings__power {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-sm);
+}
+
+.settings__weather-coords {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-sm);
+  max-width: 420px;
+}
+
 /* ── Slider ───────────────────────────────────────────────────────── */
 
 .settings__slider-row {

@@ -1,0 +1,182 @@
+/* ═══════════════════════════════════════════════════════════════════
+   QuickSearch — Global search modal.
+   Same scrim weight + panel surface as QuickResume; a tighter list
+   density to fit ~12 results in the viewport without scrolling.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.qsearch {
+  position: fixed;
+  inset: 0;
+  z-index: 985;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* Top-anchored modal — feels closer to a command palette than a
+     centred dialog. Padding pushes it a bit below the navbar. */
+  padding: 12vh var(--s-xl) var(--s-xl);
+}
+
+.qsearch__panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  width: min(820px, 100%);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-lg);
+  gap: var(--s-md);
+}
+
+.qsearch__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+}
+
+.qsearch__head .label {
+  margin: 0;
+}
+
+.qsearch__input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  padding: var(--s-sm) 0;
+  width: 100%;
+}
+.qsearch__input::placeholder {
+  color: var(--text-mute);
+}
+.qsearch__input:focus {
+  outline: none;
+  border-bottom-color: var(--text-dim);
+}
+
+.qsearch__results {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: var(--s-xs);
+}
+.qsearch__results::-webkit-scrollbar {
+  width: 6px;
+}
+.qsearch__results::-webkit-scrollbar-track {
+  background: transparent;
+}
+.qsearch__results::-webkit-scrollbar-thumb {
+  background: var(--rule);
+}
+
+.qsearch__empty {
+  margin: 0;
+  padding: var(--s-xl) 0;
+  text-align: center;
+  color: var(--text-mute);
+  font-family: var(--font-body);
+  font-size: var(--t-caption);
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────── */
+
+.qsearch__row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: var(--s-md);
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  padding: var(--s-sm) var(--s-sm);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast) var(--easing),
+    background var(--t-fast) var(--easing);
+}
+
+.qsearch__row:hover,
+.qsearch__row--active {
+  background: var(--bg);
+  border-color: var(--rule);
+}
+.qsearch__row--active {
+  border-color: var(--focus);
+}
+
+.qsearch__row:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.qsearch__art {
+  width: 56px;
+  height: 72px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.qsearch__art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.qsearch__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qsearch__source {
+  margin: 0;
+  color: var(--text-mute);
+}
+
+.qsearch__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qsearch__playtime {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.qsearch__status {
+  margin: 0;
+  color: var(--text);
+  border: 1px solid var(--rule);
+  padding: 2px var(--s-sm);
+  background: var(--bg);
+}
+
+.qsearch__foot {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s-sm);
+}
+.qsearch__legend {
+  margin: 0;
+  color: var(--text-mute);
+  text-align: right;
+}

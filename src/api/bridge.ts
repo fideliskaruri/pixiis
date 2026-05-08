@@ -188,6 +188,20 @@ export function setOnboarded(value: boolean): Promise<void> {
   return invoke('app_set_onboarded', { value });
 }
 
+// ── System power ─────────────────────────────────────────────────────
+
+export function systemSleep(): Promise<void> {
+  return invoke('system_sleep');
+}
+
+export function systemLock(): Promise<void> {
+  return invoke('system_lock');
+}
+
+export function systemRestart(): Promise<void> {
+  return invoke('system_restart');
+}
+
 // ── Image proxy ──────────────────────────────────────────────────────
 
 /**

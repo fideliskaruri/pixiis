@@ -1,0 +1,147 @@
+/* ═══════════════════════════════════════════════════════════════════
+   ShortcutsCheatSheet — Magazine-style key reference.
+   Two columns (Keyboard / Gamepad), each a three-cell list row:
+   key (mono) · action (body) · context (small-caps tracked).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.cheats {
+  position: fixed;
+  inset: 0;
+  z-index: 990;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-xl);
+}
+
+.cheats__panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--rule);
+  width: min(960px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-xl);
+  gap: var(--s-md);
+  position: relative;
+}
+
+.cheats__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: var(--s-sm);
+}
+.cheats__head .label {
+  grid-column: 1;
+  margin: 0;
+}
+.cheats__title {
+  grid-column: 1;
+  margin: 0;
+  font-size: clamp(36px, 4vw, 56px);
+}
+.cheats__close {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--t-body);
+  transition:
+    border-color var(--t-base) var(--easing),
+    color var(--t-base) var(--easing);
+}
+.cheats__close:hover {
+  color: var(--text);
+  border-color: var(--text-mute);
+}
+.cheats__close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.cheats__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-xl);
+}
+
+@media (max-width: 800px) {
+  .cheats__cols {
+    grid-template-columns: 1fr;
+    gap: var(--s-lg);
+  }
+}
+
+.cheats__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-md);
+}
+
+.cheats__col-head {
+  margin: 0;
+  padding-bottom: var(--s-sm);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cheats__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cheats__row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: var(--s-md);
+  align-items: baseline;
+  padding: var(--s-sm) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.cheats__row:last-child {
+  border-bottom: none;
+}
+
+.cheats__keys {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.cheats__action {
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.cheats__context {
+  margin: 0;
+  color: var(--text-mute);
+  text-align: right;
+}
+
+.cheats__foot {
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s-md);
+}
+.cheats__legend {
+  margin: 0;
+  color: var(--text-mute);
+  text-align: right;
+}

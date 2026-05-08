@@ -7,7 +7,10 @@
   height: 100%;
   overflow-y: auto;
   padding: var(--s-xl) clamp(var(--s-lg), 6vw, var(--s-2xl)) var(--s-2xl);
-  background: var(--bg);
+  /* Transparent so the body::before ambient hero art (set by the
+     ambient effect in HomePage.tsx) bleeds through. The page's own
+     content stays opaque on top. */
+  background: transparent;
   color: var(--text);
 }
 
@@ -70,6 +73,36 @@
 .home__pill:hover                 { color: var(--text); }
 .home__pill--active               { color: var(--text); border-color: var(--text-dim); }
 .home__pill:focus-visible         { outline: 2px solid var(--focus); outline-offset: 4px; }
+
+/* Surprise-me pill: same neutral tone, italics for the playful read. */
+.home__pill--surprise             { font-style: italic; }
+.home__pill--surprise:hover       { border-color: var(--text-dim); }
+
+/* ── Explore CTA (replaces empty Continue Playing band) ────────────── */
+
+.home__section--cta { padding-bottom: 0; }
+.home__cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+  align-items: flex-start;
+  padding: var(--s-md) 0 var(--s-lg);
+  max-width: 540px;
+}
+.home__cta-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-headline);
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.1;
+  color: var(--text);
+}
+.home__cta-body {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--t-body);
+}
 
 .home__count {
   margin-left: auto;

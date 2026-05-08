@@ -52,6 +52,68 @@
 .toast-in  { animation: toast-in  150ms var(--easing) both; }
 .toast-out { animation: toast-out 300ms var(--easing) both; }
 
+/* ── Big Picture cursor hide ────────────────────────────────────────── */
+/* Set by useBigPicture when the gamepad is the active input device and
+   the mouse has been still long enough that a cursor pinned in the
+   middle of the TV would just be visual noise. The rule applies to
+   every descendant so embedded controls (selects, links, inputs)
+   don't override it back to a pointer. */
+
+body.cursor-hidden,
+body.cursor-hidden * {
+  cursor: none !important;
+}
+
+/* ── Big Picture ambient (HomePage) ─────────────────────────────────── */
+/* When .home-ambient is active, body::before holds a heavily blurred
+   copy of the focused game's cover art. Two layers (a, b) so we can
+   crossfade between them as the user moves through the carousel. */
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--ambient-art-a, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(80px) brightness(0.32) saturate(1.05);
+  opacity: 0;
+  z-index: -1;
+  transform: scale(1.15); /* mask blur edge bleed */
+  transition: opacity var(--t-slow) var(--easing);
+  pointer-events: none;
+}
+body::after {
+  background-image: var(--ambient-art-b, none);
+}
+
+body.home-ambient::before { opacity: var(--ambient-a-opacity, 1); }
+body.home-ambient::after  { opacity: var(--ambient-b-opacity, 0); }
+
+/* When ambient is active, drop the solid body background so the
+   pseudo-elements (which sit at z-index: -1) actually show. The html
+   element keeps the warm near-black so we never flash white. The
+   navbar + tiles still render their own opaque surfaces on top. */
+html { background: var(--bg); }
+body.home-ambient { background: transparent; }
+/* The NavBar lives inside the AppContent flex container, not body,
+   so the body::before fixed layer sits behind it — but the navbar
+   has its own opaque background. The page itself (.home) has been
+   set to background: transparent in HomePage.css. */
+
+/* ── Big Picture: bigger tiles in fullscreen ────────────────────────── */
+/* Couch-distance use case: bump tile widths so the grid hands the eye
+   bigger targets. Scale also picks up `ui.scale` from config when set
+   higher than 1.0 — see SettingsPage / config_get. */
+
+body.is-fullscreen .game-tile--normal    { width: calc(200px * var(--ui-scale, 1.25)); }
+body.is-fullscreen .game-tile--large     { width: calc(260px * var(--ui-scale, 1.25)); }
+body.is-fullscreen .game-tile--landscape { width: calc(320px * var(--ui-scale, 1.25)); }
+body.is-fullscreen .home__grid {
+  grid-template-columns: repeat(auto-fill, minmax(calc(200px * var(--ui-scale, 1.25)), 1fr));
+}
+
 /* ── Reduced motion ─────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {

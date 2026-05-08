@@ -223,41 +223,28 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
   }, [target]);
 
   // ── Mutate the target input ────────────────────────────────────────
-  // Single helper: write `next` through React's native value setter so
-  // controlled inputs see the change. The setter side-steps React's
-  // own override on HTMLInputElement.value — without it, dispatching
-  // `input` would re-paint the old value. Chromium (Tauri's webview)
-  // always exposes the descriptor, so we treat its absence as a fatal
-  // wiring bug rather than silently dropping the keystroke.
-  const writeValue = useCallback(
-    (next: string): void => {
-      const el: HTMLInputElement | HTMLTextAreaElement = target;
-      const proto =
-        el instanceof HTMLTextAreaElement
-          ? HTMLTextAreaElement.prototype
-          : HTMLInputElement.prototype;
-      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      if (setter === undefined) {
-        console.warn('[vkbd] native value setter unavailable; dropping keystroke');
-        return;
-      }
-      setter.call(el, next);
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    },
-    [target],
-  );
-
+  // Earlier revisions of this panel wrote through React's native value
+  // setter (Object.getOwnPropertyDescriptor(...).set) and then dispatched
+  // a plain `Event('input')`. Under React 19 + StrictMode that pairing
+  // can drive React's controlled-input value tracker through two change
+  // notifications for a single click — the symptom was "press e, get ee".
+  //
+  // The fix: stop poking React's private setter and use the platform's
+  // own editing primitives. `setRangeText` mutates the input the way a
+  // real keystroke would (selection + value in one shot); the dispatched
+  // `InputEvent` carries a real `inputType`, so React's input tracker
+  // handles it identically to a user keypress — exactly one onChange.
   const insertText = useCallback(
     (text: string): void => {
       const el: HTMLInputElement | HTMLTextAreaElement = target;
       const start = el.selectionStart ?? el.value.length;
       const end = el.selectionEnd ?? el.value.length;
-      const next = el.value.slice(0, start) + text + el.value.slice(end);
-      writeValue(next);
-      const caret = start + text.length;
-      el.setSelectionRange(caret, caret);
+      el.setRangeText(text, start, end, 'end');
+      el.dispatchEvent(
+        new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }),
+      );
     },
-    [target, writeValue],
+    [target],
   );
 
   const backspace = useCallback((): void => {
@@ -265,18 +252,12 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
     const start = el.selectionStart ?? el.value.length;
     const end = el.selectionEnd ?? el.value.length;
     if (start === 0 && end === 0) return;
-    let nextStart: number;
-    let next: string;
-    if (start === end) {
-      nextStart = Math.max(0, start - 1);
-      next = el.value.slice(0, nextStart) + el.value.slice(end);
-    } else {
-      nextStart = start;
-      next = el.value.slice(0, start) + el.value.slice(end);
-    }
-    writeValue(next);
-    el.setSelectionRange(nextStart, nextStart);
-  }, [target, writeValue]);
+    const delStart = start === end ? Math.max(0, start - 1) : start;
+    el.setRangeText('', delStart, end, 'start');
+    el.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }),
+    );
+  }, [target]);
 
   const fire = useCallback(
     (action: KeyAction): void => {
@@ -411,6 +392,11 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
                   key.action.kind === 'shift' && shifted ? 'vkbd__key--active' : ''
                 }`}
                 style={{ flex: key.width ?? 1 }}
+                // preventDefault on mousedown so clicking a key does
+                // not blur the target input — otherwise the panel's
+                // own blur handler would race the click and close the
+                // panel before fire() runs.
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   setPos({ row: rIdx, col: cIdx });
                   fire(key.action);

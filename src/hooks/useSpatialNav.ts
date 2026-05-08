@@ -13,7 +13,15 @@
 import { useCallback } from 'react';
 import { useController, type Direction } from './useController';
 
+// Anything that's natively focusable or opted-in via [data-focusable].
+// Elements (or their ancestors) marked [data-no-spatial] are excluded
+// — used by the top NavBar tabs so D-pad navigation is reserved for
+// in-page content (page switching is handled by the LB/RB bumpers).
 const FOCUSABLE_SELECTOR = '[data-focusable], button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
+
+function isExcludedFromSpatial(el: Element): boolean {
+  return el.closest('[data-no-spatial]') !== null;
+}
 
 function getCenter(el: Element): { x: number; y: number } {
   const rect = el.getBoundingClientRect();
@@ -32,6 +40,7 @@ function findNearest(current: Element, direction: Direction): Element | null {
   for (const candidate of all) {
     if (candidate === current) continue;
     if (!candidate.checkVisibility()) continue;
+    if (isExcludedFromSpatial(candidate)) continue;
 
     const { x: tx, y: ty } = getCenter(candidate);
 
@@ -66,9 +75,15 @@ export function useSpatialNav() {
 
     const current = document.activeElement;
     if (!current || current === document.body) {
-      // Nothing focused — focus the first focusable element
-      const first = document.querySelector(FOCUSABLE_SELECTOR);
-      if (first instanceof HTMLElement) first.focus();
+      // Nothing focused — focus the first non-excluded focusable.
+      const candidates = document.querySelectorAll(FOCUSABLE_SELECTOR);
+      for (const el of Array.from(candidates)) {
+        if (isExcludedFromSpatial(el)) continue;
+        if (el instanceof HTMLElement) {
+          el.focus();
+          break;
+        }
+      }
       return;
     }
 

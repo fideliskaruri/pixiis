@@ -54,6 +54,17 @@ pub fn run() {
                 .clone()
                 .spawn(app.handle().clone(), MapperConfig::default());
 
+            // Big Picture: apply `ui.fullscreen` on startup. Best-effort —
+            // a missing or unreadable config falls through to the
+            // window's tauri.conf.json value (currently `false`). The
+            // user can still toggle via F11, navbar double-click, or the
+            // Settings → About checkbox.
+            if load_ui_fullscreen(app.handle()).unwrap_or(false) {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.set_fullscreen(true);
+                }
+            }
+
             // Services container: shared HTTP client + caches for RAWG /
             // Twitch / YouTube / image loader. Pane 9 owns this; the real
             // config plumbing arrives with the config module — for now we
@@ -225,9 +236,59 @@ pub fn run() {
             commands::config::app_set_autostart,
             commands::config::app_get_onboarded,
             commands::config::app_set_onboarded,
+            // system power
+            commands::system::system_sleep,
+            commands::system::system_lock,
+            commands::system::system_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Read the merged `ui.fullscreen` flag for startup. Reads the user
+/// override at `%APPDATA%/pixiis/config.toml` first; falls back to the
+/// bundled `resources/default_config.toml`. Returns `None` if neither
+/// file is parseable so the caller can default to the
+/// `tauri.conf.json` value rather than getting stuck on a misread.
+fn load_ui_fullscreen(app: &tauri::AppHandle) -> Option<bool> {
+    // 1. User config (preferred).
+    if let Ok(dir) = app.path().app_data_dir() {
+        let user = dir.join("config.toml");
+        if let Ok(text) = std::fs::read_to_string(&user) {
+            if let Ok(value) = text.parse::<toml::Value>() {
+                if let Some(b) = value
+                    .get("ui")
+                    .and_then(|u| u.get("fullscreen"))
+                    .and_then(|v| v.as_bool())
+                {
+                    return Some(b);
+                }
+            }
+        }
+    }
+
+    // 2. Bundled default — same candidate sweep as load_default_macros.
+    let candidates = [
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("resources/default_config.toml"))),
+        Some(std::path::PathBuf::from("../resources/default_config.toml")),
+        Some(std::path::PathBuf::from("resources/default_config.toml")),
+    ];
+    for path in candidates.into_iter().flatten() {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            if let Ok(value) = text.parse::<toml::Value>() {
+                if let Some(b) = value
+                    .get("ui")
+                    .and_then(|u| u.get("fullscreen"))
+                    .and_then(|v| v.as_bool())
+                {
+                    return Some(b);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Load the `[controller.macros]` table from the bundled

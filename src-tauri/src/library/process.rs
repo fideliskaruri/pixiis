@@ -186,7 +186,6 @@ impl ProcessTracker {
         let mut sys = System::new();
         sys.refresh_processes_specifics(
             ProcessesToUpdate::Some(&[pid]),
-            true,
             ProcessRefreshKind::new(),
         );
         let proc = sys.process(pid).ok_or_else(|| {
@@ -212,7 +211,6 @@ impl ProcessTracker {
     pub fn tick(&self, sys: &mut System) -> bool {
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
-            true,
             ProcessRefreshKind::new(),
         );
 
@@ -308,7 +306,6 @@ impl ProcessTracker {
         let mut sys = System::new();
         sys.refresh_processes_specifics(
             ProcessesToUpdate::All,
-            true,
             ProcessRefreshKind::new(),
         );
         let snapshot: Vec<ProcSnap> = sys

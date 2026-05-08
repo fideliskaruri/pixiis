@@ -18,7 +18,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { scanLibrary, setOnboarded } from '../api/bridge';
-import type { AppSource } from '../api/bridge';
+import { ScanProgress } from '../components/ScanProgress';
+import {
+  applyProgressEvent,
+  initialProviderRows,
+  type ProviderRow,
+} from '../components/scanProgressState';
 import { useController, type ControllerButton } from '../hooks/useController';
 import './OnboardingPage.css';
 
@@ -103,16 +108,6 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
 
 // ── Step 2 · Library scan ─────────────────────────────────────────────
 
-type ProviderState = 'pending' | 'scanning' | 'done' | 'unavailable' | 'error';
-
-interface ProviderRow {
-  key: AppSource;
-  label: string;
-  state: ProviderState;
-  count: number;
-  detail?: string;
-}
-
 interface ScanProgressEvent {
   provider?: string;
   state?: string;
@@ -120,35 +115,11 @@ interface ScanProgressEvent {
   error?: string;
 }
 
-const PROVIDERS: { key: AppSource; label: string }[] = [
-  { key: 'steam', label: 'STEAM' },
-  { key: 'xbox', label: 'XBOX' },
-  { key: 'epic', label: 'EPIC' },
-  { key: 'gog', label: 'GOG' },
-  { key: 'ea', label: 'EA' },
-  { key: 'startmenu', label: 'START MENU' },
-];
-
-function initialRows(): ProviderRow[] {
-  return PROVIDERS.map(({ key, label }) => ({
-    key,
-    label,
-    state: 'pending',
-    count: 0,
-  }));
-}
-
 function LibraryScanStep({ onNext }: { onNext: () => void }) {
-  const [rows, setRows] = useState<ProviderRow[]>(initialRows);
+  const [rows, setRows] = useState<ProviderRow[]>(initialProviderRows);
   const [done, setDone] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const startedRef = useRef(false);
-
-  const updateRow = useCallback((key: string, patch: Partial<ProviderRow>) => {
-    setRows((current) =>
-      current.map((r) => (r.key === key ? { ...r, ...patch } : r)),
-    );
-  }, []);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -162,20 +133,7 @@ function LibraryScanStep({ onNext }: { onNext: () => void }) {
         unlisten = await listen<ScanProgressEvent>(
           'library:scan:progress',
           (event) => {
-            const p = event.payload ?? {};
-            if (typeof p.provider !== 'string') return;
-            const state =
-              p.state === 'scanning' ||
-              p.state === 'done' ||
-              p.state === 'unavailable' ||
-              p.state === 'error'
-                ? p.state
-                : 'pending';
-            updateRow(p.provider, {
-              state,
-              count: typeof p.count === 'number' ? p.count : 0,
-              detail: p.error,
-            });
+            setRows((current) => applyProgressEvent(current, event.payload ?? {}));
           },
         );
       } catch {
@@ -186,7 +144,7 @@ function LibraryScanStep({ onNext }: { onNext: () => void }) {
       // Mark every provider as scanning while we wait for either the
       // progress events or the scan() Promise to resolve.
       setRows((current) =>
-        current.map((r) => ({ ...r, state: 'scanning' as ProviderState })),
+        current.map((r) => ({ ...r, state: 'scanning' as const })),
       );
 
       try {
@@ -220,7 +178,7 @@ function LibraryScanStep({ onNext }: { onNext: () => void }) {
       cancelled = true;
       if (unlisten !== null) unlisten();
     };
-  }, [updateRow]);
+  }, []);
 
   const totalGames = useMemo(
     () => rows.reduce((sum, r) => sum + (r.state === 'done' ? r.count : 0), 0),
@@ -238,19 +196,7 @@ function LibraryScanStep({ onNext }: { onNext: () => void }) {
         moment.
       </p>
 
-      <ul className="onboarding__provider-list">
-        {rows.map((r) => (
-          <li key={r.key} className="onboarding__provider-row">
-            <span className="label onboarding__provider-name">{r.label}</span>
-            <span className="onboarding__provider-state">
-              <ProviderGlyph state={r.state} />
-              <span className="onboarding__provider-text">
-                {providerStateText(r)}
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
+      <ScanProgress rows={rows} scanning={!done} />
 
       <div className="onboarding__cta-row">
         <p className="onboarding__count">
@@ -271,57 +217,6 @@ function LibraryScanStep({ onNext }: { onNext: () => void }) {
         </button>
       </div>
     </StepShell>
-  );
-}
-
-function providerStateText(r: ProviderRow): string {
-  switch (r.state) {
-    case 'pending':
-      return 'queued';
-    case 'scanning':
-      return 'scanning…';
-    case 'done':
-      return `${r.count} ${r.count === 1 ? 'game' : 'games'}`;
-    case 'unavailable':
-      return 'not detected';
-    case 'error':
-      return r.detail ?? 'failed';
-  }
-}
-
-function ProviderGlyph({ state }: { state: ProviderState }) {
-  if (state === 'done') {
-    return (
-      <span className="onboarding__glyph onboarding__glyph--ok" aria-hidden>
-        ✓
-      </span>
-    );
-  }
-  if (state === 'unavailable') {
-    return (
-      <span className="onboarding__glyph onboarding__glyph--mute" aria-hidden>
-        —
-      </span>
-    );
-  }
-  if (state === 'error') {
-    return (
-      <span className="onboarding__glyph onboarding__glyph--err" aria-hidden>
-        ✕
-      </span>
-    );
-  }
-  if (state === 'scanning') {
-    return (
-      <span className="onboarding__glyph onboarding__glyph--spin" aria-hidden>
-        ⠿
-      </span>
-    );
-  }
-  return (
-    <span className="onboarding__glyph onboarding__glyph--mute" aria-hidden>
-      ·
-    </span>
   );
 }
 

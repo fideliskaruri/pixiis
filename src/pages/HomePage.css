@@ -96,6 +96,11 @@
   max-width: 540px;
   padding: var(--s-2xl) 0;
 }
+/* Auto-scan readout needs more room for the six-row provider list. */
+.home__empty--scanning {
+  max-width: 640px;
+  width: 100%;
+}
 /* Quiet magazine empty-state heading — serif but not display-loud. */
 .home__empty-title {
   margin: 0;

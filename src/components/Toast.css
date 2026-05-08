@@ -48,7 +48,7 @@
    means only `error` gets a chromatic mark; success is signalled by
    message content alone. */
 .toast--info    { /* default styling */ }
-.toast--success { border-color: rgba(237, 233, 221, 0.16); }
+.toast--success { border-color: color-mix(in srgb, var(--text) 16%, transparent); }
 .toast--error   { border-color: var(--accent); }
 
 .toast__mark {

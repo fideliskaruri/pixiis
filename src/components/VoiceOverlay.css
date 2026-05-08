@@ -43,7 +43,9 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent);
+  /* Single-accent rule: the dot is a listening indicator, not an
+     error/play/focus surface — keep it in the neutral palette. */
+  background: var(--text);
   flex-shrink: 0;
 }
 

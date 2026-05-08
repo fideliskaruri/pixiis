@@ -52,6 +52,8 @@ fn local_name_str(bytes: &[u8]) -> &str {
 
 /// Walk the manifest and return one `ManifestApp` per `<Application>`
 /// element. Self-closing `<Application/>` is handled (rare but legal).
+/// Used by unit tests; production paths call [`parse_manifest_full`].
+#[allow(dead_code)]
 pub fn parse_manifest(xml: &str) -> Result<Vec<ManifestApp>, ParseError> {
     parse_manifest_full(xml).map(|(apps, _)| apps)
 }

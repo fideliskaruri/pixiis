@@ -27,6 +27,7 @@ import { ShortcutsCheatsProvider } from './components/ShortcutsCheatSheet';
 import { VoiceOverlay } from './components/VoiceOverlay';
 import { VirtualKeyboardProvider } from './components/VirtualKeyboard';
 import { useSpatialNav } from './hooks/useSpatialNav';
+import { useBumperNav } from './hooks/useBumperNav';
 import { useBigPicture } from './hooks/useBigPicture';
 import { getOnboarded } from './api/bridge';
 
@@ -37,6 +38,12 @@ import './styles/animations.css';
 
 function AppContent() {
   useSpatialNav();
+  // LB/RB cycle through top-level pages; B handles back-nav with
+  // route-aware logic (no-op on top-level routes, history.back on
+  // /game/:id). Mounted alongside useSpatialNav so all controller-
+  // driven nav lives in AppContent. Both hooks call useController
+  // internally; each installs its own poll loop.
+  useBumperNav();
   useBigPicture();
   const location = useLocation();
   const navigate = useNavigate();

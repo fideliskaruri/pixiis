@@ -15,6 +15,7 @@ import { HomeGreeting } from '../components/HomeGreeting';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
 import { useUiPrefs } from '../api/UiPrefsContext';
+import { useAutoFocus } from '../hooks/useAutoFocus';
 import { imageUrl, type AppEntry } from '../api/bridge';
 import './HomePage.css';
 
@@ -203,6 +204,19 @@ export function HomePage() {
 
   const onlyGames = useMemo(() => games.filter((g) => g.is_game), [games]);
   const showRecent = recentlyPlayed.length > 0;
+
+  // Land focus on the first tile once tiles exist. Re-runs when the
+  // first tile's identity changes (search filter, sort flip, async
+  // library load) so the controller is never lost in dead space.
+  // Carousel tiles render before grid tiles in DOM order, so the
+  // selector lands on Continue Playing first when it's visible.
+  const firstTileKey =
+    (recentlyPlayed[0]?.id ?? '') +
+    '|' +
+    (recentlyAdded[0]?.id ?? '') +
+    '|' +
+    (filtered[0]?.id ?? '');
+  useAutoFocus('.home .game-tile', [firstTileKey]);
   const showRecentlyAdded =
     prefs.recentlyAddedEnabled && recentlyAdded.length > 0;
   const showExploreCta = !showRecent && onlyGames.length > 0;

@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
 import { useLibrary } from '../api/LibraryContext';
+import { useAutoFocus } from '../hooks/useAutoFocus';
 import type { AppEntry, AppSource } from '../api/bridge';
 import './LibraryPage.css';
 
@@ -148,6 +149,16 @@ export function LibraryPage() {
   const onOpen = (g: AppEntry): void => {
     navigate(`/game/${encodeURIComponent(g.id)}`);
   };
+
+  // Auto-focus the first interactive control on mount. Library always
+  // has the "All" chip, so `.library__chip` is reliable; the comma
+  // selector falls through to the first tile on the (rare) chance the
+  // chip strip hasn't rendered yet. Re-runs when chip availability or
+  // tile set shifts so post-scan loads pick the focus back up.
+  useAutoFocus('.library__chip, .library__grid .game-tile', [
+    availableSources.length,
+    filtered[0]?.id ?? '',
+  ]);
 
   return (
     <div className="library fade-in">

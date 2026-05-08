@@ -8,6 +8,13 @@
  * Usage:
  *   useSpatialNav(); // in your root component
  *   <div data-focusable tabIndex={0}>...</div>
+ *
+ * Buttons handled here:
+ *   - A activates the focused element (`active.click()`).
+ *   - B / LB / RB are intentionally NOT handled here. They're owned
+ *     by `useBumperNav`, which has access to the current route — that's
+ *     the only place that can decide "B on Home is a no-op" vs "B on
+ *     /game/:id pops one level back".
  */
 
 import { useCallback } from 'react';
@@ -17,10 +24,15 @@ import { useController, type Direction } from './useController';
 // Elements (or their ancestors) marked [data-no-spatial] are excluded
 // — used by the top NavBar tabs so D-pad navigation is reserved for
 // in-page content (page switching is handled by the LB/RB bumpers).
+// Defensive secondary skip on `.navbar` descendants ensures D-pad
+// never lands on the NavBar even if a future tab forgets the attr or
+// a new chrome control renders without it.
 const FOCUSABLE_SELECTOR = '[data-focusable], button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
 
 function isExcludedFromSpatial(el: Element): boolean {
-  return el.closest('[data-no-spatial]') !== null;
+  if (el.closest('[data-no-spatial]') !== null) return true;
+  if (el.closest('.navbar') !== null) return true;
+  return false;
 }
 
 function getCenter(el: Element): { x: number; y: number } {
@@ -96,28 +108,12 @@ export function useSpatialNav() {
   }, []);
 
   const onButtonPress = useCallback((button: string) => {
+    if (button !== 'a') return;
+    // Activate the focused element. We don't return early on a missing
+    // activeElement up-front because we want the same shape as the
+    // earlier handler — A on a non-HTMLElement target is just a no-op.
     const active = document.activeElement;
-    if (!active || !(active instanceof HTMLElement)) return;
-
-    switch (button) {
-      case 'a':
-        // Activate the focused element
-        active.click();
-        break;
-      case 'b': {
-        // Navigate back — but skip when a modal is open. QuickResume,
-        // VirtualKeyboard, and Lightbox each install their own B-button
-        // handler to dismiss themselves; if the global handler also
-        // fires, the user pops a route at the same time and lands two
-        // surfaces deep in one press.
-        const modalOpen = document.querySelector(
-          '[role="dialog"][aria-modal="true"], [aria-modal="true"]',
-        );
-        if (modalOpen !== null) return;
-        window.history.back();
-        break;
-      }
-    }
+    if (active instanceof HTMLElement) active.click();
   }, []);
 
   useController(onButtonPress, onDirection);

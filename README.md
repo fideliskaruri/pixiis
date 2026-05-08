@@ -14,8 +14,8 @@ with a controller, your voice, or a mouse. The chrome is restrained —
 warm near-black, off-white serif display type, a single accent reserved
 for the play action and focus rings, no springs or bounces.
 
-The application originally shipped as a PySide6 + faster-whisper +
-Kokoro Python program. Version 0.2.0 is a complete reimplementation: a
+The application originally shipped as a PySide6 + faster-whisper
+Python program. Version 0.2.0 is a complete reimplementation: a
 Rust crate via Tauri 2, a Vite 8 + React 19 + TypeScript frontend, and
 type contracts auto-generated from the Rust side via ts-rs.
 
@@ -25,8 +25,7 @@ type contracts auto-generated from the Rust side via ts-rs.
   GOG, EA, Start Menu (.lnk parsing, no PowerShell shell-out), folder
   scanner, manual entries
 - **Voice control** — local STT via whisper-rs (whisper.cpp bindings),
-  TTS via Kokoro v1.0 ONNX through `ort 2.0`, optional Silero VAD, all
-  on-device
+  optional Silero VAD, all on-device
 - **Controller** — gilrs-driven background poller for tray-mode macros,
   Web Gamepad API for foreground UI, configurable button + combo macros
 - **Editorial UI** — Fraunces serif for display, Inter for body,
@@ -85,7 +84,7 @@ Pixiis is two co-resident processes inside a single Tauri shell:
 │                                │   subsystems          │   │
 │                                │     library/  ── 7 providers
 │                                │     controller/ ─ gilrs poller + macros
-│                                │     voice/ ────── whisper + kokoro + cpal
+│                                │     voice/ ────── whisper + cpal
 │                                │     services/ ─── RAWG, Twitch, YouTube, OAuth
 │                                │                                       │
 │                                └─── tray (Open / Scan / Quit) ─────────┘
@@ -132,8 +131,7 @@ Configuration lives in `%APPDATA%\pixiis\` on Windows:
 ├── images\                 RAWG cover-art LRU cache
 ├── models\
 │   ├── whisper\            ggml-base.en-q5_0.bin (first-run copy from bundle)
-│   ├── silero\             silero_vad.onnx (when feature is enabled)
-│   └── kokoro\             kokoro-v1.0.onnx + voices-v1.0.bin
+│   └── silero\             silero_vad.onnx (when feature is enabled)
 └── .onboarded              one-shot first-run marker
 ```
 
@@ -143,7 +141,6 @@ shapes. The main sections:
 
 - `[voice]` — STT model, compute device (`auto` / `cuda` / `cpu`),
   energy threshold, VAD backend, sample rate
-- `[voice.tts]` — enabled flag, Kokoro voice id, speed
 - `[voice.transcription]` — beam sizes, language, no-speech / compression
   thresholds
 - `[controller]` — deadzone, hold/combo windows, voice trigger,
@@ -203,7 +200,7 @@ Library / Voice / Controller / Services / About.
 │       ├── library/            steam, xbox/, epic, gog, ea, startmenu, folder, cache
 │       ├── services/           rawg, twitch, youtube, oauth, image_loader, vibration
 │       └── voice/              transcriber, audio_capture, vad, pipeline,
-│                               text_injection, tts, model
+│                               text_injection, model
 └── agents/                     migration journals (STATUS.md is the canonical record)
 ```
 
@@ -215,13 +212,11 @@ MIT. See [LICENSE](LICENSE).
 
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and
   [whisper-rs](https://github.com/tazz4843/whisper-rs) — local STT
-- [Kokoro](https://github.com/hexgrad/kokoro) — TTS voice model
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — the
   reference baseline for the Phase 0 spike
 - [Tauri](https://tauri.app/), [Vite](https://vitejs.dev/), and
   [React](https://react.dev/) — application shell and frontend
 - [gilrs](https://gitlab.com/gilrs-project/gilrs) — controller input
-- [ort](https://ort.pyke.io/) — ONNX runtime bindings for Kokoro and
-  Silero
+- [ort](https://ort.pyke.io/) — ONNX runtime bindings for Silero VAD
 - [Fraunces](https://fonts.google.com/specimen/Fraunces) and
   [Inter](https://rsms.me/inter/) — display and body type

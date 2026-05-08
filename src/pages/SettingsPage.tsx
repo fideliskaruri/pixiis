@@ -6,8 +6,8 @@
  * single Apply button that batches changes into one `config_set` patch.
  *
  * Soft dependencies on other Wave 2 panes:
- *   - Voice partials / TTS speak depend on `wave2/voice` + `wave2/tts`.
- *     Until those merge, the test buttons surface a "Pending …" hint.
+ *   - Voice partials depend on `wave2/voice`. Until that merges the test
+ *     button surfaces a "Pending …" hint.
  *   - `library:scan:progress` events are emitted by future scanner work;
  *     the page subscribes if they arrive but never blocks on them.
  */
@@ -470,9 +470,6 @@ function VoiceSection({ state, update }: SectionProps) {
   const [finalText, setFinalText] = useState<string>('');
   const [voiceError, setVoiceError] = useState<string>('');
 
-  // TTS test state.
-  const [ttsState, setTtsState] = useState<'idle' | 'speaking' | 'pending' | 'error'>('idle');
-  const [ttsError, setTtsError] = useState<string>('');
 
   // Load devices.
   useEffect(() => {
@@ -545,24 +542,6 @@ function VoiceSection({ state, update }: SectionProps) {
       setVoiceError(err instanceof Error ? err.message : String(err));
     }
   }, [testing]);
-
-  const speakTest = useCallback(async () => {
-    setTtsError('');
-    setTtsState('speaking');
-    try {
-      await invoke('voice_speak', { text: 'This is the Pixiis voice.' });
-      setTtsState('idle');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // Command isn't wired yet — surface the soft-dep affordance.
-      if (/not implemented|unknown|no such/i.test(msg)) {
-        setTtsState('pending');
-      } else {
-        setTtsError(msg);
-        setTtsState('error');
-      }
-    }
-  }, []);
 
   return (
     <>
@@ -674,27 +653,6 @@ function VoiceSection({ state, update }: SectionProps) {
         </div>
       </Field>
 
-      <Field label="Test TTS" hint="Speak a short sample with the bundled voice.">
-        <div className="settings__tts-test">
-          <button
-            type="button"
-            className="settings__btn"
-            onClick={speakTest}
-            disabled={ttsState === 'speaking'}
-            data-focusable
-          >
-            {ttsState === 'speaking' ? 'Speaking…' : 'Test TTS'}
-          </button>
-          {ttsState === 'pending' && (
-            <p className="settings__hint">Pending wave2/tts merge.</p>
-          )}
-          {ttsState === 'error' && (
-            <p className="settings__notice settings__notice--warn" role="alert">
-              {ttsError}
-            </p>
-          )}
-        </div>
-      </Field>
     </>
   );
 }

@@ -39,36 +39,30 @@ Install once. Total ~5 GB.
 
 ## Model files
 
-Voice STT, TTS, and (optionally) Silero VAD need model weights that
-are **not bundled with the installer** and **not committed to git**.
+Voice STT and (optionally) Silero VAD need model weights that are
+**not bundled with the installer** and **not committed to git**.
 They're not listed in `tauri.conf.json::bundle.resources` because (a)
-they'd add 350+ MB to the installer and (b) Tauri's bundler errors
+they'd add tens of MB to the installer and (b) Tauri's bundler errors
 on globs that match nothing, which would break the build for anyone
 who hadn't staged weights.
 
-The build succeeds without any model files. Voice / TTS commands
-return a clean `NotFound` error at runtime until the user drops the
-weights in. The runtime looks at `%APPDATA%\pixiis\models\<kind>\`
-first, so this is where users put downloaded models.
+The build succeeds without any model files. Voice commands return a
+clean `NotFound` error at runtime until the user drops the weights in.
+The runtime looks at `%APPDATA%\pixiis\models\<kind>\` first, so this
+is where users put downloaded models.
 
 ```powershell
 # Whisper STT (~31 MB, required for voice search)
 curl.exe -L -o "$env:APPDATA\pixiis\models\whisper\ggml-base.en-q5_0.bin" `
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_0.bin
 
-# Kokoro TTS (~325 MB + ~26 MB, required for voice_speak)
-curl.exe -L -o "$env:APPDATA\pixiis\models\kokoro\kokoro-v1.0.onnx" `
-  https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx
-curl.exe -L -o "$env:APPDATA\pixiis\models\kokoro\voices-v1.0.bin" `
-  https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
-
 # Silero VAD (~2 MB, only needed when the silero-vad feature is on)
 curl.exe -L -o "$env:APPDATA\pixiis\models\silero\silero_vad.onnx" `
   https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx
 ```
 
-(Create the `kokoro\`, `whisper\`, `silero\` subdirectories first if
-PowerShell complains.)
+(Create the `whisper\` and `silero\` subdirectories first if PowerShell
+complains.)
 
 To **bundle** the models into a release installer, drop them into the
 matching `resources/models/<kind>/` directory in the repo before
@@ -78,8 +72,6 @@ building, then add globs back to `tauri.conf.json::bundle.resources`:
 "resources": [
   "../resources/default_config.toml",
   "../resources/models/whisper/*.bin",
-  "../resources/models/kokoro/*.onnx",
-  "../resources/models/kokoro/*.bin",
   "../resources/models/silero/*.onnx"
 ]
 ```
@@ -128,10 +120,11 @@ Double-click to install. Pixiis lands in
 Optional features defined in `src-tauri/Cargo.toml`:
 
 - `silero-vad` (off by default) — enables the ONNX Silero VAD path
-  in `voice/vad.rs`. Requires `onnxruntime.dll` to be resolvable at
-  runtime and the `silero_vad.onnx` file to be present. The
-  energy-RMS fallback (`EnergyVad`) is always available and is the
-  default when this feature is off.
+  in `voice/vad.rs`. Pulls in `ort` + `ndarray` as build-time deps,
+  requires `onnxruntime.dll` to be resolvable at runtime, and needs
+  the `silero_vad.onnx` file to be present. The energy-RMS fallback
+  (`EnergyVad`) is always available and is the default when this
+  feature is off.
 - `custom-protocol` — set automatically by the Tauri CLI for
   production builds. Do not toggle by hand.
 
@@ -140,11 +133,6 @@ To build with VAD on:
 ```bash
 cd src-tauri && cargo tauri build --features silero-vad
 ```
-
-`ort` (the ONNX runtime crate Kokoro TTS uses) is **not** behind a
-feature flag — it's a hard dep, dlopened at runtime via
-`load-dynamic`, so `onnxruntime.dll` must be on the search path of any
-machine running `voice_speak`.
 
 ## Troubleshooting
 

@@ -9,11 +9,6 @@ energy_threshold = 300.0
 vad_backend = "silero"          # "silero" or "webrtc"
 sample_rate = 16000
 
-[voice.tts]
-enabled = true
-voice = "am_michael"
-speed = 1.0
-
 [voice.transcription]
 fast_beam_size = 3
 quality_beam_size = 5

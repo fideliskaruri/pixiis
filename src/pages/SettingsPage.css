@@ -441,14 +441,6 @@
   font-style: italic;
 }
 
-/* ── TTS test ─────────────────────────────────────────────────────── */
-
-.settings__tts-test {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-sm);
-}
-
 /* ── Library scan ─────────────────────────────────────────────────── */
 
 .settings__scan {

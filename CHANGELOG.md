@@ -14,9 +14,6 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   Phase 0 spike measured `whisper-rs` 2× faster than the Python
   baseline at the same RSS, transcript identical modulo a single comma
   in one pangram.
-- Voice TTS: `kokoro-onnx` (Python) → Kokoro v1.0 ONNX through the
-  `ort` 2.0-rc crate. Phase 0 spike measured cosine 0.9991 / SNR 27.4
-  dB against the Python output, 1.5× faster CPU inference.
 - Xbox / UWP detection: PowerShell `Get-AppxPackage` shell-out → direct
   WinRT `Management.Deployment.PackageManager` calls. Phase 0 spike
   measured the Rust path 2.2× faster than the PowerShell path with
@@ -36,8 +33,8 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Distribution: PyInstaller → `cargo tauri build` producing an NSIS
   per-user installer (`Pixiis_0.2.0_x64-setup.exe`).
 - Configuration directory layout reorganised under `%APPDATA%\pixiis\`
-  to host first-run copies of the bundled Whisper, Silero, and Kokoro
-  models alongside `config.toml`.
+  to host first-run copies of the bundled Whisper and Silero models
+  alongside `config.toml`.
 
 ### Added
 
@@ -97,6 +94,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - PS5-glass theme. The legacy `theme.css` is no longer imported (the
   file is still on disk pending a future deletion sweep).
 - Hand-maintained Pydantic types in favour of `ts-rs` codegen.
+- Text-to-speech (Kokoro ONNX). The codebase carries no TTS engine.
 
 ### Deprecated
 

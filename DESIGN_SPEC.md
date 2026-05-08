@@ -84,11 +84,10 @@ subsystem under
   providers in [`src-tauri/src/library/`](src-tauri/src/library/) and
   persists favourites + playtime in a JSON overlay.
 - **voice** — `voice_start`, `voice_stop`, `voice_get_devices`,
-  `voice_set_device`, `voice_inject_text`, `voice_get_transcript_log`,
-  `voice_speak`. Backed by the pipeline in
+  `voice_set_device`, `voice_inject_text`, `voice_get_transcript_log`.
+  Backed by the pipeline in
   [`src-tauri/src/voice/`](src-tauri/src/voice/). STT emits
-  `voice:partial` / `voice:final` / `voice:state` Tauri events; TTS is
-  fire-and-forget and runs on a dedicated cpal output stream.
+  `voice:partial` / `voice:final` / `voice:state` Tauri events.
 - **controller** — `controller_register_macro`, `controller_get_state`,
   `vibration_pulse`. Implementation in
   [`src-tauri/src/controller/`](src-tauri/src/controller/) with the
@@ -153,10 +152,9 @@ Editing `types.rs` and re-running `cargo test --bins` from
 3. **`LibraryService`** — runs the seven providers in declared order
    on each `library_scan`; first-write wins on the case-insensitive
    path dedup.
-4. **`VoiceService` + `TtsEngine`** — Whisper STT (eager load at
-   startup, costs 200–500 ms) and Kokoro TTS (lazy load on first
-   `voice_speak`). Both gracefully degrade to a clean error if their
-   model files are missing rather than panicking the app.
+4. **`VoiceService`** — Whisper STT (eager load at startup, costs
+   200–500 ms). Gracefully degrades to a clean error if the model
+   file is missing rather than panicking the app.
 
 ## Out of scope for this document
 

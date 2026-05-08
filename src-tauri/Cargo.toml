@@ -50,29 +50,21 @@ lnk = "0.5"
 # UWP scanner (Pane 4). Cross-platform so the manifest-parsing unit tests
 # run on Linux CI even though the WinRT enumeration is Windows-only.
 quick-xml = "0.31"
-# Voice subsystem (Wave 2 — Panes 1 + 2):
+# Voice STT subsystem:
 # - whisper-rs binds whisper.cpp; default features compile bundled C/C++.
-# - cpal owns the platform audio device (input for STT, output for TTS).
-# - ort 2.0 runs both the Silero VAD model (Pane 1) and Kokoro v1.0 (Pane 2).
-#   `load-dynamic` dlopens onnxruntime at runtime so we don't carry an
-#   openssl/ureq build-time chain (matches the Wave 1 Kokoro spike, see
-#   spike/kokoro-bench/RESULTS.md). Hard dep because Kokoro TTS needs it on
-#   every build; the `silero-vad` feature gates Silero VAD code paths only.
-# - ndarray is a hard dep of ort + the Kokoro pipeline.
+# - cpal owns the platform audio input device.
+# - ort 2.0 runs the Silero VAD model. `load-dynamic` dlopens onnxruntime
+#   at runtime so we don't carry an openssl/ureq build-time chain.
+#   Optional and gated behind the `silero-vad` feature — EnergyVad is the
+#   always-available fallback.
+# - ndarray is the tensor type ort exposes; optional alongside ort.
 # - crossbeam-channel for STT audio capture → pipeline plumbing.
-# - libloading is for the espeak-ng FFI wrapper (Kokoro phonemiser).
-# - zip + byteorder parse Kokoro voices-v1.0.bin (np.savez of f32 npy).
-# - num_cpus picks the ORT intra-op thread count.
 whisper-rs = { version = "0.13", default-features = false }
 cpal = "0.15"
-ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "load-dynamic", "cuda"] }
-ndarray = "0.16"
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "load-dynamic", "cuda"], optional = true }
+ndarray = { version = "0.16", optional = true }
 crossbeam-channel = "0.5"
 dirs = "5"
-libloading = "0.8"
-zip = { version = "2", default-features = false, features = ["deflate"] }
-byteorder = "1"
-num_cpus = "1.16"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
@@ -102,8 +94,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # Set by Tauri CLI for production builds. Do not remove.
 custom-protocol = ["tauri/custom-protocol"]
 # Enable the Silero ONNX VAD path. Off by default — relies on
-# `onnxruntime.dll` being resolvable at runtime. EnergyVad is always
-# available as a fallback. ort + ndarray are no longer optional (Kokoro
-# TTS — Pane 2 — needs them on every build), so this feature is now a
-# pure code-path marker.
-silero-vad = []
+# `onnxruntime.dll` being resolvable at runtime and pulls in `ort` +
+# `ndarray` as build-time deps. EnergyVad is always available as a
+# fallback when this feature is off.
+silero-vad = ["dep:ort", "dep:ndarray"]

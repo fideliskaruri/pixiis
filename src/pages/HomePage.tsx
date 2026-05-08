@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
+import { ScanProgress } from '../components/ScanProgress';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
 import type { AppEntry } from '../api/bridge';
@@ -18,7 +19,14 @@ import './HomePage.css';
 type SortMode = 'az' | 'recent';
 
 export function HomePage() {
-  const { games, status, error, refresh } = useLibrary();
+  const {
+    games,
+    status,
+    error,
+    refresh,
+    isAutoScanning,
+    scanProviders,
+  } = useLibrary();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('az');
@@ -124,6 +132,18 @@ export function HomePage() {
             >
               Retry
             </button>
+          </div>
+        ) : isAutoScanning ? (
+          // First-launch auto-scan: surface the same magazine-style
+          // per-provider readout Onboarding shows so the window doesn't
+          // look frozen during the 5–30 s discovery sweep.
+          <div className="home__empty home__empty--scanning">
+            <p className="home__empty-title">Discovering your library…</p>
+            <p className="home__empty-body">
+              Pixiis is sweeping your stores and common game folders. This
+              usually takes a few seconds.
+            </p>
+            <ScanProgress rows={scanProviders} scanning />
           </div>
         ) : status === 'loading' && games.length === 0 ? (
           <div className="home__empty">

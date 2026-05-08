@@ -55,6 +55,12 @@
 
 .navbar__spacer { flex: 1; }
 
+.navbar__now-playing {
+  display: flex;
+  align-items: center;
+  margin-right: var(--s-md);
+}
+
 .navbar__controls {
   display: flex;
   gap: 2px;

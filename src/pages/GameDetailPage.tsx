@@ -13,7 +13,9 @@ import {
   imageUrl,
   launchGame,
   lookupRawg,
+  stopGame,
   toggleFavorite,
+  useRunningGames,
   type AppEntry,
   type RawgGameData,
 } from '../api/bridge';
@@ -21,7 +23,7 @@ import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
 import './GameDetailPage.css';
 
-type LaunchState = 'idle' | 'launching' | 'launched' | 'error';
+type LaunchState = 'idle' | 'launching' | 'launched' | 'stopping' | 'error';
 
 const SOURCE_LABELS: Partial<Record<AppEntry['source'], string>> = {
   steam: 'STEAM',
@@ -41,6 +43,8 @@ export function GameDetailPage() {
   const navigate = useNavigate();
   const { byId, status: libraryStatus, error: libraryError } = useLibrary();
   const { toast } = useToast();
+  const running = useRunningGames();
+  const isRunning = running.some((r) => r.id === id);
 
   const game = byId(id);
 
@@ -110,6 +114,29 @@ export function GameDetailPage() {
     }
   };
 
+  // Stop path mirrors `onPlay` but flips through the same state machine
+  // so the button never double-fires. The running-game hook is the
+  // source of truth for whether the game is actually running — once the
+  // tracker prunes the row we'll fall back to the PLAY label.
+  const onStop = async (): Promise<void> => {
+    if (game === undefined || launchState === 'stopping') return;
+    setLaunchState('stopping');
+    setLaunchError('');
+    try {
+      await stopGame(game.id);
+      toast(`Stopped ${game.name}`, 'success');
+      // Don't snap to 'idle' here — the running-game event will flip
+      // `isRunning` to false, which switches the button label back to
+      // ▶ PLAY without us having to time it out.
+      setLaunchState('idle');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLaunchError(msg);
+      setLaunchState('error');
+      toast(`Failed to stop: ${msg}`, 'error');
+    }
+  };
+
   const onToggleFavorite = async (): Promise<void> => {
     if (game === undefined) return;
     setFavoriteError('');
@@ -155,12 +182,23 @@ export function GameDetailPage() {
   }
 
   const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
+  // The PLAY button doubles as a STOP button while the game is live.
+  // Steam-Big-Picture-style: one primary verb, no need to alt-tab.
   const playButtonLabel =
     launchState === 'launching'
       ? 'LAUNCHING…'
-      : launchState === 'launched'
-        ? 'LAUNCHED'
-        : '▶ PLAY';
+      : launchState === 'stopping'
+        ? 'STOPPING…'
+        : isRunning
+          ? '■ STOP'
+          : launchState === 'launched'
+            ? 'LAUNCHED'
+            : '▶ PLAY';
+  const onPrimary = isRunning ? onStop : onPlay;
+  const primaryDisabled =
+    launchState === 'launching' ||
+    launchState === 'stopping' ||
+    (!isRunning && !game.is_installed);
 
   // RAWG description prefers the rich `description` field; fall back gracefully.
   const description = rawg?.description ?? '';
@@ -213,9 +251,12 @@ export function GameDetailPage() {
       <div className="detail__actions">
         <button
           className="accent-btn detail__play"
-          onClick={onPlay}
-          disabled={!game.is_installed || launchState === 'launching'}
+          onClick={() => {
+            void onPrimary();
+          }}
+          disabled={primaryDisabled}
           data-focusable
+          aria-label={isRunning ? `Stop ${game.name}` : `Play ${game.name}`}
         >
           {playButtonLabel}
         </button>

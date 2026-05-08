@@ -11,7 +11,12 @@
  */
 
 import { useState } from 'react';
-import { type AppEntry, type GameEntry, imageUrl } from '../api/bridge';
+import {
+  type AppEntry,
+  type GameEntry,
+  imageUrl,
+  useRunningGames,
+} from '../api/bridge';
 import './GameTile.css';
 
 interface Props {
@@ -39,6 +44,8 @@ export function GameTile({
   onFavorite,
 }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const running = useRunningGames();
+  const isPlaying = running.some((r) => r.id === game.id);
 
   const artSrc = imageUrl(game.art_url);
   const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
@@ -100,6 +107,15 @@ export function GameTile({
 
       {!game.is_installed && (
         <span className="game-tile__not-installed label">NOT INSTALLED</span>
+      )}
+
+      {isPlaying && (
+        <span
+          className="game-tile__playing label"
+          aria-label="Currently playing"
+        >
+          ● PLAYING
+        </span>
       )}
     </div>
   );

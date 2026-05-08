@@ -11,6 +11,7 @@ pub mod epic;
 pub mod folder;
 pub mod gog;
 pub mod manual;
+pub mod process;
 pub mod startmenu;
 pub mod steam;
 pub mod xbox;
@@ -69,6 +70,11 @@ pub struct ScanReport {
 
 pub struct LibraryService {
     inner: RwLock<State>,
+    /// Persisted state (favorite flag + playtime per id). Held in a
+    /// separate Arc<RwLock> so the running-game tracker can write
+    /// playtime independently — the tracker only ever needs the overlay,
+    /// not the full library state.
+    overlay: Arc<RwLock<cache::OverlayMap>>,
     cache_path: PathBuf,
     log_path: PathBuf,
     providers: Vec<Box<dyn Provider>>,
@@ -78,8 +84,6 @@ pub struct LibraryService {
 struct State {
     /// Indexed by AppEntry::id.
     entries: HashMap<String, AppEntry>,
-    /// Persisted state: favorite flag + playtime per id.
-    overlay: cache::OverlayMap,
 }
 
 impl LibraryService {
@@ -98,22 +102,36 @@ impl LibraryService {
         Self {
             inner: RwLock::new(State {
                 entries: HashMap::new(),
-                overlay,
             }),
+            overlay: Arc::new(RwLock::new(overlay)),
             cache_path,
             log_path,
             providers,
         }
     }
 
+    /// Path to the overlay JSON — used by the running-game tracker to
+    /// persist playtime through the same file.
+    pub fn cache_path(&self) -> &Path {
+        &self.cache_path
+    }
+
+    /// Shared handle on the favorites/playtime overlay. Lets the running-
+    /// game tracker accumulate playtime without going through the
+    /// LibraryService at every tick.
+    pub fn overlay_handle(&self) -> Arc<RwLock<cache::OverlayMap>> {
+        self.overlay.clone()
+    }
+
     /// Return all currently-known entries (the result of the last `scan`,
     /// or empty before the first scan).
     pub fn list(&self) -> Vec<AppEntry> {
         let s = self.inner.read();
+        let overlay = self.overlay.read();
         let mut out: Vec<AppEntry> = s
             .entries
             .values()
-            .map(|e| Self::merge_overlay(e, &s.overlay))
+            .map(|e| Self::merge_overlay(e, &overlay))
             .collect();
         out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         out
@@ -224,6 +242,14 @@ impl LibraryService {
             providers: reports,
         };
 
+        // Tell anyone who cares (the running-game tracker) that the
+        // entry table refreshed, so they can rehydrate against the new
+        // list. Emitting via the AppHandle keeps the dependency one-way:
+        // the LibraryService never has to know about the tracker.
+        if let Some(handle) = app {
+            let _ = handle.emit("library:entries:changed", report.entries.len());
+        }
+
         // Tell the frontend to refetch the library. LibraryContext listens
         // for this event so Home + Library auto-update after any scan, no
         // matter who triggered it (Settings, Onboarding, FileManager).
@@ -237,20 +263,24 @@ impl LibraryService {
     /// Look up an entry by id (with overlay merged).
     pub fn get(&self, id: &str) -> Option<AppEntry> {
         let s = self.inner.read();
-        s.entries.get(id).map(|e| Self::merge_overlay(e, &s.overlay))
+        let overlay = self.overlay.read();
+        s.entries.get(id).map(|e| Self::merge_overlay(e, &overlay))
     }
 
     /// Toggle favorite, persist, return new value.
     pub fn toggle_favorite(&self, id: &str) -> AppResult<bool> {
-        let mut s = self.inner.write();
-        if !s.entries.contains_key(id) {
-            return Err(AppError::NotFound(format!("library: {id}")));
+        {
+            let s = self.inner.read();
+            if !s.entries.contains_key(id) {
+                return Err(AppError::NotFound(format!("library: {id}")));
+            }
         }
-        let entry = s.overlay.entry(id.to_string()).or_default();
+        let mut overlay = self.overlay.write();
+        let entry = overlay.entry(id.to_string()).or_default();
         entry.favorite = !entry.favorite;
         let new = entry.favorite;
-        let snapshot = s.overlay.clone();
-        drop(s);
+        let snapshot = overlay.clone();
+        drop(overlay);
         let _ = cache::save(&self.cache_path, &snapshot);
         Ok(new)
     }
@@ -269,10 +299,19 @@ impl LibraryService {
     /// Launch the underlying entry. Steam URLs are handed to the OS
     /// shell; everything else is started as a detached process.
     pub fn launch(&self, id: &str) -> AppResult<()> {
+        self.launch_with_pid(id).map(|_| ())
+    }
+
+    /// Launch and return the spawned PID alongside the entry. For
+    /// URL-style launches the PID is the launcher (Steam, Epic, …) and
+    /// the running-game tracker resolves the actual game in its
+    /// background loop. For direct exe launches the PID is the game.
+    pub fn launch_with_pid(&self, id: &str) -> AppResult<(AppEntry, Option<u32>)> {
         let entry = self
             .get(id)
             .ok_or_else(|| AppError::NotFound(format!("library: {id}")))?;
-        launcher::launch(&entry)
+        let pid = launcher::launch_capture(&entry)?;
+        Ok((entry, pid))
     }
 
     fn merge_overlay(entry: &AppEntry, overlay: &cache::OverlayMap) -> AppEntry {
@@ -355,18 +394,24 @@ mod launcher {
     use super::*;
     use std::process::Command;
 
-    pub fn launch(entry: &AppEntry) -> AppResult<()> {
+    /// Same shape as `launch` but also returns the spawned PID when we
+    /// can capture one. URL / shell launches return `None` because the
+    /// process we spawn is the launcher / shim, not the game itself —
+    /// the running-game tracker resolves the actual PID asynchronously
+    /// by walking sysinfo.
+    pub fn launch_capture(entry: &AppEntry) -> AppResult<Option<u32>> {
         let cmd = &entry.launch_command;
-        // All storefront launchers register their own URL scheme (Steam,
-        // Epic, GOG Galaxy, EA / Origin). Hand any URL-shaped command
-        // straight to the OS shell — the launcher then takes over.
         if is_launcher_url(cmd) {
-            return open_url(cmd);
+            // Storefront URL handlers — we drop the launcher PID on the
+            // floor on purpose. Killing the launcher doesn't kill the
+            // game, and the launcher's PID is ephemeral (Steam often
+            // re-execs itself after handling the URL).
+            open_url(cmd)?;
+            return Ok(None);
         }
-        // Xbox / UWP entries carry `shell:appsFolder\<AUMID>` from
-        // `library/xbox.rs` — same UWPHook pattern the Python wrapper used.
         if cmd.starts_with("shell:") {
-            return open_shell_uri(cmd);
+            open_shell_uri(cmd)?;
+            return Ok(None);
         }
 
         let cwd = entry
@@ -378,10 +423,10 @@ mod launcher {
         if let Some(c) = cwd {
             command.current_dir(c);
         }
-        command
+        let child = command
             .spawn()
-            .map(|_| ())
-            .map_err(|e| AppError::Other(format!("launch failed: {e}")))
+            .map_err(|e| AppError::Other(format!("launch failed: {e}")))?;
+        Ok(Some(child.id()))
     }
 
     fn is_launcher_url(cmd: &str) -> bool {

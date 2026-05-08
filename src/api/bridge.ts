@@ -9,13 +9,16 @@
  */
 
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useEffect, useState } from 'react';
 import type { AppEntry as WireAppEntry } from './types/AppEntry';
 import type { AppSource } from './types/AppSource';
 import type { ProviderReport } from './types/ProviderReport';
 import type { RawgGameData } from './types/RawgGameData';
+import type { RunningGame } from './types/RunningGame';
 import type { TranscriptionEvent } from './types/TranscriptionEvent';
 
-export type { ProviderReport };
+export type { ProviderReport, RunningGame };
 export type { ProviderState } from './types/ProviderState';
 
 // Public, enriched shape used by every React component. `extends` the
@@ -125,6 +128,80 @@ export function launchGame(id: string): Promise<void> {
 
 export function toggleFavorite(id: string): Promise<boolean> {
   return invoke<boolean>('library_toggle_favorite', { id });
+}
+
+// ── Running games ────────────────────────────────────────────────────
+
+/**
+ * Snapshot of every game the running-game tracker is currently watching.
+ * Backed by the Rust `library_running` command. Empty when nothing is
+ * tracked. Each entry's `attached` flag tells you whether we've matched
+ * a real PID yet — `false` means "we just launched, sysinfo hasn't seen
+ * it yet" and the pill should show "Launching…" instead of "Now Playing".
+ */
+export function getRunning(): Promise<RunningGame[]> {
+  return invoke<RunningGame[]>('library_running');
+}
+
+/**
+ * Terminate the tracked process for a game id. The kill signal is
+ * sysinfo's cross-platform Process::kill (TerminateProcess on Windows,
+ * SIGKILL on Unix); Steam / Epic games handle it gracefully because the
+ * launcher process notices the child died and detaches. Resolves once
+ * the kill goes out — playtime accrues asynchronously when the watcher
+ * notices the PID has exited.
+ */
+export function stopGame(id: string): Promise<void> {
+  return invoke('library_stop', { id });
+}
+
+/**
+ * Reactive subscription to the running-game list. Polls once on mount,
+ * then re-fetches whenever the backend fires `library:running:changed`.
+ * Components only need the array of entries — fetch errors are swallowed
+ * because a transient IPC failure shouldn't crash the NavBar.
+ */
+export function useRunningGames(): RunningGame[] {
+  const [running, setRunning] = useState<RunningGame[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: UnlistenFn | undefined;
+
+    const refresh = (): void => {
+      void getRunning()
+        .then((rows) => {
+          if (!cancelled) setRunning(rows);
+        })
+        .catch(() => {
+          // Tracker missing (older backend) → treat as "nothing running"
+          // rather than throwing into a render path.
+          if (!cancelled) setRunning([]);
+        });
+    };
+
+    refresh();
+
+    void listen<RunningGame[]>('library:running:changed', (event) => {
+      if (cancelled) return;
+      // The event payload is authoritative; fall back to a refresh
+      // request if the payload is missing for any reason.
+      if (Array.isArray(event.payload)) {
+        setRunning(event.payload);
+      } else {
+        refresh();
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
+
+  return running;
 }
 
 export async function searchLibrary(query: string): Promise<AppEntry[]> {

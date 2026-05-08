@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useWindowFullscreen } from '../hooks/useBigPicture';
+import { NowPlaying } from './NowPlaying';
 import './NavBar.css';
 
 const NAV_ITEMS = [
@@ -92,6 +93,15 @@ export function NavBar() {
       </div>
 
       <div className="navbar__spacer" />
+
+      {/* Now-Playing pill — sits right of the tabs, left of the window
+          chrome. The component renders nothing when the running-game
+          tracker is empty, so the NavBar reverts to its default layout
+          when no game is live. Stays visible in fullscreen so users can
+          see / stop the running game without leaving Big Picture. */}
+      <div className="navbar__now-playing" data-tauri-drag-region="false">
+        <NowPlaying />
+      </div>
 
       {!fullscreen && (
         <div className="navbar__controls" data-tauri-drag-region="false">

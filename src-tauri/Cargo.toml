@@ -59,7 +59,7 @@ quick-xml = "0.31"
 #   always-available fallback.
 # - ndarray is the tensor type ort exposes; optional alongside ort.
 # - crossbeam-channel for STT audio capture → pipeline plumbing.
-whisper-rs = { version = "0.13", default-features = false }
+whisper-rs = { version = "0.16", default-features = false }
 cpal = "0.15"
 ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "load-dynamic", "cuda"], optional = true }
 ndarray = { version = "0.16", optional = true }

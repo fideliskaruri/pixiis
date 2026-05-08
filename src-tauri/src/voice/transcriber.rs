@@ -137,16 +137,17 @@ impl Transcriber {
             .full(params, input)
             .map_err(|e| AppError::Other(format!("whisper full(): {e}")))?;
 
-        let n_segments = state
-            .full_n_segments()
-            .map_err(|e| AppError::Other(format!("whisper full_n_segments: {e}")))?;
+        let n_segments = state.full_n_segments();
 
         let mut transcript = String::new();
         for i in 0..n_segments {
-            let seg = state
-                .full_get_segment_text(i)
+            let segment = state
+                .get_segment(i)
+                .ok_or_else(|| AppError::Other(format!("whisper segment {i}: out of bounds")))?;
+            let text = segment
+                .to_str_lossy()
                 .map_err(|e| AppError::Other(format!("whisper segment {i}: {e}")))?;
-            transcript.push_str(seg.trim());
+            transcript.push_str(text.trim());
             transcript.push(' ');
         }
         let trimmed = transcript.trim().to_string();

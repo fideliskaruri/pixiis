@@ -659,6 +659,39 @@
   cursor: not-allowed;
 }
 
+/* ── Voice model row (badge + downloader) ─────────────────────────── */
+
+.settings__voice-model-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-md);
+}
+
+/* "BUNDLED" pill next to the model dropdown when the user hasn't
+   reached for a downloaded model. Keeps the single-accent rule:
+   text-coloured, hairline border, no fill. */
+.settings__badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--s-sm);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.settings__voice-download {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+  align-items: flex-start;
+}
+
 /* ── Narrow viewport: stack the columns ───────────────────────────── */
 
 @media (max-width: 720px) {

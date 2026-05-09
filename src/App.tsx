@@ -29,6 +29,7 @@ import { VirtualKeyboardProvider } from './components/VirtualKeyboard';
 import { useSpatialNav } from './hooks/useSpatialNav';
 import { useBumperNav } from './hooks/useBumperNav';
 import { useBigPicture } from './hooks/useBigPicture';
+import { useVoiceTrigger } from './hooks/useVoiceTrigger';
 import { getOnboarded } from './api/bridge';
 
 // styles/tokens.css is loaded via index.css; theme.css is the legacy
@@ -45,6 +46,11 @@ function AppContent() {
   // internally; each installs its own poll loop.
   useBumperNav();
   useBigPicture();
+  // Wires the configured `controller.voice_trigger` (RT by default) to
+  // `voiceStart()` / `voiceStop()`. Without this hook, the user sees
+  // "voice search doesn't work" because no consumer ever reads the
+  // configured trigger at runtime — see UX research § 4.#2.
+  useVoiceTrigger();
   const location = useLocation();
   const navigate = useNavigate();
   const [checkedOnboarded, setCheckedOnboarded] = useState(false);

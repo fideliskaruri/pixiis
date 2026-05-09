@@ -324,12 +324,16 @@ function VoiceMicStep({ onNext }: { onNext: () => void }) {
         <button
           type="button"
           className={`onboarding__hold ${holding ? 'onboarding__hold--active' : ''}`}
-          onMouseDown={onPress}
-          onMouseUp={onRelease}
-          onMouseLeave={holding ? onRelease : undefined}
-          onTouchStart={onPress}
-          onTouchEnd={onRelease}
+          // PointerEvents unify mouse + touch + pen — and pair with the
+          // synthetic pointerdown / pointerup that useSpatialNav fires
+          // on the gamepad's A button when `data-hold-to-activate` is
+          // present. Previously this used onMouseDown / onTouchStart,
+          // which the controller path can't reach.
+          onPointerDown={onPress}
+          onPointerUp={onRelease}
+          onPointerLeave={holding ? onRelease : undefined}
           data-focusable
+          data-hold-to-activate
         >
           {holding ? 'Listening…' : 'Hold to speak'}
         </button>

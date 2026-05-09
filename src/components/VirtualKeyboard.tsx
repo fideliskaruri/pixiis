@@ -73,6 +73,13 @@ interface VKApi {
   noteGamepadActivity: () => void;
   /** Called by inputs that want to opt-in to auto-open on focus. */
   onInputFocus: (target: HTMLInputElement | HTMLTextAreaElement) => void;
+  /**
+   * Reopen the keyboard against an input. Same effect as `open()` but
+   * names the user's intent: this is the "A on a focused input that
+   * had the keyboard previously dismissed" path. Spatial-nav calls
+   * this when `isOpen === false` and A is pressed on a text input.
+   */
+  reopen: (target: HTMLInputElement | HTMLTextAreaElement) => void;
 }
 
 const Ctx = createContext<VKApi | null>(null);
@@ -119,6 +126,16 @@ export function VirtualKeyboardProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  // `reopen` is `open` with a more intention-revealing name. Spatial-nav
+  // calls it when A is pressed on a text input that has no keyboard
+  // currently mounted (the user previously dismissed it with B and now
+  // wants it back). Sharing the same setter means open/reopen/auto-open
+  // all converge on one piece of state — no stale "previously open"
+  // bookkeeping to drift.
+  const reopen = useCallback((t: HTMLInputElement | HTMLTextAreaElement): void => {
+    setTarget(t);
+  }, []);
+
   const api = useMemo<VKApi>(
     () => ({
       open,
@@ -126,8 +143,9 @@ export function VirtualKeyboardProvider({ children }: { children: ReactNode }) {
       isOpen: target !== null,
       noteGamepadActivity,
       onInputFocus,
+      reopen,
     }),
-    [open, close, target, noteGamepadActivity, onInputFocus],
+    [open, close, target, noteGamepadActivity, onInputFocus, reopen],
   );
 
   return (

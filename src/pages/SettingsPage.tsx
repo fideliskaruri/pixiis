@@ -30,8 +30,8 @@ import {
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
-import { useAutoFocus } from '../hooks/useAutoFocus';
 import { notifyUiPrefsChanged } from '../api/UiPrefsContext';
+import { useController, type ControllerButton } from '../hooks/useController';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
 import type { ControllerState } from '../api/types/ControllerState';
 import type { TranscriptionEvent } from '../api/types/TranscriptionEvent';
@@ -285,6 +285,12 @@ export function SettingsPage() {
   const [applyError, setApplyError] = useState<string>('');
   const savedTimer = useRef<number | null>(null);
   const { toast } = useToast();
+  // Refs for the focus orchestration. The panel ref drives "first
+  // form control of the active section" auto-focus on section change.
+  // `lastFocusedTabRef` tracks which nav tab the user came from so B
+  // on a form control can return them to the right tab.
+  const panelRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   // Load config — initially on mount, and again whenever Retry bumps
   // `reloadKey`. The retry handler resets `loaded` and `loadError`
@@ -376,16 +382,104 @@ export function SettingsPage() {
   // label flips back to Apply as soon as the save resolves.
   const applyLabel = applyState === 'saving' ? 'Saving…' : 'Apply';
 
-  // Auto-focus the first section button (LIBRARY) on mount so a
-  // controller user lands on something actionable. Re-runs when the
-  // active section flips so cross-fading between sections re-anchors
-  // focus inside the new section instead of leaving it on a tab the
-  // user just moved away from.
-  useAutoFocus('.settings__nav-item', [section, loaded]);
+  // Helper: focus the first focusable form control inside the panel.
+  // Used both on entry (mount + load) and on every section change so
+  // the user always lands on something they can immediately edit.
+  const focusFirstFormControl = useCallback(() => {
+    requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (panel === null) return;
+      // Same selector as useSpatialNav uses for FOCUSABLE_SELECTOR; we
+      // duplicate the literal here rather than re-export it because the
+      // two consumers have legitimately different filter rules (e.g.
+      // we don't care about [data-no-spatial] inside the panel).
+      const target = panel.querySelector<HTMLElement>(
+        '[data-focusable], button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      target?.focus();
+    });
+  }, []);
+
+  // Focus the active section tab. Used by B-from-form-control so the
+  // user can return to the macro nav, and by future affordances that
+  // want to escape the form panel.
+  const focusActiveTab = useCallback(() => {
+    requestAnimationFrame(() => {
+      const nav = navRef.current;
+      if (nav === null) return;
+      const target =
+        nav.querySelector<HTMLElement>(
+          '[data-settings-nav-item][aria-selected="true"]',
+        ) ?? nav.querySelector<HTMLElement>('[data-settings-nav-item]');
+      target?.focus();
+    });
+  }, []);
+
+  // Auto-focus the first form control inside the active section on
+  // entry and whenever the section changes. The user is here to
+  // *change something* — landing focus on the macro nav (today's
+  // behaviour) makes them work twice. Per Wave 5 UX research § 5.1.
+  useEffect(() => {
+    if (!loaded) return;
+    focusFirstFormControl();
+  }, [section, loaded, focusFirstFormControl]);
+
+  // LB/RB inside Settings cycle the *section* instead of top-level
+  // pages. `useBumperNav` detects `/settings` and dispatches this
+  // event; we update the section locally and let the section-change
+  // effect re-anchor focus on the new first form control.
+  useEffect(() => {
+    const onCycle = (e: Event): void => {
+      const detail = (e as CustomEvent<{ direction?: 'next' | 'prev' }>).detail;
+      const dir = detail?.direction ?? 'next';
+      setSection((cur) => {
+        const idx = SECTIONS.findIndex((s) => s.key === cur);
+        const nextIdx =
+          dir === 'next'
+            ? (idx + 1) % SECTIONS.length
+            : (idx - 1 + SECTIONS.length) % SECTIONS.length;
+        const next = SECTIONS[nextIdx];
+        return next !== undefined ? next.key : cur;
+      });
+    };
+    window.addEventListener('settings:cycleSection', onCycle);
+    return () => window.removeEventListener('settings:cycleSection', onCycle);
+  }, []);
+
+  // Y presses Apply from anywhere in the page — the user shouldn't
+  // have to navigate back to the Apply button before saving. B from a
+  // form control returns focus to the active section tab so the user
+  // can climb back to the macro nav without losing their place. B on
+  // the section tab itself is owned by `useBumperNav` (history back).
+  const onSettingsButton = useCallback(
+    (button: ControllerButton) => {
+      if (button === 'y') {
+        if (applyState !== 'saving' && loaded) void onApply();
+        return;
+      }
+      if (button === 'b') {
+        const active = document.activeElement;
+        if (!(active instanceof HTMLElement)) return;
+        // If the focused control lives inside the form panel, return
+        // focus to the active section tab. Otherwise, leave the
+        // press alone — useBumperNav will pop history.
+        if (active.closest('[data-settings-panel]') !== null) {
+          focusActiveTab();
+        }
+      }
+    },
+    [applyState, loaded, onApply, focusActiveTab],
+  );
+  useController(onSettingsButton);
 
   return (
     <div className="settings fade-in">
-      <aside className="settings__nav" aria-label="Settings sections">
+      <aside
+        className="settings__nav"
+        aria-label="Settings sections"
+        ref={navRef}
+        data-settings-nav
+      >
         <p className="label settings__nav-head">SETTINGS</p>
         <ul className="settings__nav-list" role="tablist">
           {SECTIONS.map((s) => (
@@ -397,6 +491,7 @@ export function SettingsPage() {
                 aria-selected={section === s.key}
                 role="tab"
                 data-focusable
+                data-settings-nav-item
               >
                 {s.label}
               </button>
@@ -422,7 +517,7 @@ export function SettingsPage() {
         </div>
       </aside>
 
-      <main className="settings__panel">
+      <main className="settings__panel" ref={panelRef} data-settings-panel>
         {!loaded ? (
           <p className="label settings__loading">LOADING…</p>
         ) : (

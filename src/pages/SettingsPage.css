@@ -7,7 +7,10 @@
 
 .settings {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) 1fr;
+  /* TV-mode rail per Wave 5 UX research § 5.1: a fixed 240px nav so
+     section tabs are tappable from a couch. The rail collapses to a
+     full-width row at narrow widths via the @media block at the bottom. */
+  grid-template-columns: 240px 1fr;
   height: 100%;
   background: var(--bg);
   color: var(--text);
@@ -19,7 +22,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-md);
-  padding: var(--s-xl) clamp(var(--s-lg), 2.5vw, var(--s-xl));
+  padding: var(--s-xl) var(--s-lg);
   border-right: 1px solid var(--rule);
   overflow-y: auto;
 }
@@ -37,18 +40,20 @@
 }
 
 .settings__nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  height: 60px; /* TV-readable hit target — Wave 5 § 5.1 */
   text-align: left;
   background: transparent;
-  border: none;
-  border-left: 2px solid transparent;
-  padding: var(--s-md) 0 var(--s-md) var(--s-md);
+  border: 1px solid transparent;
+  padding: 12px var(--s-md);
   color: var(--text-dim);
   cursor: pointer;
   transition:
     color var(--t-base) var(--easing),
-    border-color var(--t-base) var(--easing);
+    border-color var(--t-base) var(--easing),
+    background var(--t-base) var(--easing);
 }
 
 .settings__nav-item:hover {
@@ -57,13 +62,16 @@
 
 .settings__nav-item--active {
   color: var(--text);
-  border-left-color: var(--text);
+  background: var(--bg-elev);
 }
 
+/* Full-width 4-px accent ring on focus — TV-readable (Wave 5 § 5.1).
+   Outline (rather than border) so the ring sits *outside* the active
+   background fill and the tab's content height stays a stable 60 px. */
 .settings__nav-item:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-ring-width-tv));
   color: var(--text);
-  border-left-color: var(--focus);
 }
 
 .settings__nav-rule {
@@ -77,12 +85,20 @@
   margin-top: auto;
 }
 
+/* Apply button — 64px tall, full nav width, accent fill. Always visible
+   at the bottom of the rail so the user knows where their changes go. */
 .settings__apply {
   width: 100%;
-  padding: var(--s-md) var(--s-lg);
+  height: 64px;
+  padding: 0 var(--s-lg);
   text-transform: uppercase;
   letter-spacing: 0.18em;
   font-size: var(--t-label);
+}
+
+.settings__apply:focus-visible {
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
 }
 
 .settings__apply:disabled {
@@ -112,8 +128,11 @@
 .settings__section {
   display: flex;
   flex-direction: column;
-  gap: var(--s-xl);
-  max-width: 760px;
+  gap: var(--s-md);
+  /* Form panel max-width per Wave 5 § 5.1 — wider than the old 760px
+     read awkwardly long on a couch-distance TV; 720 is the sweet spot
+     for the label/control pair to land at thumb-readable size. */
+  max-width: 720px;
 }
 
 /* ── Section head ─────────────────────────────────────────────────── */
@@ -145,14 +164,19 @@
   display: grid;
   grid-template-columns: minmax(160px, 220px) 1fr;
   gap: var(--s-xl);
-  align-items: start;
-  padding: var(--s-lg) 0;
+  align-items: center;
+  /* TV-readable Field row — 96 px tall (Wave 5 § 5.1). Field rows used
+     to be padding-only and varied with content; a flat min-height keeps
+     the form predictable on a couch-distance TV. Some controls (the
+     SummonShortcut display, weather coords) need to grow vertically;
+     `min-height` lets them flex without breaking the rhythm. */
+  min-height: 96px;
+  padding: var(--s-md) 0;
   border-top: 1px solid var(--rule);
 }
 
 .settings__field:first-of-type {
   border-top: none;
-  padding-top: 0;
 }
 
 .settings__field-meta {
@@ -206,7 +230,8 @@
 
 .settings__input:focus-visible,
 .settings__select:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
   border-color: var(--focus);
 }
 
@@ -244,7 +269,8 @@
 }
 
 .settings__btn:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
   border-color: var(--focus);
 }
 
@@ -294,21 +320,28 @@
   align-items: center;
   gap: var(--s-md);
   width: 100%;
-  max-width: 420px;
+  /* Slider row sized so the track itself reaches the spec'd 320 px
+     minimum after the value readout takes its share. */
+  max-width: 480px;
 }
 
 .settings__slider {
   flex: 1;
+  /* TV-readable slider per Wave 5 § 5.1: at minimum 320 px of track so
+     the granularity is visible from 10 ft. The thumb sits inside this
+     area at 24 px so it reads as a controllable target. */
+  min-width: 320px;
   appearance: none;
-  height: 1px;
+  height: 4px;
   background: var(--text-mute);
+  border-radius: 2px;
   cursor: pointer;
 }
 
 .settings__slider::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--text);
   border: none;
@@ -317,8 +350,8 @@
 }
 
 .settings__slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--text);
   border: none;
@@ -328,12 +361,12 @@
 
 .settings__slider:hover::-webkit-slider-thumb,
 .settings__slider:focus-visible::-webkit-slider-thumb {
-  transform: scale(1.25);
+  transform: scale(1.1);
 }
 
 .settings__slider:hover::-moz-range-thumb,
 .settings__slider:focus-visible::-moz-range-thumb {
-  transform: scale(1.25);
+  transform: scale(1.1);
 }
 
 .settings__slider:focus-visible {
@@ -341,11 +374,11 @@
 }
 
 .settings__slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px var(--focus);
+  box-shadow: 0 0 0 var(--focus-ring-width-tv) var(--focus);
 }
 
 .settings__slider:focus-visible::-moz-range-thumb {
-  box-shadow: 0 0 0 2px var(--focus);
+  box-shadow: 0 0 0 var(--focus-ring-width-tv) var(--focus);
 }
 
 .settings__slider-value {
@@ -404,9 +437,9 @@
 }
 
 .settings__check input[type='checkbox']:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
   border-color: var(--focus);
-  box-shadow: 0 0 0 2px var(--focus);
 }
 
 /* ── Status (controller) ──────────────────────────────────────────── */
@@ -545,7 +578,8 @@
 }
 
 .settings__link:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
   border-bottom-color: var(--focus);
 }
 
@@ -650,7 +684,8 @@
 }
 
 .settings__link-btn:focus-visible {
-  outline: none;
+  outline: var(--focus-ring-width-tv) solid var(--focus);
+  outline-offset: var(--focus-ring-offset-tv);
   color: var(--focus);
 }
 
@@ -675,15 +710,17 @@
     overflow-x: auto;
   }
   .settings__nav-item {
-    border-left: none;
-    border-bottom: 2px solid transparent;
+    height: auto;
     padding: var(--s-sm) var(--s-md);
-  }
-  .settings__nav-item--active {
-    border-bottom-color: var(--text);
   }
   .settings__field {
     grid-template-columns: 1fr;
     gap: var(--s-sm);
+    min-height: auto;
+  }
+  .settings__slider {
+    /* Honour the 320 px floor on wider phones; below that, let the
+       slider shrink rather than overflow. */
+    min-width: 0;
   }
 }

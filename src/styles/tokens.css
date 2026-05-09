@@ -17,6 +17,16 @@
   --rule:      rgba(237, 233, 221, 0.08);
   --accent:    #C5402F;          /* RESERVED for ▶ PLAY and focus rings only */
   --focus:     #C5402F;
+
+  /* ── Focus ring (TV mode) ────────────────────────────────────────
+     Per Wave 5 UX research § 5.1: a 2px / 4px ring is too thin to read
+     from 10 ft. TV-mode focus rings on form controls and section nav
+     thicken to 4px with a 6px offset so the highlight is unambiguous
+     across a couch-distance 1080p TV. The accent-reservation rule
+     (single accent only on PLAY) explicitly exempts focus rings —
+     see styles/PALETTE.md. */
+  --focus-ring-width-tv:  4px;
+  --focus-ring-offset-tv: 6px;
   /* Scrims (overlays + chip backgrounds) — derived from --bg via
      color-mix at the call site. Keep the literal here for browsers
      that lack color-mix; references in code prefer color-mix. */

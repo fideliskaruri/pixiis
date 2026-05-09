@@ -24,6 +24,16 @@ interface Props {
   size?: 'normal' | 'large' | 'landscape';
   onSelect?: (game: GameEntry) => void;
   onFavorite?: (game: GameEntry) => void;
+  /**
+   * Row index inside the parent grid (0-based). Emitted as
+   * `data-grid-row` so `useSpatialNav` can prefer same-row-distance
+   * candidates over geometric tie-breaks. Optional — single-row carousels
+   * can omit it; the spatial-nav fallback stays purely geometric.
+   *
+   * Wave 5 § 5.5 — without this, navigating "down" from row N when row
+   * N+1 is shorter sometimes lands on row N+2 instead.
+   */
+  rowIndex?: number;
 }
 
 const SOURCE_LABELS: Record<AppEntry['source'], string> = {
@@ -42,6 +52,7 @@ export function GameTile({
   size = 'normal',
   onSelect,
   onFavorite,
+  rowIndex,
 }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const running = useRunningGames();
@@ -56,6 +67,7 @@ export function GameTile({
         !game.is_installed ? 'game-tile--uninstalled' : ''
       }`}
       data-focusable
+      data-grid-row={rowIndex !== undefined ? rowIndex : undefined}
       tabIndex={0}
       onClick={() => onSelect?.(game)}
       onKeyDown={(e) => {

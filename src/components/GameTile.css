@@ -143,8 +143,8 @@
 .game-tile:focus,
 .game-tile:focus-visible,
 .game-tile.tile-focused {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
   transform: scale(1.03);
   z-index: 10;
   box-shadow:
@@ -154,4 +154,46 @@
     transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1),
     outline-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── TV mode (Big Picture / fullscreen) ───────────────────────────────
+   Wave 5 § 5.5 — bigger tiles, beefier focus, 1.06 scale + drop shadow
+   so the focused tile floats off the page at 10 ft. The aspect ratio
+   stays 2:3 portrait (the per-size .game-tile__art rule above already
+   owns it). Hover mirrors the focus state at 0.7 intensity for mouse. */
+
+/* Portrait tiles (default + large) — bump to 280–360 px for 10-ft
+   readability. Landscape carousel tiles (16:9) keep the size from
+   styles/animations.css since they live above the fold and don't need
+   to fight for grid breathing room. */
+body.is-fullscreen .game-tile--normal,
+body.is-fullscreen .game-tile--large {
+  width: clamp(280px, 18vw, 360px);
+}
+
+body.is-fullscreen .game-tile:focus,
+body.is-fullscreen .game-tile:focus-visible,
+body.is-fullscreen .game-tile.tile-focused {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+  transform: scale(1.06);
+  z-index: 10;
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 12px 32px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Mirror focus at 0.7 intensity for mouse users — the focus state
+   stays visually dominant for controller users. */
+body.is-fullscreen .game-tile:hover:not(:focus) {
+  transform: scale(1.04);
+  outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Source label sizing — TV mode uses --t-caption (14 px windowed,
+   16 px fullscreen). The default stylesheet uses --t-label (12 px)
+   which becomes illegible at couch distance. */
+body.is-fullscreen .game-tile__source {
+  font-size: var(--t-caption);
 }

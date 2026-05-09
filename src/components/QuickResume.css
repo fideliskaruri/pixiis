@@ -65,7 +65,7 @@
     color var(--t-base) var(--easing);
 }
 .qresume__close:hover         { color: var(--text); border-color: var(--text-mute); }
-.qresume__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.qresume__close:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .qresume__empty {
   padding: var(--s-2xl) var(--s-xl);
@@ -191,6 +191,6 @@
   transition: color var(--t-fast) var(--easing);
 }
 .qresume__link:hover         { color: var(--text-dim); }
-.qresume__link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.qresume__link:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .qresume__legend { color: var(--text-mute); margin: 0; }

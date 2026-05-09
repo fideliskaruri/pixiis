@@ -42,7 +42,7 @@
 }
 
 .toast:hover         { border-color: var(--text-mute); }
-.toast:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.toast:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* Variants — kind-specific surface tweaks. The single-accent rule
    means only `error` gets a chromatic mark; success is signalled by

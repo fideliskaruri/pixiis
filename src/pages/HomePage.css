@@ -72,7 +72,7 @@
 }
 .home__pill:hover                 { color: var(--text); }
 .home__pill--active               { color: var(--text); border-color: var(--text-dim); }
-.home__pill:focus-visible         { outline: 2px solid var(--focus); outline-offset: 4px; }
+.home__pill:focus-visible         { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* Surprise-me pill: same neutral tone, italics for the playful read. */
 .home__pill--surprise             { font-style: italic; }
@@ -117,6 +117,13 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--s-lg) var(--s-md);
+}
+
+/* TV mode (wave 5 § 5.5): 280-px minimum tile column + 24-px gap.
+   Trades column count for breathing room at 10 ft viewing. */
+body.is-fullscreen .home__grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
 }
 
 /* ── Empty state ───────────────────────────────────────────────────── */
@@ -164,4 +171,4 @@
   transition: border-color var(--t-base) var(--easing);
 }
 .home__retry:hover         { border-color: var(--text); }
-.home__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.home__retry:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }

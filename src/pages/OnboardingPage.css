@@ -29,7 +29,7 @@
   transition: color var(--t-base) var(--easing);
 }
 .onboarding__skip:hover         { color: var(--text); }
-.onboarding__skip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.onboarding__skip:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .onboarding__stage {
   display: flex;
@@ -113,8 +113,8 @@
   border-color: var(--text);
 }
 .onboarding__primary:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 4px;
+  outline: var(--focus-ring-width) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
 }
 .onboarding__primary:disabled {
   color: var(--text-mute);
@@ -144,7 +144,7 @@
   transition: color var(--t-base) var(--easing);
 }
 .onboarding__ghost:hover         { color: var(--text); }
-.onboarding__ghost:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.onboarding__ghost:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* ── Library scan provider list ───────────────────────────────────── */
 
@@ -246,7 +246,7 @@
               border-color var(--t-base) var(--easing);
 }
 .onboarding__hold:hover         { border-color: var(--text); }
-.onboarding__hold:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.onboarding__hold:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 .onboarding__hold--active {
   background: var(--bg-elev);
   border-color: var(--text);

@@ -16,7 +16,7 @@
 }
 
 .search-bar:hover           { border-color: var(--text-dim); }
-.search-bar:focus-within    { outline: 2px solid var(--focus); outline-offset: 2px; }
+.search-bar:focus-within    { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* Recording state: steady text-dim border + a small label-tracked
    "REC" caption rendered by the component (no pulsing animation). */
@@ -58,7 +58,7 @@
               border-color var(--t-base) var(--easing);
 }
 .search-bar__clear:hover         { color: var(--text); border-color: var(--rule); }
-.search-bar__clear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.search-bar__clear:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .search-bar__mic {
   width: 32px;
@@ -77,4 +77,4 @@
 .search-bar__mic svg          { width: 16px; height: 16px; }
 .search-bar__mic:hover        { color: var(--text); border-color: var(--rule); }
 .search-bar__mic--active      { color: var(--text); border-color: var(--text-dim); }
-.search-bar__mic:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.search-bar__mic:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }

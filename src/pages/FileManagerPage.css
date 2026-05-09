@@ -68,7 +68,7 @@
               color var(--t-base) var(--easing);
 }
 .files__add:hover         { border-color: var(--text); }
-.files__add:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.files__add:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .files__list-empty {
   margin: var(--s-md) 0 0;
@@ -92,7 +92,7 @@
   transition: border-color var(--t-base) var(--easing);
 }
 .files__retry:hover         { border-color: var(--text); }
-.files__retry:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.files__retry:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .files__rows {
   list-style: none;
@@ -259,7 +259,7 @@
   transition: border-color var(--t-base) var(--easing);
 }
 .files__browse:hover         { border-color: var(--text); }
-.files__browse:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.files__browse:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 .files__field-error {
   margin: 0;
@@ -304,8 +304,8 @@
 
 .files__save:focus-visible,
 .files__cancel:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .files__save[disabled],

@@ -52,6 +52,12 @@ export function HomePage() {
   const navigate = useNavigate();
   const lastToastedError = useRef<string>('');
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // Number of CSS grid columns, observed via ResizeObserver. Drives
+  // `data-grid-row` on each tile so useSpatialNav prefers same-row-
+  // distance candidates (wave 5 § 5.5). Defaults to 1 so the first
+  // paint still emits a valid attribute; the observer corrects it on
+  // the next frame.
+  const [columnsPerRow, setColumnsPerRow] = useState(1);
 
   // Register the controller-action footer for this page. The footer
   // bar at the app root reads the latest registered set; on unmount
@@ -188,6 +194,33 @@ export function HomePage() {
       ambientUrlRef.current = '';
     };
   }, [defaultAmbient]);
+
+  // Track the actual column count of the .home__grid by reading the
+  // computed grid-template-columns. ResizeObserver fires when the
+  // window resizes, the user enters fullscreen (which switches the
+  // 200 px → 280 px minimum), or the panel changes width. The result
+  // feeds `data-grid-row` on each tile so useSpatialNav can reject
+  // row-skipping candidates. Wave 5 § 5.5.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (grid === null) return;
+
+    const measure = (): void => {
+      const cols = window
+        .getComputedStyle(grid)
+        .getPropertyValue('grid-template-columns')
+        .split(' ')
+        .filter((s) => s.trim() !== '').length;
+      // Clamp to ≥1 so the divisor in (index / cols) never divides by
+      // zero; an empty grid has no tiles to label anyway.
+      setColumnsPerRow(Math.max(1, cols));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [filtered.length]);
 
   // Update ambient when the user moves focus over a tile (mouse hover
   // or D-pad). One document-level listener feeds both the carousel and
@@ -395,8 +428,13 @@ export function HomePage() {
           </div>
         ) : (
           <div className="home__grid" ref={gridRef}>
-            {filtered.map((game) => (
-              <GameTile key={game.id} game={game} onSelect={onOpen} />
+            {filtered.map((game, idx) => (
+              <GameTile
+                key={game.id}
+                game={game}
+                onSelect={onOpen}
+                rowIndex={(idx / columnsPerRow) | 0}
+              />
             ))}
           </div>
         )}

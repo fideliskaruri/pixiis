@@ -21,7 +21,7 @@
  *                 (no springs-style spinner — just a stable order).
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
@@ -98,6 +98,11 @@ export function LibraryPage() {
     { glyph: 'RT', verb: 'Voice' },
   ]);
 
+  // Column count of .library__grid, observed for `data-grid-row` on
+  // each tile (wave 5 § 5.5 row-aware spatial nav).
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [columnsPerRow, setColumnsPerRow] = useState(1);
+
   // 300ms debounce — typing is responsive in the input itself, but the
   // (potentially large) filter pass only re-runs once the user pauses.
   useEffect(() => {
@@ -165,6 +170,28 @@ export function LibraryPage() {
   const onOpen = (g: AppEntry): void => {
     navigate(`/game/${encodeURIComponent(g.id)}`);
   };
+
+  // Mirror HomePage: read computed grid-template-columns to drive the
+  // tile-row indices `useSpatialNav` consumes. Re-measures on resize,
+  // fullscreen toggle, and filter change. Wave 5 § 5.5.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (grid === null) return;
+
+    const measure = (): void => {
+      const cols = window
+        .getComputedStyle(grid)
+        .getPropertyValue('grid-template-columns')
+        .split(' ')
+        .filter((s) => s.trim() !== '').length;
+      setColumnsPerRow(Math.max(1, cols));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [filtered.length]);
 
   // Auto-focus the first interactive control on mount. Library always
   // has the "All" chip, so `.library__chip` is reliable; the comma
@@ -312,9 +339,14 @@ export function LibraryPage() {
           )}
         </div>
       ) : (
-        <div className="library__grid">
-          {filtered.map((game) => (
-            <GameTile key={game.id} game={game} onSelect={onOpen} />
+        <div className="library__grid" ref={gridRef}>
+          {filtered.map((game, idx) => (
+            <GameTile
+              key={game.id}
+              game={game}
+              onSelect={onOpen}
+              rowIndex={(idx / columnsPerRow) | 0}
+            />
           ))}
         </div>
       )}

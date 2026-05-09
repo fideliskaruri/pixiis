@@ -40,14 +40,39 @@ function getCenter(el: Element): { x: number; y: number } {
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
+/**
+ * Read the integer row index baked onto a tile via `data-grid-row`.
+ * Returns null when the attribute is absent or unparseable — toolbar
+ * controls, rails, and detail-page buttons fall through to the purely
+ * geometric scoring below. Wave 5 § 5.5.
+ */
+function getGridRow(el: Element): number | null {
+  const raw = el.getAttribute('data-grid-row');
+  if (raw === null) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 function findNearest(current: Element, direction: Direction): Element | null {
   if (!direction) return null;
 
   const all = Array.from(document.querySelectorAll(FOCUSABLE_SELECTOR));
   const { x: cx, y: cy } = getCenter(current);
+  const currentRow = getGridRow(current);
+  const isVertical = direction === 'up' || direction === 'down';
 
   let best: Element | null = null;
   let bestDist = Infinity;
+  // Row-aware tier: when both current and candidate have a grid-row,
+  // candidates whose absolute row delta is exactly 1 in the move
+  // direction (down → row+1, up → row-1) outrank candidates 2+ rows
+  // away even if the further-away tile sits closer to our column. The
+  // tier number is the absolute row delta; 0 = "best tier" and means
+  // we have a row+1 candidate. Lower tier wins; ties break on
+  // weighted geometric distance below. Non-grid candidates (no row
+  // attribute) get tier MAX_SAFE_INTEGER and only win if no grid
+  // candidate exists.
+  let bestTier = Number.MAX_SAFE_INTEGER;
 
   for (const candidate of all) {
     if (candidate === current) continue;
@@ -56,12 +81,37 @@ function findNearest(current: Element, direction: Direction): Element | null {
 
     const { x: tx, y: ty } = getCenter(candidate);
 
-    // Direction filter
+    // Direction filter — strict half-plane. With this in place, the
+    // grid never wraps screen edges: at the rightmost column there is
+    // no candidate with tx > cx, so findNearest returns null and the
+    // hook leaves focus put. Same logic on the other three edges.
     const threshold = 5;
     if (direction === 'right' && tx <= cx + threshold) continue;
     if (direction === 'left' && tx >= cx - threshold) continue;
     if (direction === 'down' && ty <= cy + threshold) continue;
     if (direction === 'up' && ty >= cy - threshold) continue;
+
+    // Compute the row tier for vertical moves. Horizontal moves
+    // (left/right) keep the legacy purely-geometric scoring — no
+    // benefit from row tiering when we're not crossing rows.
+    let tier = 0;
+    if (isVertical && currentRow !== null) {
+      const candRow = getGridRow(candidate);
+      if (candRow === null) {
+        // Toolbar / non-grid focusable above or below the grid — keep
+        // it eligible but rank it below same-grid candidates.
+        tier = Number.MAX_SAFE_INTEGER;
+      } else {
+        const delta = direction === 'down' ? candRow - currentRow : currentRow - candRow;
+        // Negative delta = same direction but wrong sign (e.g. a tile
+        // visually below in DOM but above in grid order due to
+        // wrapping). Drop those — half-plane filter already excluded
+        // anything geometrically wrong; this just guards mismatched
+        // row attributes from sneaking in.
+        if (delta <= 0) continue;
+        tier = delta - 1; // 0 means "row N+1 / row N-1": ideal
+      }
+    }
 
     // Weighted distance (prefer same row/column)
     const perpWeight = 3;
@@ -72,7 +122,8 @@ function findNearest(current: Element, direction: Direction): Element | null {
       dist = Math.abs(ty - cy) + Math.abs(tx - cx) * perpWeight;
     }
 
-    if (dist < bestDist) {
+    if (tier < bestTier || (tier === bestTier && dist < bestDist)) {
+      bestTier = tier;
       bestDist = dist;
       best = candidate;
     }

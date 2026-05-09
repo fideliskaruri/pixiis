@@ -49,8 +49,8 @@
 .navbar__tab:hover         { color: var(--text); }
 .navbar__tab--active       { color: var(--text); border-bottom-color: var(--text-dim); }
 .navbar__tab:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .navbar__spacer { flex: 1; }
@@ -82,7 +82,7 @@
               border-color var(--t-base) var(--easing);
 }
 .navbar__btn:hover         { color: var(--text); border-color: var(--rule); }
-.navbar__btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.navbar__btn:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* Close button stays in the neutral palette — accent is reserved. */
 .navbar__btn--close:hover  { color: var(--text); border-color: var(--text-dim); }

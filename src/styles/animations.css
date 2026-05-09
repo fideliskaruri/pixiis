@@ -103,16 +103,13 @@ body.home-ambient { background: transparent; }
    set to background: transparent in HomePage.css. */
 
 /* ── Big Picture: bigger tiles in fullscreen ────────────────────────── */
-/* Couch-distance use case: bump tile widths so the grid hands the eye
-   bigger targets. Scale also picks up `ui.scale` from config when set
-   higher than 1.0 — see SettingsPage / config_get. */
+/* Wave 5 § 5.5 owns portrait tile sizing (GameTile.css) and grid
+   templates (HomePage.css / LibraryPage.css). Landscape carousel tiles
+   keep the legacy ui-scale path so the Continue Playing rail still
+   honours the user's `ui.scale` config when set higher than 1.0 — see
+   SettingsPage / config_get. */
 
-body.is-fullscreen .game-tile--normal    { width: calc(200px * var(--ui-scale, 1.25)); }
-body.is-fullscreen .game-tile--large     { width: calc(260px * var(--ui-scale, 1.25)); }
 body.is-fullscreen .game-tile--landscape { width: calc(320px * var(--ui-scale, 1.25)); }
-body.is-fullscreen .home__grid {
-  grid-template-columns: repeat(auto-fill, minmax(calc(200px * var(--ui-scale, 1.25)), 1fr));
-}
 
 /* ── Reduced motion ─────────────────────────────────────────────────── */
 

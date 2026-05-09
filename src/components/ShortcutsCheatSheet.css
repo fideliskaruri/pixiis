@@ -66,8 +66,8 @@
   border-color: var(--text-mute);
 }
 .cheats__close:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .cheats__cols {

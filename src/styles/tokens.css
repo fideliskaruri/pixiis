@@ -55,6 +55,32 @@
   --t-slow: 400ms;
 }
 
+/* ── Focus ring (windowed default) ──────────────────────────────────
+   The windowed defaults are mirrored on body:not(.is-fullscreen) so a
+   stylesheet that loads after this file can't accidentally inherit
+   leftover TV-mode tokens between fullscreen toggles. */
+body:not(.is-fullscreen) {
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 4px;
+}
+
+/* ── Big Picture / TV mode overrides ─────────────────────────────────
+   Wave 5 § 4.#6 + 5.5: a 10-foot type scale and beefier focus rings
+   when the window is fullscreen. Tile-size + grid-template overrides
+   live in their respective component CSS so each surface owns its
+   layout — this block is purely token-level. */
+body.is-fullscreen {
+  --t-display:   clamp(64px, 7vw, 112px);
+  --t-headline:  clamp(40px, 4vw, 64px);
+  --t-title:     clamp(24px, 1.6vw, 30px);
+  --t-body:      18px;
+  --t-caption:   16px;
+  --t-label:     14px;
+
+  --focus-ring-width: 4px;
+  --focus-ring-offset: 6px;
+}
+
 /* ── Primitives ────────────────────────────────────────────────────── */
 
 /* Small-caps tracked label: FEATURED · CONTINUE PLAYING · PLAYED */
@@ -98,7 +124,7 @@
   transition: filter var(--t-base) var(--easing);
 }
 .accent-btn:hover         { filter: brightness(1.1); }
-.accent-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.accent-btn:focus-visible { outline: var(--focus-ring-width) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* ── Reset + baseline ──────────────────────────────────────────────── */
 

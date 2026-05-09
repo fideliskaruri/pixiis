@@ -25,6 +25,7 @@ import {
   type Config,
 } from '../api/bridge';
 import { useToast } from '../api/ToastContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './FileManagerPage.css';
 
 interface ManualEntry {
@@ -99,6 +100,16 @@ export function FileManagerPage() {
   const [entries, setEntries] = useState<ManualEntry[]>([]);
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [loadError, setLoadError] = useState('');
+
+  // Files page footer — Y "Add" mirrors the inline + button; the
+  // page's draft form mounts on demand and inherits the same set
+  // (no override needed — Save/Cancel are mouse/keyboard primary).
+  useActionFooter([
+    { glyph: 'A', verb: 'Select' },
+    { glyph: 'B', verb: 'Back' },
+    { glyph: 'Y', verb: 'Add' },
+    { glyph: 'RT', verb: 'Voice' },
+  ]);
 
   // null = no form open. number = editing entries[selectedIndex]. -1 = adding new.
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);

@@ -1,17 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════════
    VoiceOverlay — Editorial transcription panel.
-   Bottom-center, on --bg-elev with a hairline rule. Asymmetric fade
-   (150 ms in / 400 ms out) — restrained, no springs.
+   Anchors bottom-right (per UX research § 5.4). Slides in 160 ms
+   ease-out, fades out 400 ms — restrained, no springs.
    ═══════════════════════════════════════════════════════════════════ */
 
 .voice-overlay {
   position: fixed;
-  left: 50%;
+  right: var(--s-xl);
   bottom: var(--s-2xl);
-  transform: translateX(-50%);
   z-index: 950;
-  min-width: 360px;
-  max-width: 720px;
+  min-width: 320px;
+  max-width: 480px;
   padding: var(--s-md) var(--s-lg);
   background: var(--bg-elev);
   border: 1px solid var(--rule);
@@ -20,17 +19,29 @@
   gap: var(--s-sm);
   pointer-events: none;
   opacity: 0;
-  transition: opacity 400ms var(--easing);
+  /* Initial off-screen position — slides in to translateX(0) when
+     `--visible` lands. The translate is animated *with* opacity so the
+     panel feels like it docks rather than ghosts in. */
+  transform: translateX(24px);
+  transition:
+    opacity 400ms var(--easing),
+    transform 400ms var(--easing);
 }
 
 .voice-overlay--visible {
   opacity: 1;
-  transition: opacity 150ms var(--easing);
+  transform: translateX(0);
+  transition:
+    opacity 160ms var(--easing),
+    transform 160ms var(--easing);
 }
 
 .voice-overlay--hiding {
   opacity: 0;
-  transition: opacity 400ms var(--easing);
+  transform: translateX(24px);
+  transition:
+    opacity 400ms var(--easing),
+    transform 400ms var(--easing);
 }
 
 .voice-overlay__bar {
@@ -81,4 +92,36 @@
 .voice-overlay__partial--empty {
   color: var(--text-mute);
   font-style: italic;
+}
+
+/* Error state — model missing / mic denied. We keep the same chrome (no
+   red — the design system has a single accent and a single neutral
+   palette) but flip the dot to the accent so it reads as "attention"
+   without breaking the editorial look. The action button is the
+   single-press path the user takes to fix the underlying problem. */
+.voice-overlay--error .voice-overlay__dot {
+  background: var(--accent);
+}
+
+.voice-overlay__action {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--rule);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  letter-spacing: var(--tracking-display);
+  text-transform: uppercase;
+  padding: var(--s-xs) var(--s-md);
+  cursor: pointer;
+  pointer-events: auto;
+  align-self: flex-start;
+  transition: border-color 150ms var(--easing), color 150ms var(--easing);
+}
+
+.voice-overlay__action:hover,
+.voice-overlay__action:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
 }

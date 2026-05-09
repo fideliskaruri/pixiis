@@ -102,7 +102,12 @@ const DEFAULTS: SettingsState = {
   },
   scan_interval_minutes: 60,
   xbox_treat_all_as_games: false,
-  voice_model: 'large-v3',
+  // Pixiis ships `ggml-base.en-q5_1.bin` as a bundle resource. Defaulting
+  // anything else makes the first invocation fail with "voice model not
+  // available" until the user hand-picks the bundled one. The 'base' id
+  // maps to that file via the whisper loader's quantization-permissive
+  // resolution. See `src-tauri/src/voice/model.rs::DEFAULT_WHISPER_FILENAME`.
+  voice_model: 'base',
   voice_device: 'auto',
   voice_mic_id: '',
   voice_energy: 300,
@@ -136,6 +141,11 @@ const PROVIDERS: { key: string; label: string }[] = [
 ];
 
 const VOICE_MODELS = ['tiny', 'base', 'small', 'medium', 'large-v3'];
+/// The bundled model id — what `voice_model` should default to so the
+/// first-invocation path Just Works. Kept here so `VoiceSection` can mark
+/// the matching `<option>` with a "✓ bundled" badge in the dropdown
+/// without leaking implementation knowledge into the form-state shape.
+const BUNDLED_VOICE_MODEL = 'base';
 const VOICE_DEVICES: SettingsState['voice_device'][] = ['auto', 'cuda', 'cpu'];
 const VOICE_TRIGGERS: { value: SettingsState['ctrl_voice_trigger']; label: string }[] = [
   { value: 'rt', label: 'Right Trigger' },
@@ -143,6 +153,35 @@ const VOICE_TRIGGERS: { value: SettingsState['ctrl_voice_trigger']; label: strin
   { value: 'hold_y', label: 'Hold Y' },
   { value: 'hold_x', label: 'Hold X' },
 ];
+
+/// Pretty-print download progress for the "Downloading 12.4 / 57 MB"
+/// readout under the Download voice model button. Total may be 0 if
+/// the server didn't send Content-Length, in which case we just show
+/// the bytes accumulated so far so the user sees activity.
+function formatDownloadProgress(p: { done: number; total: number }): string {
+  const mb = (n: number): string => (n / (1024 * 1024)).toFixed(1);
+  if (p.total <= 0) {
+    return `Downloading… ${mb(p.done)} MB`;
+  }
+  const pct = Math.min(100, Math.round((p.done / p.total) * 100));
+  return `Downloading ${mb(p.done)} / ${mb(p.total)} MB (${pct}%)`;
+}
+
+/// Short, glanceable label for the configured voice trigger. Used in the
+/// Voice section header so discoverability ("Hold RT to speak") doesn't
+/// rely on memorising the abstract config value.
+function triggerLabel(t: SettingsState['ctrl_voice_trigger']): string {
+  switch (t) {
+    case 'rt':
+      return 'RT';
+    case 'lt':
+      return 'LT';
+    case 'hold_y':
+      return 'Y';
+    case 'hold_x':
+      return 'X';
+  }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -625,6 +664,20 @@ function LibrarySection({ state, update }: SectionProps) {
 
 // ── Section: Voice ───────────────────────────────────────────────────
 
+interface VoiceStatus {
+  available: boolean;
+  model_missing: boolean;
+  init_error: string | null;
+  model_filename: string;
+}
+
+interface VoiceDownloadEvent {
+  bytes_done: number;
+  bytes_total: number;
+  error: string | null;
+  done: boolean;
+}
+
 function VoiceSection({ state, update }: SectionProps) {
   const [devices, setDevices] = useState<VoiceDevice[]>([]);
   const [devicesError, setDevicesError] = useState<string>('');
@@ -634,6 +687,65 @@ function VoiceSection({ state, update }: SectionProps) {
   const [partial, setPartial] = useState<string>('');
   const [finalText, setFinalText] = useState<string>('');
   const [voiceError, setVoiceError] = useState<string>('');
+
+  // Model availability + downloader state. `voice_status` reports
+  // whether the Rust service initialised on app boot (i.e. whether the
+  // bundled model was findable). When `model_missing` is true we offer
+  // a "Download voice model" button that streams the file from
+  // HuggingFace and emits progress on `voice:model:downloading`.
+  const [status, setStatus] = useState<VoiceStatus | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    done: number;
+    total: number;
+  }>({ done: 0, total: 0 });
+  const [downloadError, setDownloadError] = useState<string>('');
+
+  const refreshStatus = useCallback(() => {
+    void invoke<VoiceStatus>('voice_status').then(
+      (s) => setStatus(s),
+      () => setStatus(null),
+    );
+  }, []);
+
+  useEffect(() => {
+    refreshStatus();
+  }, [refreshStatus]);
+
+  const startDownload = useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadError('');
+    setDownloadProgress({ done: 0, total: 0 });
+    try {
+      await invoke<string>('voice_download_model');
+      // Service init is one-shot at app boot, so the user has to relaunch
+      // for the freshly-downloaded model to wire in. We surface that
+      // explicitly rather than pretending it's hot-loaded.
+    } catch (err: unknown) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloading(false);
+      refreshStatus();
+    }
+  }, [downloading, refreshStatus]);
+
+  // Subscribe to download progress events while a download is active.
+  useEffect(() => {
+    let unlisten: UnlistenFn | undefined;
+    void listen<VoiceDownloadEvent>('voice:model:downloading', (e) => {
+      const p = e.payload;
+      setDownloadProgress({ done: p.bytes_done, total: p.bytes_total });
+      if (p.error !== null && p.error !== undefined && p.error !== '') {
+        setDownloadError(p.error);
+      }
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
 
   // Load devices.
@@ -714,24 +826,69 @@ function VoiceSection({ state, update }: SectionProps) {
         <p className="label">SECTION</p>
         <h2 className="settings__title display">Voice</h2>
         <p className="settings__lede">
-          Whisper for transcription. Hold the test button and speak.
+          Whisper for transcription. Hold {triggerLabel(state.ctrl_voice_trigger)} to speak from
+          anywhere in the app, or hold the test button below.
         </p>
       </header>
 
-      <Field label="Whisper model" hint="Larger = more accurate, slower to load.">
-        <select
-          className="settings__select"
-          value={state.voice_model}
-          onChange={(e) => update('voice_model', e.target.value)}
-          data-focusable
-        >
-          {VOICE_MODELS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+      <Field
+        label="Whisper model"
+        hint={`Larger = more accurate, slower to load. ‘${BUNDLED_VOICE_MODEL}’ ships with Pixiis; others must be downloaded.`}
+      >
+        <div className="settings__voice-model-row">
+          <select
+            className="settings__select"
+            value={state.voice_model}
+            onChange={(e) => update('voice_model', e.target.value)}
+            data-focusable
+          >
+            {VOICE_MODELS.map((m) => (
+              <option key={m} value={m}>
+                {m === BUNDLED_VOICE_MODEL ? `${m} — ✓ bundled` : m}
+              </option>
+            ))}
+          </select>
+          {state.voice_model === BUNDLED_VOICE_MODEL && (
+            <span className="settings__badge" aria-label="Bundled with Pixiis">
+              BUNDLED
+            </span>
+          )}
+        </div>
       </Field>
+
+      {status !== null && status.model_missing && (
+        <Field
+          label="Voice model"
+          hint="The bundled whisper model couldn’t be located on disk. Download it now to enable voice search."
+        >
+          <div className="settings__voice-download">
+            <button
+              type="button"
+              className="settings__btn"
+              onClick={() => void startDownload()}
+              disabled={downloading}
+              data-focusable
+            >
+              {downloading ? 'Downloading…' : 'Download voice model'}
+            </button>
+            {downloading && (
+              <p className="settings__hint" role="status" aria-live="polite">
+                {formatDownloadProgress(downloadProgress)}
+              </p>
+            )}
+            {downloadError !== '' && (
+              <p className="settings__notice settings__notice--warn" role="alert">
+                Download failed: {downloadError}
+              </p>
+            )}
+            {!downloading && downloadError === '' && downloadProgress.done > 0 && (
+              <p className="settings__hint">
+                Downloaded. Restart Pixiis to load the model.
+              </p>
+            )}
+          </div>
+        </Field>
+      )}
 
       <Field label="Compute device" hint="‘auto’ uses CUDA when available, else CPU.">
         <select
@@ -799,6 +956,7 @@ function VoiceSection({ state, update }: SectionProps) {
               if (testing) void stopTest();
             }}
             data-focusable
+            data-hold-to-activate
           >
             {testing ? 'Listening…' : 'Hold to test'}
           </button>

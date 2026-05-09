@@ -39,7 +39,13 @@ import { useActionFooter } from '../api/ActionFooterContext';
 import './QuickSearch.css';
 
 interface QuickSearchApi {
+  /** Open with an empty query (the historical default). */
   open: () => void;
+  /** Open with the input pre-populated. Used by the voice flow: on
+   *  `voice:final`, if no text input is focused on the page, we route
+   *  the transcript here so the user lands on a familiar search surface
+   *  with what they said already typed in. */
+  openWithQuery: (query: string) => void;
   close: () => void;
   isOpen: boolean;
 }
@@ -71,22 +77,40 @@ const MAX_RESULTS = 12;
 
 export function QuickSearchProvider({ children }: { children?: ReactNode }) {
   const [isOpen, setOpen] = useState(false);
-  const open = useCallback(() => setOpen(true), []);
-  const close = useCallback(() => setOpen(false), []);
+  // Initial query the panel should mount with — set when the consumer
+  // calls `openWithQuery(text)`. Reset to '' on close so the next plain
+  // `open()` doesn't re-show the previous query.
+  const [initialQuery, setInitialQuery] = useState('');
+  const open = useCallback(() => {
+    setInitialQuery('');
+    setOpen(true);
+  }, []);
+  const openWithQuery = useCallback((q: string) => {
+    setInitialQuery(q);
+    setOpen(true);
+  }, []);
+  const close = useCallback(() => {
+    setOpen(false);
+    setInitialQuery('');
+  }, []);
 
   const api = useMemo<QuickSearchApi>(
-    () => ({ open, close, isOpen }),
-    [open, close, isOpen],
+    () => ({ open, openWithQuery, close, isOpen }),
+    [open, openWithQuery, close, isOpen],
   );
 
-  // Global X button (gamepad) and Ctrl+K (keyboard) open the modal.
+  // Global Y button (gamepad) and Ctrl+K (keyboard) open the modal.
+  // Y matches Xbox convention — "If your app provides a search
+  // experience, it is helpful for the user to have quick access to it
+  // by using the Y button on the gamepad as an accelerator." (Xbox
+  // 10-foot canon, cited in agents/wave5-ux-research.md § 2.1.)
   // While open, the panel's own listeners take over and the global
-  // handler returns early so X doesn't immediately re-toggle off.
+  // handler returns early so Y doesn't immediately re-toggle off.
   useController(
     useCallback(
       (button) => {
         if (isOpen) return;
-        if (button === 'x') setOpen(true);
+        if (button === 'y') setOpen(true);
       },
       [isOpen],
     ),
@@ -97,6 +121,10 @@ export function QuickSearchProvider({ children }: { children?: ReactNode }) {
       // Ctrl+K / Cmd+K — universal "command palette" muscle memory.
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
+        // Always start from an empty query when the user reaches for
+        // the keyboard shortcut — they're explicitly opening fresh, not
+        // resuming a voice-prefilled search.
+        setInitialQuery('');
         setOpen((v) => !v);
       }
     };
@@ -107,20 +135,21 @@ export function QuickSearchProvider({ children }: { children?: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      {isOpen && <Panel onClose={close} />}
+      {isOpen && <Panel onClose={close} initialQuery={initialQuery} />}
     </Ctx.Provider>
   );
 }
 
 interface PanelProps {
   onClose: () => void;
+  initialQuery: string;
 }
 
-function Panel({ onClose }: PanelProps) {
+function Panel({ onClose, initialQuery }: PanelProps) {
   const { games } = useLibrary();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [active, setActive] = useState(0);
   const [launching, setLaunching] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -233,13 +262,13 @@ function Panel({ onClose }: PanelProps) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [results, active, launch, onClose]);
 
-  // Controller while open: D-pad up/down moves, A launches, B/X close,
-  // Y opens detail. The X-to-toggle in the provider is suppressed while
-  // open via the `isOpen` early return there.
+  // Controller while open: D-pad up/down moves, A launches, B closes,
+  // Y opens detail. The Y-to-toggle in the provider is suppressed
+  // while open via the `isOpen` early return there.
   useController(
     useCallback(
       (button) => {
-        if (button === 'b' || button === 'x') {
+        if (button === 'b') {
           onClose();
         } else if (button === 'a') {
           const game = results[active];
@@ -342,7 +371,7 @@ function Panel({ onClose }: PanelProps) {
 
         <footer className="qsearch__foot">
           <p className="label qsearch__legend">
-            ↑ ↓ MOVE · ENTER LAUNCH · Y DETAIL · ESC CLOSE
+            ↑ ↓ MOVE · ENTER LAUNCH · Y DETAIL · B CLOSE
           </p>
         </footer>
       </div>

@@ -42,8 +42,10 @@ toml = "0.8"
 # match the version `toml 0.8.2` already pulls in transitively.
 toml_edit = "0.20"
 
-# Services layer (Pane 9)
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+# Services layer (Pane 9). `blocking` is on so the voice model
+# downloader can stream the HuggingFace fallback to disk on a
+# spawn_blocking thread without bringing in a second executor.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "blocking", "stream"] }
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "query"] }
 urlencoding = "2"
 sha2 = "0.10"

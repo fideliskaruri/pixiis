@@ -301,6 +301,8 @@ pub fn run() {
             commands::voice::voice_set_device,
             commands::voice::voice_inject_text,
             commands::voice::voice_get_transcript_log,
+            commands::voice::voice_status,
+            commands::voice::voice_download_model,
             // controller
             commands::controller::controller_register_macro,
             commands::controller::controller_get_state,

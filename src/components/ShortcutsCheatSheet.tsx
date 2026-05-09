@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useController } from '../hooks/useController';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './ShortcutsCheatSheet.css';
 
 interface Shortcut {
@@ -85,6 +86,7 @@ export function ShortcutsCheatSheet({ isOpen, onClose }: Props) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      <CheatSheetFooterRegistration />
       <div className="cheats__panel">
         <header className="cheats__head">
           <p className="label">REFERENCE</p>
@@ -136,6 +138,15 @@ function ShortcutTable({ label, rows }: TableProps) {
       </ul>
     </section>
   );
+}
+
+// Tiny helper that lives only while the cheat sheet is open. Putting
+// the registration inside its own component lets us avoid calling the
+// hook conditionally — the parent uses an `if (!isOpen) return null`
+// guard, so the hook needs to mount with the modal.
+function CheatSheetFooterRegistration() {
+  useActionFooter([{ glyph: 'B', verb: 'Close' }]);
+  return null;
 }
 
 // ── Provider hook ────────────────────────────────────────────────────

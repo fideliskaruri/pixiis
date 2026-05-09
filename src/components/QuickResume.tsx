@@ -24,6 +24,7 @@ import { useController } from '../hooks/useController';
 import { useLibrary } from '../api/LibraryContext';
 import { imageUrl, launchGame, type AppEntry } from '../api/bridge';
 import { useToast } from '../api/ToastContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './QuickResume.css';
 
 interface QuickResumeApi {
@@ -108,6 +109,14 @@ function Panel({ onClose }: { onClose: () => void }) {
   const [selected, setSelected] = useState(0);
   const [launching, setLaunching] = useState<string | null>(null);
   const restoreFocus = useRef<Element | null>(null);
+
+  // Modal-scoped footer override — replaces the underlying page's
+  // hint set for the lifetime of this panel. On unmount the page's
+  // own useActionFooter re-asserts.
+  useActionFooter([
+    { glyph: 'A', verb: 'Launch' },
+    { glyph: 'B', verb: 'Close' },
+  ]);
 
   const cards = useMemo(
     () =>

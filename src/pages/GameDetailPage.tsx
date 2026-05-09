@@ -32,6 +32,7 @@ import {
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import { useAutoFocus } from '../hooks/useAutoFocus';
 import './GameDetailPage.css';
 
@@ -72,6 +73,16 @@ export function GameDetailPage() {
   const [lightbox, setLightbox] = useState<string | null>(null);
 
   const launchedTimer = useRef<number | null>(null);
+
+  // Action footer for the detail surface — Play / Favorite / Back /
+  // Voice. The Lightbox modal overrides this to "B Close" while it's
+  // mounted (handled in the Lightbox component below).
+  useActionFooter([
+    { glyph: 'A', verb: 'Play' },
+    { glyph: 'Y', verb: 'Favorite' },
+    { glyph: 'B', verb: 'Back' },
+    { glyph: 'RT', verb: 'Voice' },
+  ]);
 
   // Sync the favorite local state when the underlying entry changes.
   useEffect(() => {
@@ -488,6 +499,10 @@ export function GameDetailPage() {
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<Element | null>(null);
+
+  // Override the page's footer actions for the lifetime of the modal
+  // — only "B Close" is meaningful while a screenshot is fullscreen.
+  useActionFooter([{ glyph: 'B', verb: 'Close' }]);
 
   useEffect(() => {
     triggerRef.current = document.activeElement;

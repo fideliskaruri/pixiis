@@ -35,6 +35,7 @@ import { useController } from '../hooks/useController';
 import { useLibrary } from '../api/LibraryContext';
 import { imageUrl, launchGame, type AppEntry } from '../api/bridge';
 import { useToast } from '../api/ToastContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './QuickSearch.css';
 
 interface QuickSearchApi {
@@ -124,6 +125,13 @@ function Panel({ onClose }: PanelProps) {
   const [launching, setLaunching] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const restoreFocus = useRef<Element | null>(null);
+
+  // Modal-scoped footer override.
+  useActionFooter([
+    { glyph: 'A', verb: 'Launch' },
+    { glyph: 'Y', verb: 'Detail' },
+    { glyph: 'B', verb: 'Close' },
+  ]);
 
   // Save the prior focus so we can restore it on close (matches
   // QuickResume's pattern — keeps controller / keyboard users where

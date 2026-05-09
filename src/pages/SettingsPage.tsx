@@ -30,6 +30,7 @@ import {
 } from '../api/bridge';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import { useAutoFocus } from '../hooks/useAutoFocus';
 import { notifyUiPrefsChanged } from '../api/UiPrefsContext';
 import type { VoiceDevice } from '../api/types/VoiceDevice';
@@ -285,6 +286,19 @@ export function SettingsPage() {
   const [applyError, setApplyError] = useState<string>('');
   const savedTimer = useRef<number | null>(null);
   const { toast } = useToast();
+
+  // Settings footer cues — Section uses LB/RB to mirror NavBar tab
+  // switching (the Settings page itself relies on internal section
+  // nav rather than route changes, but the affordance is identical
+  // from the user's POV). Y Apply matches the in-page Apply button.
+  useActionFooter([
+    { glyph: 'A', verb: 'Select' },
+    { glyph: 'B', verb: 'Back' },
+    { glyph: 'LB', verb: 'Section' },
+    { glyph: 'RB', verb: 'Section' },
+    { glyph: 'Y', verb: 'Apply' },
+    { glyph: 'RT', verb: 'Voice' },
+  ]);
 
   // Load config — initially on mount, and again whenever Retry bumps
   // `reloadKey`. The retry handler resets `loaded` and `loadError`

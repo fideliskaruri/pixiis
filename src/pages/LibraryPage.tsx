@@ -26,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { GameTile } from '../components/GameTile';
 import { SearchBar } from '../components/SearchBar';
 import { useLibrary } from '../api/LibraryContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import { useAutoFocus } from '../hooks/useAutoFocus';
 import type { AppEntry, AppSource } from '../api/bridge';
 import './LibraryPage.css';
@@ -81,6 +82,21 @@ export function LibraryPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('az');
+
+  // LibraryPage's controller hint set — distinct from Home in that
+  // LT/RT cycle the active source-chip filter (handled inside the
+  // page's existing controller plumbing). The Voice cue stays at RT
+  // so muscle memory carries across pages; LT/RT for filter is only
+  // surfaced when source chips are present.
+  useActionFooter([
+    { glyph: 'A', verb: 'Open' },
+    { glyph: 'Y', verb: 'Favorite' },
+    { glyph: 'X', verb: 'Search' },
+    { glyph: 'LB', verb: 'Tab' },
+    { glyph: 'RB', verb: 'Tab' },
+    { glyph: 'LT', verb: 'Filter' },
+    { glyph: 'RT', verb: 'Voice' },
+  ]);
 
   // 300ms debounce — typing is responsive in the input itself, but the
   // (potentially large) filter pass only re-runs once the user pauses.

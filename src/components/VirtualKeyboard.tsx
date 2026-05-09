@@ -28,6 +28,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useController, type ControllerButton, type Direction } from '../hooks/useController';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './VirtualKeyboard.css';
 
 // ── Layout ───────────────────────────────────────────────────────────
@@ -164,6 +165,16 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
   const [shifted, setShifted] = useState(false);
   // Selected key indexes — start on the first character of the home row.
   const [pos, setPos] = useState<KeyPos>({ row: 1, col: 0 });
+
+  // Mirror the controller bindings to the global action footer; the
+  // inline `vkbd__hint` strip used to live below — that's redundant
+  // now that the global footer carries the same legend on every page.
+  useActionFooter([
+    { glyph: 'A', verb: 'Type' },
+    { glyph: 'B', verb: 'Close' },
+    { glyph: 'X', verb: 'Backspace' },
+    { glyph: 'Y', verb: 'Space' },
+  ]);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [placement, setPlacement] = useState<{ top: number; left: number; aboveInput: boolean }>({
@@ -377,7 +388,8 @@ function VirtualKeyboard({ target, onClose }: PanelProps) {
     >
       <div className="vkbd__head">
         <p className="label">VIRTUAL KEYBOARD</p>
-        <p className="label vkbd__hint">A SELECT · B CLOSE · X BKSP · Y SPACE</p>
+        {/* Legend hint replaced by the global ActionFooter — registered
+            via useActionFooter() above. */}
       </div>
       {ROWS_LOWER.map((row, rIdx) => (
         <div key={rIdx} className="vkbd__row">

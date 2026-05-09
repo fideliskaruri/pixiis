@@ -21,6 +21,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { LibraryProvider } from './api/LibraryContext';
 import { ToastProvider } from './api/ToastContext';
 import { UiPrefsProvider } from './api/UiPrefsContext';
+import { ActionFooterProvider } from './api/ActionFooterContext';
+import { ActionFooter } from './components/ActionFooter';
 import { QuickResume } from './components/QuickResume';
 import { QuickSearchProvider } from './components/QuickSearch';
 import { ShortcutsCheatsProvider } from './components/ShortcutsCheatSheet';
@@ -132,16 +134,19 @@ export default function App() {
       <ToastProvider>
         <UiPrefsProvider>
         <LibraryProvider>
-          <VirtualKeyboardProvider>
-            <QuickResume>
-              <QuickSearchProvider>
-                <ShortcutsCheatsProvider>
-                  <AppContent />
-                  <VoiceOverlay />
-                </ShortcutsCheatsProvider>
-              </QuickSearchProvider>
-            </QuickResume>
-          </VirtualKeyboardProvider>
+          <ActionFooterProvider>
+            <VirtualKeyboardProvider>
+              <QuickResume>
+                <QuickSearchProvider>
+                  <ShortcutsCheatsProvider>
+                    <AppContent />
+                    <VoiceOverlay />
+                    <ActionFooter />
+                  </ShortcutsCheatsProvider>
+                </QuickSearchProvider>
+              </QuickResume>
+            </VirtualKeyboardProvider>
+          </ActionFooterProvider>
         </LibraryProvider>
         </UiPrefsProvider>
       </ToastProvider>

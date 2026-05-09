@@ -15,6 +15,7 @@ import { HomeGreeting } from '../components/HomeGreeting';
 import { useLibrary } from '../api/LibraryContext';
 import { useToast } from '../api/ToastContext';
 import { useUiPrefs } from '../api/UiPrefsContext';
+import { useActionFooter } from '../api/ActionFooterContext';
 import { useAutoFocus } from '../hooks/useAutoFocus';
 import { imageUrl, type AppEntry } from '../api/bridge';
 import './HomePage.css';
@@ -51,6 +52,20 @@ export function HomePage() {
   const navigate = useNavigate();
   const lastToastedError = useRef<string>('');
   const gridRef = useRef<HTMLDivElement | null>(null);
+
+  // Register the controller-action footer for this page. The footer
+  // bar at the app root reads the latest registered set; on unmount
+  // (route change) the entries clear and the next page registers its
+  // own. Modals override during their lifetime.
+  useActionFooter([
+    { glyph: 'A', verb: 'Open' },
+    { glyph: 'Y', verb: 'Favorite' },
+    { glyph: 'X', verb: 'Search' },
+    { glyph: 'LB', verb: 'Tab' },
+    { glyph: 'RB', verb: 'Tab' },
+    { glyph: 'START', verb: 'Quick Resume' },
+    { glyph: 'RT', verb: 'Voice' },
+  ]);
 
   // Surface load failures as a transient toast in addition to the inline
   // retry surface — guards against the user navigating away mid-error

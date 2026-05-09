@@ -25,6 +25,7 @@ import {
   type ProviderRow,
 } from '../components/scanProgressState';
 import { useController, type ControllerButton } from '../hooks/useController';
+import { useActionFooter } from '../api/ActionFooterContext';
 import './OnboardingPage.css';
 
 const TOTAL_STEPS = 5;
@@ -35,6 +36,15 @@ export function OnboardingPage() {
   const [step, setStep] = useState<StepIndex>(0);
   const [exiting, setExiting] = useState(false);
   const navigate = useNavigate();
+
+  // Onboarding footer — kept simple per spec. The "Skip setup" button
+  // and per-step "Next / Done" CTAs are the visible actions; A confirms
+  // the focused control and B is wired to skip on the final step (a
+  // friendlier landing than the all-or-nothing welcome step).
+  useActionFooter([
+    { glyph: 'A', verb: 'Continue' },
+    { glyph: 'B', verb: 'Skip' },
+  ]);
 
   const advance = useCallback(() => {
     setStep((s) => (s < (TOTAL_STEPS - 1) ? ((s + 1) as StepIndex) : s));

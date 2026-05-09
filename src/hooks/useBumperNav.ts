@@ -14,6 +14,12 @@
  *   - On non-top-level routes (/game/:id, /files, /onboarding) the
  *     bumpers are no-ops — the user is somewhere modal-ish and we
  *     don't want a stray shoulder-button press to evict them.
+ *   - On /settings specifically, the bumpers cycle the *Settings
+ *     section* (LIBRARY → VOICE → CONTROLLER → SERVICES → ABOUT) by
+ *     dispatching a `settings:cycleSection` window event. The Settings
+ *     page subscribes and advances its internal section state. This
+ *     keeps top-level page cycling out of the user's way once they're
+ *     inside the Settings surface — per Wave 5 UX research § 5.1.
  *
  * B button:
  *   - On /game/:id, B = `navigate(-1)` (history back).
@@ -63,6 +69,18 @@ export function useBumperNav(): void {
       const path = location.pathname;
 
       if (button === 'rb' || button === 'lb') {
+        // Settings owns the bumpers internally — they cycle the
+        // active section instead of the top-level page so the user
+        // can flip LIBRARY → VOICE → … without losing where they are.
+        // The Settings page listens for `settings:cycleSection`.
+        if (path === '/settings') {
+          window.dispatchEvent(
+            new CustomEvent('settings:cycleSection', {
+              detail: { direction: button === 'rb' ? 'next' : 'prev' },
+            }),
+          );
+          return;
+        }
         if (!isTopLevel(path)) return; // bumpers no-op outside top-level
         const idx = TOP_LEVEL.indexOf(path);
         const next =

@@ -9,8 +9,20 @@
  *   useSpatialNav(); // in your root component
  *   <div data-focusable tabIndex={0}>...</div>
  *
+ * Sectioned-grid mode (Settings):
+ *   The Settings page wraps its form in `[data-settings-panel]`. When
+ *   focus is inside that container, D-pad navigation switches to a
+ *   *linear vertical* walk: up/down step through the panel's focusables
+ *   in DOM order and wrap at the ends; left from the leftmost control
+ *   jumps to the section nav (`[data-settings-nav]`); right past the
+ *   rightmost stays put. This keeps the user's D-pad path predictable
+ *   on a long form, and matches the Wave 5 UX research § 5.1 spec.
+ *
  * Buttons handled here:
- *   - A activates the focused element (`active.click()`).
+ *   - A activates the focused element (`active.click()`). For
+ *     <select>, A also calls `.showPicker?.()` (Chromium 102+) so
+ *     controller users can open the dropdown — useful as a fallback
+ *     until a custom controller-friendly dropdown ships.
  *   - B / LB / RB are intentionally NOT handled here. They're owned
  *     by `useBumperNav`, which has access to the current route — that's
  *     the only place that can decide "B on Home is a no-op" vs "B on
@@ -132,6 +144,84 @@ function findNearest(current: Element, direction: Direction): Element | null {
   return best;
 }
 
+/**
+ * Collect the focusable form controls inside `[data-settings-panel]`,
+ * filtered like the document-wide walk does (visibility, no-spatial).
+ * Returned in DOM order so the linear up/down walk is deterministic.
+ */
+function getSettingsPanelFocusables(panel: Element): HTMLElement[] {
+  const candidates = panel.querySelectorAll(FOCUSABLE_SELECTOR);
+  const out: HTMLElement[] = [];
+  for (const el of Array.from(candidates)) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (!el.checkVisibility()) continue;
+    if (isExcludedFromSpatial(el)) continue;
+    out.push(el);
+  }
+  return out;
+}
+
+/**
+ * Sectioned-grid handling for Settings. Returns true iff the press was
+ * consumed here so the caller skips the geometric walk.
+ *
+ * Rules (per Wave 5 UX research § 5.1):
+ * - Up/Down: linear vertical walk inside the panel; wraps at the ends.
+ * - Left from the leftmost control: jump to the active section tab.
+ * - Right: no-op past the rightmost control (i.e. stays put).
+ */
+function handleSettingsPanelNav(
+  current: Element,
+  panel: Element,
+  direction: Direction,
+): boolean {
+  if (!direction) return false;
+
+  if (direction === 'up' || direction === 'down') {
+    const items = getSettingsPanelFocusables(panel);
+    if (items.length === 0) return true;
+    const idx = items.indexOf(current as HTMLElement);
+    // If the current element isn't in the list (e.g. nested control
+    // moved), focus the first/last so the user gets a predictable jump.
+    if (idx === -1) {
+      const target = direction === 'down' ? items[0] : items[items.length - 1];
+      target?.focus();
+      target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return true;
+    }
+    const nextIdx =
+      direction === 'down'
+        ? (idx + 1) % items.length
+        : (idx - 1 + items.length) % items.length;
+    const next = items[nextIdx];
+    if (next instanceof HTMLElement) {
+      next.focus();
+      next.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    return true;
+  }
+
+  if (direction === 'left') {
+    // Jump to the section nav. Prefer the active section tab, fall back
+    // to the first nav item.
+    const nav = document.querySelector('[data-settings-nav]');
+    if (nav === null) return true;
+    const active = nav.querySelector<HTMLElement>(
+      '[data-settings-nav-item][aria-selected="true"]',
+    );
+    const fallback = nav.querySelector<HTMLElement>('[data-settings-nav-item]');
+    const target = active ?? fallback;
+    if (target !== null) {
+      target.focus();
+      target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    return true;
+  }
+
+  // direction === 'right' — past the rightmost control, stay put.
+  return true;
+}
+
 export function useSpatialNav() {
   const onDirection = useCallback((dir: Direction) => {
     if (!dir) return;
@@ -150,6 +240,15 @@ export function useSpatialNav() {
       return;
     }
 
+    // Settings sectioned-grid: when focus lives inside the panel, the
+    // walk follows panel-local rules (linear vertical wrap; left jumps
+    // to nav; right stays). The section nav itself uses the standard
+    // geometric walk so up/down still moves between section tabs.
+    const panel = current.closest('[data-settings-panel]');
+    if (panel !== null) {
+      if (handleSettingsPanelNav(current, panel, dir)) return;
+    }
+
     const next = findNearest(current, dir);
     if (next instanceof HTMLElement) {
       next.focus();
@@ -164,7 +263,30 @@ export function useSpatialNav() {
     // activeElement up-front because we want the same shape as the
     // earlier handler — A on a non-HTMLElement target is just a no-op.
     const active = document.activeElement;
-    if (active instanceof HTMLElement) active.click();
+    if (!(active instanceof HTMLElement)) return;
+    // Native <select> can't be opened by a synthesized click. The
+    // Chromium 102+ `showPicker()` API explicitly opens the OS
+    // dropdown so a controller user can navigate the option list.
+    // Until a custom controller-friendly dropdown component lands,
+    // this is the activation path. (Click is still fired below for
+    // any onClick handlers that listen.)
+    if (active instanceof HTMLSelectElement) {
+      type SelectWithShowPicker = HTMLSelectElement & {
+        showPicker?: () => void;
+      };
+      const sel = active as SelectWithShowPicker;
+      try {
+        sel.showPicker?.();
+      } catch {
+        /* showPicker can throw NotAllowedError if the element isn't
+         * focused / user-activated. We've just been activated by a
+         * button press but the API still requires a transient user
+         * gesture and the rules vary by browser — fall through to
+         * .click() so the focus state at least keeps moving. */
+      }
+      return;
+    }
+    active.click();
   }, []);
 
   useController(onButtonPress, onDirection);

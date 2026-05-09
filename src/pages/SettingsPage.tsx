@@ -1051,6 +1051,11 @@ function VoiceSection({ state, update }: SectionProps) {
               if (testing) void stopTest();
             }}
             data-focusable
+            // Lets the gamepad's A button drive press-and-hold semantics
+            // here — useSpatialNav dispatches synthetic pointerdown on
+            // press and pointerup on release. Without this, A on a
+            // focused button only fires `click()`, which is a single
+            // event with no hold window.
             data-hold-to-activate
           >
             {testing ? 'Listening…' : 'Hold to test'}

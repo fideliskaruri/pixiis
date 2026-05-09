@@ -10,13 +10,14 @@
  *     the GameDetailPage; tiles use only neutrals + focus ring.
  */
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   type AppEntry,
   type GameEntry,
   imageUrl,
   useRunningGames,
 } from '../api/bridge';
+import { useController } from '../hooks/useController';
 import './GameTile.css';
 
 interface Props {
@@ -57,12 +58,30 @@ export function GameTile({
   const [imgLoaded, setImgLoaded] = useState(false);
   const running = useRunningGames();
   const isPlaying = running.some((r) => r.id === game.id);
+  const tileRef = useRef<HTMLDivElement>(null);
 
   const artSrc = imageUrl(game.art_url);
   const sourceLabel = SOURCE_LABELS[game.source] ?? game.source.toUpperCase();
 
+  // Gamepad Y → favorite toggle when this tile owns focus. The keyboard
+  // 'y' fallback in onKeyDown below handles physical-keyboard testers;
+  // this hook handles the *gamepad* Y button, which never fires a
+  // keydown. We scope by `document.activeElement === tileRef.current`
+  // so each tile in the grid only responds to Y when it owns focus —
+  // otherwise every tile would toggle on a single press.
+  const onButton = useCallback(
+    (button: string) => {
+      if (button !== 'y') return;
+      if (document.activeElement !== tileRef.current) return;
+      onFavorite?.(game);
+    },
+    [game, onFavorite],
+  );
+  useController(onButton);
+
   return (
     <div
+      ref={tileRef}
       className={`game-tile game-tile--${size} tile-focus ${
         !game.is_installed ? 'game-tile--uninstalled' : ''
       }`}

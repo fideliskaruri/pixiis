@@ -10,7 +10,7 @@
 //! tests can feed synthetic packages without a real `PackageManager`.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::{Map, Value};
@@ -27,54 +27,21 @@ mod winrt;
 #[cfg(target_os = "windows")]
 pub use winrt::WinRtEnumerator;
 
-/// File extensions the executable-presence heuristic accepts as "real"
-/// game binaries. Excludes installers / updater / launcher shims.
-const EXE_EXTENSIONS: &[&str] = &["exe"];
-
-/// Lower-cased file-name fragments that look like a launcher / updater /
-/// helper rather than the real game. If the only `.exe` we can find
-/// matches one of these, the executable-presence heuristic does NOT fire.
-const LAUNCHER_EXE_HINTS: &[&str] = &[
-    "gamelaunchhelper",
-    "launcher",
-    "launch",
-    "setup",
-    "install",
-    "update",
-    "updater",
-    "uninstall",
-    "vc_redist",
-    "vcredist",
-    "directx",
-    "dxsetup",
-    "crashreport",
-    "crashpad",
-    "easyanticheat",
-    "anticheat",
-    "redistributable",
-    "helper",
-];
-
-/// Lower-cased capability-name fragments that imply gaming. We match
-/// case-insensitively because the manifest casing varies (`xboxLive` vs
-/// `XboxLive` etc.) and we already lower-case capabilities at parse time.
-const GAMING_CAPABILITY_HINTS: &[&str] = &[
-    "xbox",
-    "gamebarservices",
-    "gameservices",
-    "gamemonitor",
-    "gameaccessory",
-    "gamechat",
-    "gamingdevice",
-    "broadcastservices",
-];
-
 /// Family / package-name prefixes published by known game studios. The
-/// list is conservative — we only add entries we've seen empirically
-/// publishing UWP titles. Match is case-insensitive on the prefix.
+/// list is curated — Wave 6 narrowed it from the original Wave 4 set
+/// (which included the bare `Microsoft.Xbox` prefix that matched
+/// `XboxIdentityProvider`, `XboxGameOverlay`, … infrastructure
+/// packages, none of which are games).
+///
+/// Match is case-insensitive on the prefix; see [`matches_game_publisher`].
+/// Source: `agents/wave6-uwp-research.md` § 4 — every entry is a
+/// publisher or title that has shipped a UWP / MSIXVC game to the
+/// Microsoft Store. **Bare `Microsoft.Xbox` is intentionally absent;**
+/// rely on the more-specific `Microsoft.624F8B84B80` (Forza-style
+/// hashed publisher IDs) and the title-specific `Microsoft.SeaofThieves`
+/// / `Microsoft.MicrosoftFlightSimulator` / etc. entries instead.
 const GAME_PUBLISHER_PREFIXES: &[&str] = &[
-    "Microsoft.Xbox",
-    "Microsoft.GamingApp",
+    // Microsoft first-party titles (NOT bare Microsoft.Xbox*)
     "Microsoft.MinecraftUWP",
     "Microsoft.Minecraft",
     "Microsoft.MicrosoftSolitaireCollection",
@@ -84,10 +51,41 @@ const GAME_PUBLISHER_PREFIXES: &[&str] = &[
     "Microsoft.MicrosoftTreasureHunt",
     "Microsoft.MicrosoftBingo",
     "Microsoft.MicrosoftUltimateWordGames",
-    "Microsoft.624F8B84B80",   // Forza Horizon 5
-    "Microsoft.GameApps",
+    "Microsoft.MicrosoftFlightSimulator",
+    "Microsoft.Halo",
+    "Microsoft.HaloMCC",
+    "Microsoft.SeaofThieves",
+    "Microsoft.Forza",
+    "Microsoft.AgeofEmpires",
+    "Microsoft.AgeOfEmpires",
+    "Microsoft.Flight",
+    "Microsoft.StateofDecay",
+    "Microsoft.GearsOfWar",
+    "Microsoft.Wasteland",
+    // Hashed publisher IDs Microsoft uses for individual titles
+    "Microsoft.624F8B84B80", // Forza Horizon 5
+    // Microsoft Game Studios subsidiaries / first-party studios
+    "ArkaneStudios.",
+    "ArkaneAustin.",
+    "DoubleFineProductions.",
+    "TheCoalition.",
+    "Compulsion.",
+    "CompulsionGames.",
+    "Inxile.",
+    "InxileEntertainment.",
+    "Ninja.",
+    "NinjaTheory.",
+    "PlaygroundGames.",
+    "RareLimited.",
+    "TurnTen.",
+    "Turn10Studios.",
+    "UndeadLabs.",
+    "WorldsEdge.",
+    "MachineGames.",
     "MojangStudios.",
     "Mojang.",
+    "ObsidianEntertainment.",
+    // Major third-party publishers
     "KingDigitalEntertainment.",
     "EAInc.",
     "ElectronicArts.",
@@ -101,8 +99,11 @@ const GAME_PUBLISHER_PREFIXES: &[&str] = &[
     "SquareEnix.",
     "Sega.",
     "SEGAofAmericaInc.",
+    "SonicTeam.",
     "BandaiNamco.",
     "BandaiNamcoEntertainment.",
+    "BandaiNamcoEntertainmentEurope.",
+    "NamcoBandai.",
     "Capcom.",
     "Activision.",
     "ActivisionPublishingInc.",
@@ -111,9 +112,62 @@ const GAME_PUBLISHER_PREFIXES: &[&str] = &[
     "RiotGames.",
     "ZeniMaxOnline.",
     "InnerSloth.",
-    "ObsidianEntertainment.",
     "FromSoftware.",
+    "505Games.",
+    "AsobimoInc.",
+    "AspyrMediaInc.",
+    "AtlusUSA.",
+    "CDPROJEKTRED.",
+    "CDProjektRED.",
+    "CodeMasters.",
+    "DeepSilver.",
+    "Devolver.",
+    "DevolverDigital.",
+    "DotEmu.",
+    "Frontier.",
+    "FocusEntertainment.",
+    "FocusHomeInteractive.",
+    "GameloftSE.",
+    "GearboxPublishing.",
+    "HelloGames.",
+    "IOInteractive.",
+    "Konami.",
+    "KonamiDigitalEntertainment.",
+    "LarianStudios.",
+    "LucasfilmGames.",
+    "ModiphiusEntertainment.",
+    "NaconStudio.",
+    "Paradox.",
+    "ParadoxInteractive.",
+    "PrivateDivision.",
+    "RebellionDevelopments.",
+    "RemedyEntertainment.",
+    "RockstarGames.",
+    "Rovio.",
+    "SCSSoftware.",
+    "SonyInteractiveEntertainment.",
+    "TeamCherry.",
+    "TheGameKitchen.",
+    "ThunderfulPublishing.",
+    "TripwireInteractive.",
+    "WaybackEntertainment.",
+    "WizardsoftheCoast.",
+    "WolverineStudios.",
+    "WoWoWoGames.",
+    "XSEEDGames.",
+    "A2Z4DOLLC.",
 ];
+
+/// Path component name (case-insensitive) that signals a Microsoft
+/// Store / Game Pass game install root. Per
+/// `agents/wave6-uwp-research.md` § 1.3, the GDK March 2022+ packaging
+/// pipeline installs every Game Pass / Xbox PC title to
+/// `[drive]:\XboxGames\<TitleName>\Content\` for content protection.
+/// Presence of this component anywhere in the install path is a
+/// high-confidence "this is a game" signal — false-positive rate is
+/// effectively zero because the folder name is reserved by the Xbox
+/// app and not used for non-game UWP installs.
+const XBOX_GAMES_PATH_COMPONENT: &str = "XboxGames";
 
 /// Raw package shape produced by `PackageEnumerator`.
 ///
@@ -293,7 +347,10 @@ fn scan_with_options(
         let Ok(manifest_xml) = std::fs::read_to_string(&manifest_path) else {
             continue;
         };
-        let (apps, summary) = match manifest::parse_manifest_full(&manifest_xml) {
+        // `_summary` (capabilities) is parsed but unused for the gaming
+        // flag in Wave 6 — see comment on the inverted detection chain
+        // below. Kept reachable so a future tiebreaker can resurrect it.
+        let (apps, _summary) = match manifest::parse_manifest_full(&manifest_xml) {
             Ok(parsed) => parsed,
             Err(_) => continue,
         };
@@ -311,17 +368,49 @@ fn scan_with_options(
             None
         };
 
-        // Layered gaming heuristic — any one positive signal is enough.
-        // Order matters only for the cheapness of the check (filesystem
-        // scan is last because it's the most expensive). All four
-        // signals are documented in `agents/wave3-xbox-fix.md`.
+        // Anti-signal: every <Application> entry in the manifest is
+        // marked AppListEntry="none". The platform itself hides these
+        // from the All Apps list — they're extension hosts / COM
+        // brokers / companion services, not user-launchable. We honor
+        // that even if a positive game signal would otherwise fire,
+        // unless MicrosoftGame.Config is present (a real game with all
+        // entries hidden is implausible, but the config file is
+        // authoritative enough to override).
+        // Ref: wave6-uwp-research.md § 1.6 / § 7 anti-signals.
+        if !apps.is_empty()
+            && apps.iter().all(|a| a.is_hidden())
+            && !game_config_exists
+        {
+            continue;
+        }
+
+        // Wave 6 inverted detection chain — DEFAULT NO. Only flip to
+        // game when at least one strict positive signal fires:
+        //   1. MicrosoftGame.Config file at install root (GDK pipeline)
+        //   2. install path contains an `XboxGames` component
+        //      (Game Pass / Xbox PC default install root)
+        //   3. family or package name matches the curated
+        //      GAME_PUBLISHER_PREFIXES list
+        // Anti-signals (skip-list, framework, AppListEntry="none")
+        // already pre-empt above. The treat_all_as_games override
+        // remains as the user-facing escape hatch for false negatives.
+        // Dropped per wave6-{uwp-research,xbox-audit}.md:
+        //   - has_significant_exe (matched every UWP with a real .exe
+        //     — Spotify, Discord, Netflix, GitHub Desktop, …)
+        //   - has_gaming_capability (matched non-game apps that
+        //     integrate with Game Bar / capture infrastructure)
         let is_game = game_config_exists
-            || has_gaming_capability(&summary)
+            || installs_under_xbox_games(&pkg.install_location)
             || matches_game_publisher(&pkg.package_name, &pkg.family_name)
-            || has_significant_exe(&pkg.install_location)
             || opts.treat_all_as_games;
 
         for app in apps {
+            // Drop hidden child entries even if the package as a
+            // whole is a game — `AppListEntry="none"` apps are not
+            // user-launchable.
+            if app.is_hidden() {
+                continue;
+            }
             // Resolve exe — Game Pass titles store `GameLaunchHelper.exe`
             // in their manifest and the real exe in MicrosoftGame.Config.
             let mut exe = app.executable.clone().unwrap_or_default();
@@ -381,22 +470,16 @@ fn scan_with_options(
     out
 }
 
-/// True when the manifest declared at least one capability whose
-/// (already lower-cased) name contains a [`GAMING_CAPABILITY_HINTS`]
-/// fragment. Substring match is intentional — `xboxLive`,
-/// `xboxAccessoryManagement` and the dozen other Xbox-prefixed
-/// capabilities all collapse to the same `xbox` hit.
-fn has_gaming_capability(summary: &manifest::ManifestSummary) -> bool {
-    summary
-        .capabilities
-        .iter()
-        .any(|c| GAMING_CAPABILITY_HINTS.iter().any(|h| c.contains(h)))
-}
-
 /// True when the package or family name starts with one of the known
 /// game-publisher prefixes. Match is case-insensitive: package family
 /// names are technically case-sensitive but the publisher tokens we
-/// care about (`Microsoft.Xbox*`, `MojangStudios.*`, …) are stable.
+/// care about (`MojangStudios.*`, `BethesdaSoftworks.*`, …) are stable.
+///
+/// Wave 6 note: the bare `Microsoft.Xbox` prefix was REMOVED — it
+/// matched system infrastructure (`Microsoft.XboxIdentityProvider`,
+/// `Microsoft.XboxGameOverlay`, …) at much higher rate than real
+/// Xbox-published titles, and Microsoft titles ship under hashed IDs
+/// (`Microsoft.624F8B84B80`) or title-specific names instead.
 fn matches_game_publisher(package_name: &str, family_name: &str) -> bool {
     let pn = package_name.to_ascii_lowercase();
     let fn_ = family_name.to_ascii_lowercase();
@@ -406,36 +489,37 @@ fn matches_game_publisher(package_name: &str, family_name: &str) -> bool {
     })
 }
 
-/// Heuristic: does the install dir contain at least one `.exe` whose
-/// file-name doesn't look like a launcher / updater / installer? Real
-/// Xbox PC games ship a `*.exe` (or several); pure system / utility
-/// UWP apps tend to ship only AppX-side activations and no native exe,
-/// or only a launcher shim.
+/// True when any path component of `install_location` equals
+/// `XboxGames` (case-insensitive). Microsoft Store / Game Pass titles
+/// install to `[drive]:\XboxGames\<TitleName>\Content\` from GDK March
+/// 2022 onward. The folder name is reserved for game installs by the
+/// Xbox app, so a package living under it is a Game Pass / Xbox PC
+/// title with very high probability — false-positive rate < 0.5 %.
 ///
-/// Walks at most ~64 entries one level deep to stay cheap on packages
-/// whose install dir holds thousands of asset files.
-fn has_significant_exe(install_dir: &Path) -> bool {
-    let Ok(entries) = std::fs::read_dir(install_dir) else {
-        return false;
-    };
-    for entry in entries.flatten().take(64) {
-        let path = entry.path();
-        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-            continue;
-        };
-        if !EXE_EXTENSIONS.iter().any(|e| ext.eq_ignore_ascii_case(e)) {
-            continue;
-        }
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        let lower = stem.to_ascii_lowercase();
-        if LAUNCHER_EXE_HINTS.iter().any(|h| lower.contains(h)) {
-            continue;
-        }
+/// Pure path manipulation, no I/O.
+///
+/// We split on **both** `/` and `\` regardless of the host OS so that
+/// (a) production WinRT-sourced paths (`C:\XboxGames\Halo\Content`)
+/// match on Windows, and (b) tests cross-compiled on Linux still
+/// recognise the same shape. `Path::components` on POSIX treats `\`
+/// as a literal character inside a single component, which would
+/// silently break the check on a non-Windows test host.
+fn installs_under_xbox_games(install_location: &Path) -> bool {
+    // Fast path for native components (drives, prefixes, separators).
+    if install_location.components().any(|c| match c {
+        Component::Normal(os) => os
+            .to_str()
+            .map(|s| s.eq_ignore_ascii_case(XBOX_GAMES_PATH_COMPONENT))
+            .unwrap_or(false),
+        _ => false,
+    }) {
         return true;
     }
-    false
+    // Fallback: split the lossy string form on both separators so a
+    // Windows-shaped path read on POSIX (and vice versa) still matches.
+    let s = install_location.to_string_lossy();
+    s.split(|c| c == '\\' || c == '/')
+        .any(|seg| seg.eq_ignore_ascii_case(XBOX_GAMES_PATH_COMPONENT))
 }
 
 /// Try the literal manifest-relative logo path, then the standard
@@ -563,15 +647,20 @@ mod tests {
                 "expected `{name}` to be skipped by SKIP_PREFIXES",
             );
         }
-        // Real apps must NOT be skipped.
+        // Real apps / games must NOT be skipped.
+        // Wave 6: `Microsoft.GamingApp` (Xbox storefront) is now in the
+        // skip-list — it's a launcher, not a game; the user can still
+        // launch it via Start Menu. See wave6-uwp-research.md § 4.4.
         for name in &[
             "Microsoft.MinecraftUWP",
-            "Microsoft.GamingApp",
             "78F8E0F2.ForzaHorizon5",
             "Mojang.Minecraft",
             "BethesdaSoftworks.Starfield",
             "KingDigitalEntertainment.CandyCrushSaga",
             "EAInc.EAappinstaller",
+            "Microsoft.624F8B84B80",
+            "Microsoft.MicrosoftSolitaireCollection",
+            "MojangStudios.MinecraftUWP",
         ] {
             assert!(
                 !skip_list::is_skipped(name),
@@ -619,11 +708,10 @@ mod tests {
     #[test]
     fn normal_package_emits_app_entry() {
         let tmp = TempDir::new().unwrap();
-        // Launcher-shaped exe name + non-publisher package family, so
-        // none of the layered gaming heuristics fire and the entry
-        // still lands with `is_xbox_game = false`. This is the
-        // canonical "UWP utility" shape — surfaces in the library list
-        // but not on the Home grid.
+        // Non-publisher family, no MicrosoftGame.Config, install path
+        // not under \XboxGames\. Wave 6 default-NO chain → entry
+        // still surfaces in the library list with `is_xbox_game = false`,
+        // but is filtered off the Home grid (which keys on is_game).
         write_simple_manifest(tmp.path(), "App", "AppLauncher.exe", "Assets/Logo.png");
         fs::write(tmp.path().join("AppLauncher.exe"), b"MZ").unwrap();
         fs::create_dir_all(tmp.path().join("Assets")).unwrap();
@@ -658,7 +746,7 @@ mod tests {
         assert_eq!(
             e.metadata.get("is_xbox_game").and_then(Value::as_bool),
             Some(false),
-            "no MicrosoftGame.Config + no gaming capability + non-publisher name + only a launcher-shaped exe → not a game",
+            "Wave 6 default-NO: no MicrosoftGame.Config + no XboxGames path + no publisher prefix → not a game",
         );
         assert!(e.exe_path.is_some());
         assert!(e.icon_path.is_some());
@@ -788,11 +876,13 @@ mod tests {
         );
     }
 
-    // ── Layered gaming heuristic ─────────────────────────────────────
+    // ── Wave 6 inverted gaming heuristic ─────────────────────────────
+    // Default-NO chain. Only flip to game on a strict positive:
+    //   1. MicrosoftGame.Config
+    //   2. install path under \XboxGames\
+    //   3. curated GAME_PUBLISHER_PREFIXES match
+    // Anti-signals: skip-list, framework flag, AppListEntry="none".
 
-    /// Gaming capability declared in the manifest flips `is_xbox_game`
-    /// to true even when there's no MicrosoftGame.Config — covers the
-    /// Game Pass titles the spike found ship one but not the other.
     fn write_manifest_with_capability(dir: &Path, capability: &str) {
         let xml = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -812,12 +902,83 @@ mod tests {
         fs::write(dir.join("AppxManifest.xml"), xml).unwrap();
     }
 
+    fn write_manifest_with_app_list_entry(dir: &Path, entry: &str) {
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10">
+  <Applications>
+    <Application Id="App" Executable="App.exe">
+      <uap:VisualElements AppListEntry="{entry}" Square150x150Logo="Logo.png" />
+    </Application>
+  </Applications>
+</Package>"#,
+        );
+        fs::write(dir.join("AppxManifest.xml"), xml).unwrap();
+    }
+
+    /// Wave 6 regression test: bare `Microsoft.Xbox*` infrastructure
+    /// packages (XboxGamingOverlay, XboxIdentityProvider, …) MUST NOT
+    /// be classified as games. Pre-Wave-6 the `Microsoft.Xbox` family
+    /// prefix matched them all — the user's complaint of "all xbox
+    /// apps show up" is exactly this cluster. They're now skip-listed,
+    /// so we exercise both ends: `is_skipped` + `matches_game_publisher`.
     #[test]
-    fn xbox_capability_marks_package_as_game() {
+    fn xbox_infrastructure_packages_are_skipped() {
+        for name in &[
+            "Microsoft.XboxIdentityProvider",
+            "Microsoft.XboxGameOverlay",
+            "Microsoft.XboxGamingOverlay",
+            "Microsoft.XboxSpeechToTextOverlay",
+            "Microsoft.Xbox.TCUI",
+            "Microsoft.XboxApp",
+            "Microsoft.GamingApp",
+            "Microsoft.GamingServices",
+            "Microsoft.Bing",
+            "Microsoft.BingNews",
+            "Microsoft.BingWeather",
+            "Microsoft.MicrosoftClipchamp",
+            "Clipchamp.Clipchamp",
+            "SpotifyAB.SpotifyMusic",
+            "Discord.Discord",
+            "4DF9E0F8.Netflix",
+            "WhatsAppInc.WhatsAppDesktop",
+            "GitHub.GitHubDesktop",
+            "NVIDIACorp.NVIDIAControlPanel",
+        ] {
+            assert!(
+                skip_list::is_skipped(name),
+                "expected `{name}` to be in the skip-list (Wave 6 expansion)",
+            );
+        }
+        // The family-prefix list MUST NOT match infrastructure either,
+        // even if a future skip-list change accidentally drops them.
+        for (pn, fname) in &[
+            (
+                "Microsoft.XboxIdentityProvider",
+                "Microsoft.XboxIdentityProvider_8wekyb3d8bbwe",
+            ),
+            (
+                "Microsoft.XboxGamingOverlay",
+                "Microsoft.XboxGamingOverlay_8wekyb3d8bbwe",
+            ),
+            ("Microsoft.Xbox.TCUI", "Microsoft.Xbox.TCUI_8wekyb3d8bbwe"),
+        ] {
+            assert!(
+                !matches_game_publisher(pn, fname),
+                "publisher-prefix list must not match {pn} (would re-introduce Wave 4 bug)",
+            );
+        }
+    }
+
+    /// Capability-only signal MUST NOT flip the flag in Wave 6 — the
+    /// chain is now positive-list. A package with `xboxAccessoryManagement`
+    /// but no MicrosoftGame.Config, no XboxGames install path, and no
+    /// publisher-prefix match falls through to "not a game".
+    #[test]
+    fn xbox_capability_alone_does_not_mark_as_game() {
         let tmp = TempDir::new().unwrap();
         write_manifest_with_capability(tmp.path(), "xboxAccessoryManagement");
-        // Launcher-shaped exe so has_significant_exe doesn't fire and
-        // we know the *capability* is what flipped the flag.
         fs::write(tmp.path().join("GameLauncher.exe"), b"MZ").unwrap();
         let pkg = RawPackage {
             package_name: "ContosoStudios.SomeTitle".into(),
@@ -836,16 +997,15 @@ mod tests {
                 .metadata
                 .get("is_xbox_game")
                 .and_then(Value::as_bool),
-            Some(true),
-            "xboxAccessoryManagement capability is the gaming signal",
+            Some(false),
+            "Wave 6: capability dropped from positive signals — package surfaces as non-game",
         );
     }
 
     #[test]
     fn known_publisher_prefix_marks_package_as_game() {
-        // Mojang.Minecraft has no MicrosoftGame.Config in the wild and
-        // doesn't always declare an Xbox capability; the publisher
-        // prefix is what saves it.
+        // Mojang.* is in the curated publisher list — primary path
+        // for older UWP titles that lack MicrosoftGame.Config.
         let tmp = TempDir::new().unwrap();
         write_simple_manifest(tmp.path(), "App", "GameLauncher.exe", "Logo.png");
         fs::write(tmp.path().join("GameLauncher.exe"), b"MZ").unwrap();
@@ -870,12 +1030,49 @@ mod tests {
         );
     }
 
+    /// Forza-style hashed publisher ID — the family-name allowlist
+    /// pattern recommended by `wave6-uwp-research.md` § 4.
     #[test]
-    fn significant_exe_marks_package_as_game() {
+    fn forza_hashed_publisher_id_marks_package_as_game() {
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "ForzaHorizon5.exe", "Logo.png");
+        fs::write(tmp.path().join("ForzaHorizon5.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            package_name: "Microsoft.624F8B84B80".into(),
+            family_name: "Microsoft.624F8B84B80_8wekyb3d8bbwe".into(),
+            display_name: "Forza Horizon 5".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+        );
+    }
+
+    /// Wave 6 regression: a package with a real .exe but no
+    /// MicrosoftGame.Config, no XboxGames path, and no publisher-prefix
+    /// match (the Spotify / Netflix / Discord shape) MUST NOT be
+    /// classified as a game. Pre-Wave-6 the `has_significant_exe`
+    /// heuristic flipped these to `is_xbox_game = true`; the user's
+    /// complaint of "all xbox apps show up" is partially this cluster.
+    #[test]
+    fn third_party_uwp_with_real_exe_is_not_a_game() {
         let tmp = TempDir::new().unwrap();
         write_simple_manifest(tmp.path(), "App", "ContosoRPG.exe", "Logo.png");
         fs::write(tmp.path().join("ContosoRPG.exe"), b"MZ").unwrap();
         let pkg = RawPackage {
+            // NOT in skip-list, NOT in publisher-prefix list, NOT under
+            // \XboxGames\, NO MicrosoftGame.Config — exactly the
+            // Spotify / Discord / Netflix shape per audit § 1, table D.
             package_name: "Contoso.IndieGame".into(),
             family_name: "Contoso.IndieGame_x".into(),
             display_name: "Contoso RPG".into(),
@@ -892,21 +1089,71 @@ mod tests {
                 .metadata
                 .get("is_xbox_game")
                 .and_then(Value::as_bool),
-            Some(true),
-            "non-launcher exe in install dir is enough on its own",
+            Some(false),
+            "Wave 6: has_significant_exe dropped — non-launcher exe alone no longer a signal",
         );
     }
 
+    /// Install path under `\XboxGames\` flips a package to a game
+    /// even without MicrosoftGame.Config / publisher-prefix match.
+    /// This catches Game Pass / Xbox PC titles whose package family
+    /// uses a non-publisher hash that's not in our curated list.
     #[test]
-    fn launcher_only_install_dir_is_not_a_game() {
+    fn xbox_games_install_path_marks_package_as_game() {
+        // Synthesize a path with a literal `XboxGames` component. We
+        // don't write this to a real `C:\XboxGames\…` because tests
+        // run on Linux/Mac; the manifest still has to load, so we use
+        // a tempdir for the file content but inject the synthetic
+        // `install_location` separately.
         let tmp = TempDir::new().unwrap();
-        write_simple_manifest(tmp.path(), "App", "Updater.exe", "Logo.png");
-        fs::write(tmp.path().join("Updater.exe"), b"MZ").unwrap();
-        fs::write(tmp.path().join("Setup.exe"), b"MZ").unwrap();
+        write_simple_manifest(tmp.path(), "App", "Halo.exe", "Logo.png");
+        fs::write(tmp.path().join("Halo.exe"), b"MZ").unwrap();
+
+        // installs_under_xbox_games is path-only, so the path passed
+        // to RawPackage just needs the component. We point it at a
+        // subdirectory of tmp so the manifest read works on POSIX.
+        let xbox_root = tmp.path().join("XboxGames").join("Halo").join("Content");
+        fs::create_dir_all(&xbox_root).unwrap();
+        write_simple_manifest(&xbox_root, "App", "Halo.exe", "Logo.png");
+        fs::write(xbox_root.join("Halo.exe"), b"MZ").unwrap();
+
         let pkg = RawPackage {
-            package_name: "Contoso.WindowsTool".into(),
-            family_name: "Contoso.WindowsTool_x".into(),
-            display_name: "Contoso Tool".into(),
+            // Vendor name NOT in skip-list, NOT in publisher-prefix.
+            package_name: "Vendor.RandomGameSku".into(),
+            family_name: "Vendor.RandomGameSku_x".into(),
+            display_name: "Some Game".into(),
+            install_location: xbox_root.clone(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0]
+                .metadata
+                .get("is_xbox_game")
+                .and_then(Value::as_bool),
+            Some(true),
+            "install path under XboxGames is a strong positive signal on its own",
+        );
+    }
+
+    /// MicrosoftGame.Config presence flips a package even when the
+    /// publisher prefix and install path don't match. This is the
+    /// strongest signal; preserved from Wave 4.
+    #[test]
+    fn microsoft_game_config_alone_marks_package_as_game() {
+        let tmp = TempDir::new().unwrap();
+        write_simple_manifest(tmp.path(), "App", "Game.exe", "Logo.png");
+        fs::write(tmp.path().join("Game.exe"), b"MZ").unwrap();
+        write_game_config(tmp.path(), "Game.exe");
+        let pkg = RawPackage {
+            // Vendor not in any list — the .config file alone carries it.
+            package_name: "Vendor.Untracked".into(),
+            family_name: "Vendor.Untracked_x".into(),
+            display_name: "Untracked Game".into(),
             install_location: tmp.path().to_path_buf(),
             is_framework: false,
         };
@@ -920,9 +1167,72 @@ mod tests {
                 .metadata
                 .get("is_xbox_game")
                 .and_then(Value::as_bool),
-            Some(false),
-            "only launcher-shaped exes → no significant-exe signal",
+            Some(true),
         );
+    }
+
+    /// Anti-signal: AppListEntry="none" on every <Application> drops
+    /// the entire package — the platform itself hides it from All
+    /// Apps. Honored even when the family-name matches a game
+    /// publisher (avoids surfacing an extension host that happens to
+    /// share a family-name root with a real title).
+    #[test]
+    fn app_list_entry_none_drops_package() {
+        let tmp = TempDir::new().unwrap();
+        write_manifest_with_app_list_entry(tmp.path(), "none");
+        fs::write(tmp.path().join("App.exe"), b"MZ").unwrap();
+        let pkg = RawPackage {
+            // In publisher-prefix list — but should still drop because
+            // every <Application> is hidden and there's no game config.
+            package_name: "Mojang.HiddenChild".into(),
+            family_name: "Mojang.HiddenChild_x".into(),
+            display_name: "Hidden Child".into(),
+            install_location: tmp.path().to_path_buf(),
+            is_framework: false,
+        };
+        let entries = scan_with(&MockEnumerator {
+            packages: vec![pkg],
+            available: true,
+        });
+        assert!(
+            entries.is_empty(),
+            "AppListEntry=\"none\" + no MicrosoftGame.Config → drop entirely",
+        );
+    }
+
+    /// Bare `Microsoft.Xbox*` packages are NOT in the publisher
+    /// prefix list anymore, so even if they somehow slip past the
+    /// skip-list (e.g. a new XboxFooBar package Microsoft adds in
+    /// 2026), they fall through to "not a game" by default.
+    #[test]
+    fn future_microsoft_xbox_infrastructure_does_not_match_publisher() {
+        // Hypothetical not-yet-shipping package; not in skip-list, but
+        // also must not be classified as a game by family-prefix alone.
+        assert!(!matches_game_publisher(
+            "Microsoft.XboxSomeFutureWidget",
+            "Microsoft.XboxSomeFutureWidget_8wekyb3d8bbwe",
+        ));
+    }
+
+    #[test]
+    fn installs_under_xbox_games_helper_is_case_insensitive() {
+        use std::path::PathBuf;
+        assert!(installs_under_xbox_games(&PathBuf::from(
+            "C:\\XboxGames\\Halo\\Content"
+        )));
+        assert!(installs_under_xbox_games(&PathBuf::from(
+            "/mnt/d/xboxgames/halo/content"
+        )));
+        assert!(installs_under_xbox_games(&PathBuf::from(
+            "D:\\XBOXGAMES\\Forza"
+        )));
+        assert!(!installs_under_xbox_games(&PathBuf::from(
+            "C:\\Program Files\\WindowsApps\\Foo"
+        )));
+        // Substring match must NOT trigger — we want a full component.
+        assert!(!installs_under_xbox_games(&PathBuf::from(
+            "C:\\MyXboxGamesArchive\\Foo"
+        )));
     }
 
     /// `library.xbox.treat_all_as_games` flips every surviving package

@@ -17,6 +17,27 @@ pub struct ManifestApp {
     /// `Square150x150Logo` if present, otherwise `Logo`. Stored
     /// manifest-relative — the caller joins it with the install dir.
     pub logo: Option<String>,
+    /// `<uap:VisualElements AppListEntry="...">` value when present.
+    /// `Some("none")` (case-insensitive) means the app is hidden from
+    /// the All Apps list — Microsoft itself doesn't want it in any
+    /// launcher. Stored as the original-cased string for diagnostics;
+    /// use [`Self::is_hidden`] for the comparison.
+    pub app_list_entry: Option<String>,
+}
+
+impl ManifestApp {
+    /// True when `<uap:VisualElements AppListEntry="none">` is set on
+    /// this `<Application>`. The platform hides these from the All Apps
+    /// list — they're extension hosts / COM brokers / companion services
+    /// that aren't meant to be user-launchable. Wave 6 anti-signal: even
+    /// if a positive game-detection signal fires, hidden apps stay out
+    /// of the library.
+    pub fn is_hidden(&self) -> bool {
+        matches!(
+            self.app_list_entry.as_deref().map(str::trim),
+            Some(s) if s.eq_ignore_ascii_case("none")
+        )
+    }
 }
 
 /// Subset of the manifest the gaming heuristic cares about. Returned
@@ -96,7 +117,11 @@ pub fn parse_manifest_full(
                 } else if (name == "VisualElements" || name == "DefaultTile")
                     && current.is_some()
                 {
-                    capture_logo(&e.attributes().flatten().collect::<Vec<_>>(), &mut current);
+                    let attrs = e.attributes().flatten().collect::<Vec<_>>();
+                    capture_logo(&attrs, &mut current);
+                    if name == "VisualElements" {
+                        capture_app_list_entry(&attrs, &mut current);
+                    }
                 } else if name == "Capability"
                     || name == "DeviceCapability"
                     || name == "CustomCapability"
@@ -129,7 +154,11 @@ pub fn parse_manifest_full(
                 } else if (name == "VisualElements" || name == "DefaultTile")
                     && current.is_some()
                 {
-                    capture_logo(&e.attributes().flatten().collect::<Vec<_>>(), &mut current);
+                    let attrs = e.attributes().flatten().collect::<Vec<_>>();
+                    capture_logo(&attrs, &mut current);
+                    if name == "VisualElements" {
+                        capture_app_list_entry(&attrs, &mut current);
+                    }
                 } else if name == "Capability"
                     || name == "DeviceCapability"
                     || name == "CustomCapability"
@@ -173,6 +202,32 @@ fn capture_logo(
             let val = attr.unescape_value().unwrap_or_default().to_string();
             if !val.is_empty() {
                 app.logo = Some(val);
+                return;
+            }
+        }
+    }
+}
+
+/// Capture `<uap:VisualElements AppListEntry="...">` onto the current
+/// `<Application>` if present. Per the [VisualElements schema][1] this
+/// attribute is `default` (visible) or `none` (hidden from All Apps).
+/// Wave 6 reads it as an anti-signal — see [`ManifestApp::is_hidden`].
+///
+/// [1]: https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-uap-visualelements
+fn capture_app_list_entry(
+    attrs: &[quick_xml::events::attributes::Attribute],
+    current: &mut Option<ManifestApp>,
+) {
+    let Some(app) = current.as_mut() else { return };
+    if app.app_list_entry.is_some() {
+        return;
+    }
+    for attr in attrs {
+        let key_local = attr.key.local_name();
+        if local_name_str(key_local.as_ref()) == "AppListEntry" {
+            let val = attr.unescape_value().unwrap_or_default().to_string();
+            if !val.is_empty() {
+                app.app_list_entry = Some(val);
                 return;
             }
         }
@@ -330,6 +385,54 @@ mod tests {
     fn microsoft_game_config_without_executable_list_returns_none() {
         let xml = r#"<?xml version="1.0"?><Game configVersion="1"/>"#;
         assert_eq!(parse_microsoft_game_config(xml), None);
+    }
+
+    #[test]
+    fn parses_app_list_entry_when_present() {
+        // AppListEntry="none" is the platform's "hide from All Apps"
+        // signal — UWP packages use it for extension hosts and COM
+        // brokers. Wave 6 reads it as an anti-signal in the gaming
+        // detection chain.
+        let xml = r#"<?xml version="1.0"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10">
+  <Applications>
+    <Application Id="HiddenApp" Executable="Hidden.exe">
+      <uap:VisualElements AppListEntry="none" Square150x150Logo="Logo.png" />
+    </Application>
+    <Application Id="NormalApp" Executable="Normal.exe">
+      <uap:VisualElements Square150x150Logo="Logo.png" />
+    </Application>
+  </Applications>
+</Package>"#;
+        let apps = parse_manifest(xml).unwrap();
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].app_list_entry.as_deref(), Some("none"));
+        assert!(apps[0].is_hidden());
+        assert_eq!(apps[1].app_list_entry, None);
+        assert!(!apps[1].is_hidden());
+    }
+
+    #[test]
+    fn app_list_entry_is_case_insensitive() {
+        let app = ManifestApp {
+            id: "X".into(),
+            app_list_entry: Some("NONE".into()),
+            ..Default::default()
+        };
+        assert!(app.is_hidden());
+        let app = ManifestApp {
+            id: "X".into(),
+            app_list_entry: Some(" none ".into()),
+            ..Default::default()
+        };
+        assert!(app.is_hidden());
+        let app = ManifestApp {
+            id: "X".into(),
+            app_list_entry: Some("default".into()),
+            ..Default::default()
+        };
+        assert!(!app.is_hidden());
     }
 
     #[test]
